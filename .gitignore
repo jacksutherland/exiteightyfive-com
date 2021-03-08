@@ -7,6 +7,8 @@
 # Website Resources
 /web/files
 /web/files/*
+/web/videos
+/web/videos/*
 /web/cpresources
 /web/cpresources/*
 
