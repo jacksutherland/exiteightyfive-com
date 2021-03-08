@@ -1,0 +1,15 @@
+fieldLayouts:
+  a5d595f3-c112-4f07-92f5-6a466cbf7040:
+    tabs:
+      -
+        fields:
+          6cbc86d1-32eb-47a8-86e5-fbac09824639:
+            required: false
+            sortOrder: 1
+          d9ed7123-042e-49f9-a05f-1ea52774fc61:
+            required: false
+            sortOrder: 2
+        name: Shows
+        sortOrder: 1
+handle: events
+name: Events

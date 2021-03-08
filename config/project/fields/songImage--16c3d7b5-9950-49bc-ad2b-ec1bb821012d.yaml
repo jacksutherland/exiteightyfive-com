@@ -1,0 +1,25 @@
+contentColumnType: string
+fieldGroup: 26d71486-d4bc-4845-ba36-080cec8e66c4
+handle: songImage
+instructions: ''
+name: 'Song Image'
+searchable: true
+settings:
+  allowedKinds:
+    - image
+  defaultUploadLocationSource: 'volume:b2fbd8ed-6e44-4ed2-8d57-07fbe9376496'
+  defaultUploadLocationSubpath: ''
+  limit: '1'
+  localizeRelations: false
+  restrictFiles: '1'
+  selectionLabel: ''
+  singleUploadLocationSource: 'volume:7f44c26b-1385-4e61-bae8-1066060c1b30'
+  singleUploadLocationSubpath: ''
+  source: null
+  sources: '*'
+  targetSiteId: null
+  useSingleFolder: '1'
+  viewMode: list
+translationKeyFormat: null
+translationMethod: site
+type: craft\fields\Assets

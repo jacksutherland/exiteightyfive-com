@@ -1,0 +1,29 @@
+enableVersioning: true
+entryTypes:
+  372d0c1a-c351-4611-952d-18f1b290cd06:
+    fieldLayouts:
+      713fdae2-f8e6-4fbf-9686-031305e0c423:
+        tabs:
+          -
+            fields:
+              6cbc86d1-32eb-47a8-86e5-fbac09824639:
+                required: false
+                sortOrder: 1
+            name: Calendar
+            sortOrder: 1
+    handle: calendar
+    hasTitleField: false
+    name: Calendar
+    sortOrder: 1
+    titleFormat: '{section.name|raw}'
+    titleLabel: ''
+handle: calendar
+name: Calendar
+propagationMethod: all
+siteSettings:
+  3c0b1454-ae0e-451e-b505-cf0eaea80e50:
+    enabledByDefault: true
+    hasUrls: true
+    template: shows/index
+    uriFormat: calendar
+type: single

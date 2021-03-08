@@ -1,0 +1,16 @@
+contentColumnType: text
+fieldGroup: 1d69aef5-4afe-4fc1-bb64-420b9d72aa52
+handle: seoTitle
+instructions: ''
+name: 'SEO Title'
+searchable: true
+settings:
+  charLimit: ''
+  code: ''
+  columnType: text
+  initialRows: '4'
+  multiline: ''
+  placeholder: ''
+translationKeyFormat: null
+translationMethod: none
+type: craft\fields\PlainText

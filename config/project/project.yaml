@@ -1,0 +1,20 @@
+dateModified: 1615227243
+email:
+  fromEmail: jack@jacksutherland.com
+  fromName: Magus
+  transportType: craft\mail\transportadapters\Sendmail
+plugins:
+  mobile-detect:
+    edition: standard
+    enabled: true
+    schemaVersion: 1.0.0
+  redactor:
+    edition: standard
+    enabled: true
+    schemaVersion: 2.3.0
+system:
+  edition: pro
+  live: true
+  name: 'Exit 85'
+  schemaVersion: 3.2.14
+  timeZone: America/New_York

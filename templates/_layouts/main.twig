@@ -1,0 +1,211 @@
+{% set resourceVersion = '2.07' %}
+{% if entry is not defined or entry.section.handle == 'homepage' %}
+    {% set jumpLink = 'jump-link' %}
+    {% set navUrl = '' %}
+{% else %}
+    {% set jumpLink = '' %}
+    {% set navUrl = '/' %}
+{% endif %}
+
+{% set alertClass = craft.app.request.getParam('src') is not null or news.newsHtml | length ? "has-alert" : "" %}
+
+<!DOCTYPE html>
+<html>
+
+    <head>
+        {# 
+            <!-- Global site tag (gtag.js) - Google Analytics -->
+            <script async src="https://www.googletagmanager.com/gtag/js?id=UA-139848868-1"></script>
+            <script>
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+
+              gtag('config', 'UA-139848868-1');
+            </script>
+         #}
+        
+        <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+        <meta name="format-detection" content="telephone=no" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, user-scalable=no, minimal-ui"/>
+        <link rel="shortcut icon" href="/favicon.ico" />
+        <title>
+            {% block title %}
+                {{ seo.seoTitle }} 
+            {% endblock %}
+           {#  {{ seo.seoSuffix }} #}
+        </title>
+        <meta name="description" content="{{ seo.seoDescription }}">
+
+        {# OG Tags #}
+        <meta property="og:title" content="{{ siteName }}" />
+        <meta property="og:description" content="{{ seo.seoDescription }}" />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="http://exiteightyfive.com" />
+        <meta property="og:image" content="http://exiteightyfive.com/images/exit85-road-socialmedia.jpg" />
+        <meta property="og:logo" content="http://exiteightyfive.com/images/logo-sign-small.png" />
+
+        {# Twitter Tags #}
+        <meta name="twitter:creator" content="@jacksutherland" />
+        <meta name="twitter:card" content="summary">
+        <meta name="twitter:title" content="{{ siteName }}">
+        <meta name="twitter:description" content="{{ seo.seoDescription }}">
+        <meta name="twitter:image" content="http://exiteightyfive.com/images/kiser-landscape.jpg">
+
+        {# RESOURCES #}
+        <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.2/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-Smlep5jCw/wG7hdkwQ/Z5nLIefveQRIY9nfy6xoR1uRYBtpZgI6339F5dgvm/e9B" crossorigin="anonymous">
+        <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.1.1/css/all.css" integrity="sha384-O8whS3fhG2OnA5Kas0Y9l3cfpmYjapjI0E4theH4iuMD+pLhbf6JI0jIMfYcK3yZ" crossorigin="anonymous">
+
+        {# FONTS #}
+        <link href="https://fonts.googleapis.com/css?family=Hind+Siliguri:400,700" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css?family=Acme" rel="stylesheet">
+        {# <link href="https://fonts.googleapis.com/css?family=Trade+Winds&display=swap" rel="stylesheet"> #}
+
+        {# CSS #}
+        <link href="/assets/css/main.min.css?v={{ resourceVersion }}" rel="stylesheet" type="text/css" />
+
+        {# GTM Data Layer #}
+        <script>
+          dataLayer = []; // Initialize Data Layer
+        </script>
+    </head>
+
+    <body{% if entry is defined %} id="{{ entry.slug }}"{% endif %}>
+    
+        <!-- Google Tag Manager -->
+        <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5VQ4P6P"
+        height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+         <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+        new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+        j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+        'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+        })(window,document,'script','dataLayer','GTM-5VQ4P6P');</script>
+        <!-- End Google Tag Manager -->
+
+        <!-- Facebook SDK -->
+        <div id="fb-root"></div>
+        <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v7.0&appId=101190826639926&autoLogAppEvents=1" nonce="MASbJ8r0"></script>
+        <!-- End Facebook SDK -->
+
+        <header class="at-top {{ alertClass }}">
+            {% if craft.app.request.getParam('src') is not null %}
+                <div class="news-alert d-none d-md-block">
+                    <div class="news-alert-content">
+                        <a href="/sections/contact" class="{{ jumpLink }}" data-section="#contact">Book your venue, party or event today!</a>
+                    </div>
+                </div>
+            {% elseif news.newsHtml | length %}
+                <div class="news-alert d-none d-md-block">
+                    <div class="news-alert-content">
+                        {{ news.newsHtml | raw }}
+                    </div>
+                </div>
+            {% endif %}
+            <div id="main-menu" class="container" itemscope itemtype="http://schema.org/SiteNavigationElement">
+                <a href="/" class="{{ jumpLink }}">
+                    <span itemprop="name" class="d-none d-md-inline">HOME</span><i class="fas fa-home d-inline d-md-none"></i>
+                </a>
+                <a itemprop="url" href="/sections/about" class="{{ jumpLink }} d-none d-md-inline" data-section="#about" title="About Us">
+                    <span itemprop="name">ABOUT</span>
+                </a>
+                <a itemprop="url" href="/sections/shows" class="{{ jumpLink }}" data-section="#shows" title="Upcoming Shows">
+                    <span itemprop="name">SHOWS</span>
+                </a>
+                <a itemprop="url" href="/sections/members" class="{{ jumpLink }}" data-section="#members" title="Meet the Band">
+                    <span itemprop="name">BAND</span>
+                </a>
+                <a itemprop="url" href="/sections/music" class="{{ jumpLink }} d-inline d-md-none" data-section="#music" title="Videos and Performances">
+                    <span itemprop="name">MUSIC</span>
+                </a>
+                <a itemprop="url" href="/sections/music" class="{{ jumpLink }} d-none d-md-inline" data-section="#music" title="Videos and Performances">
+                    <span itemprop="name">VIDEOS</span>
+                </a>
+                <a itemprop="url" href="/sections/songs" class="{{ jumpLink }} d-none d-md-inline" data-section="#songs" title="The Songs we Cover">
+                    <span itemprop="name">SONGS</span>
+                </a>
+                <a itemprop="url" href="/sections/contact" class="{{ jumpLink }}" data-section="#contact" title="Let's Connect">
+                    <span itemprop="name">CONTACT</span>
+                </a>
+                <a href="https://www.youtube.com/channel/UCiT2sGOUicZ7FbLLcTRvXjg/" target="_blank" class="d-none d-md-inline"><i class="fab fa-youtube"></i></a>
+                <a href="https://www.facebook.com/exiteightyfive" target="_blank"><i class="fab fa-facebook"></i></a>
+            </div>
+        </header>
+
+        <div class="page-header {{ alertClass }}">
+            <a href="/" class="logo {{ jumpLink }}">
+                <img src="/images/logo-sign-small.png" alt="">
+            </a>
+            <div class="fb-like" data-href="https://www.facebook.com/exiteightyfive" data-width="" data-layout="button_count" data-action="like" data-size="small" data-share="true"></div>
+            {% block hero %} {% endblock %}
+        </div>
+
+        {% block content %} {% endblock %}
+
+        <section id="contact" class="ux-form">
+            <div class="container">
+                <h2>{{ contactForm.contactHeader }}</h2>
+                {% if contactForm.contactText %}
+                    <p class="mb-4">{{ contactForm.contactText }}</p>
+                {% endif %}
+                <form id="contact-form">
+                    <input type="hidden" name="soulgem" value="">
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <input type="text" placeholder="First Name *" name="first">
+                        </div>
+                        <div class="col-sm-6">
+                            <input type="text" placeholder="Last Name *" name="last">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <input type="text" placeholder="Phone" name="phone">
+                        </div>
+                        <div class="col-sm-6">
+                            <input type="text" placeholder="Email" name="email">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <input type="text" placeholder="Venue Name and Location" name="venue">
+                        </div>
+                        <div class="col-sm-6">
+                            <input type="text" placeholder="Date(s) Interested" name="dates">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <textarea placeholder="Message" name="message"></textarea>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                            <button type="submit">Send</button> 
+                            <span class="info"></span>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <footer>
+            <div class="container">
+                <div class="copyright">© 2018 {{ siteName }}. All right reserved. Created by <a href="http://www.jacksutherland.com">Jack</a>.</div>
+                <div>
+                    <a href="https://www.youtube.com/channel/UCiT2sGOUicZ7FbLLcTRvXjg/" target="_blank"><i class="fab fa-youtube"></i></a>
+                    <a href="https://www.facebook.com/jacksutherland" target="_blank"><i class="fab fa-facebook"></i></a>
+                </div>
+            </div>
+        </footer>
+
+        <div id="smoke" class="smoke"></div>
+
+        {# JS #}
+        <script src="https://code.jquery.com/jquery-3.3.1.min.js" integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>
+        <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.2/js/bootstrap.min.js" integrity="sha384-o+RDsa0aLu++PJvFqy8fFScvbHFLtbvScb8AjopnFD+iEQ7wo/CG0xlczd+2O/em" crossorigin="anonymous"></script>
+        <script src="/assets/js/site.min.js?v={{ resourceVersion }}"></script>
+        {% block scripts %} {% endblock %}
+    </body>
+
+</html>

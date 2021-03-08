@@ -1,0 +1,247 @@
+{% extends "_layouts/main" %}
+
+{% if craft.app.request.segments | length == 1 and craft.app.request.getSegment(1) == 'sections' %}
+	{% redirect "\/" %}
+{% endif %}
+
+{% if entry is not defined %}
+	{% set entry = craft.entries.section('homepage').one() %}
+{% endif %}
+
+{% set setlist90s = craft.categories.group('songs').slug('setlist90s') %}
+{% set setlist80s = craft.categories.group('songs').slug('setlist80s') %}
+{# {% set members = craft.entries.section('members').orderBy('postDate') %} #}
+{% set upcomingShows = craft.entries().section('shows').showDate('>=' ~ now | date | atom).orderBy('showDate asc').all() %}
+{% set pastShows = craft.entries().section('shows').showDate('<' ~ now | date | atom).orderBy('showDate desc').limit(13).all() %}
+{% set videos = craft.categories.group('videos') %}
+{% set featuredVideos = craft.categories.group('videos').isFeatured('1') %}
+
+{% block hero %}
+
+	<div class="sneaky hero{% if entry.heroAnimated %} animated{% endif %}">
+		{% if entry.showHeroVideo and not craft.mobileDetect.isMobile  %}
+			<div class="hero-video{% if entry.heroGrayscale %} hero-grayscale{% endif %}">
+				<div class="hero-video-cover"></div>
+				<video playsinline="" autoplay="" muted="" loop="">
+				  	<source src="/videos/hero-video-mobile.mp4" type="video/mp4">
+				</video>
+			</div>
+		{% elseif craft.mobileDetect.isMobile %}
+			<div class="hero-image{% if entry.heroGrayscale %} hero-grayscale{% endif %}" style="background-image: url(https://exiteightyfive.com/files/generic/images/exit85-ipa2-mobile.jpg);"></div>
+		{% else %}
+			<div class="hero-image{% if entry.heroGrayscale %} hero-grayscale{% endif %}" style="background-image: url(https://exiteightyfive.com/files/generic/images/exit85-ipa2.jpg);"></div>
+		{% endif %}
+		{% if entry.heroText | length %}
+			<div class="hero-text">
+				<h1 class="glitch" data-text="{{ entry.heroText }}">{{ entry.heroText }}</h1>
+				<a href="/sections/contact" class="hero-cta jump-link" data-section="#contact">
+					<span class="d-inline d-md-none">Contact Us</span>
+					<span class="d-none d-md-inline">Book Your Venue or Event Today</span>
+				</a>
+			</div>
+		{% endif %}
+	</div>
+
+{% endblock %}
+
+{% block content %}
+
+	<section id="about" class="sneaky">
+		<div class="container">
+			<div class="band-bio">
+				{% if entry.heroText | length %}
+					<h2>{{ entry.bandHeader }}</h2>
+				{% else %}
+					<h1>{{ entry.bandHeader }}</h1>
+				{% endif %}
+				<p>{{ entry.bandBio }}</p>
+			</div>
+			{% set vidlen = featuredVideos | length %}
+			{% if vidlen > 0 %}
+				<div class="row">
+					{% for video in featuredVideos.all() %}
+						<div class="col-12 col-lg-10 {% if vidlen > 1 %}col-xl-6 {% endif %}m-auto">
+							<div class="mt-5">
+								<div class="embed-responsive embed-responsive-16by9">
+									<div id="featured-video-{{ video.id }}" data-video="{{ video.youtubeVideoId | trim }}"></div>
+								</div>
+							</div>
+							{% if video.description | length %}
+								<div class="video-description{% if vidlen == 1 %} ml-md-5 mr-md-5{% endif %}">
+									{{ video.description }}
+								</div>
+							{% endif %}
+						</div>
+					{% endfor %}
+				</div>
+			{% endif %}
+		</div>
+	</section>
+
+	<section id="shows" class="section-style1 sneaky">
+		<div class="container">
+			<div>
+				<h2 class="text-left">{{ events.showsTitle }}</h2>
+				<p class="text-left mb-5 mr-5">
+					{{ events.eventText | replace({'contact us': '<a href="/sections/contact" data-section="#contact" class="jump-link">contact us soon</a>'}) | raw }}
+					<br><br>
+					<a href="/calendar"><i class="fas fa-calendar-alt"></i> <span>View Our Entire Calendar</span></a>
+				</p>
+				{% for us in upcomingShows %}
+					{% include 'shows/_show' with { show: us, showtype: 'upcoming' } %}
+				{% endfor %}
+				<h2>Past Shows</h2>
+				{% for ps in pastShows %}
+					{% include 'shows/_show' with { show: ps, showtype: 'past' } %}
+				{% endfor %}
+			</div>
+			<a itemprop="url" href="/calendar"><i class="fas fa-calendar-alt"></i> <span itemprop="name">View Our Entire Calendar</span></a>
+		</div>
+	</section>
+
+	<section id="members" class="sneaky">
+		<div class="container">
+			<h2>{{ entry.membersHeader }}</h2>
+			{% if entry.bandHistory %}
+				<p>{{ entry.bandHistory | raw }}</p>
+			{% endif %}
+			{% if entry.bandImages.count() > 0 %}
+				<div class="mt-5">
+					<div class="row m-0">
+						{% set colCount = 0 %}
+						{% for img in entry.bandImages.all() %}
+							<div class="col-12 {% if loop.index in [1,4,5,8,9,12,13,16,17] %}col-md-7{% else %}col-md-5{% endif %} band-image-container">
+								<div class="band-image" style="background-image:url({{ img.url('bandImage') }})" alt="{{ img.title }}" title="{{ img.title }}">
+								</div>
+							</div>
+						{% endfor %}
+					</div>
+				</div>
+			{% endif %}
+
+			{# {% if members.count() > 0 %}
+				<div class="row">
+					{% for member in members.all() %}
+						<div class="col-lg-6 m-auto">
+							<div id="band-member-{{ member.slug }}" class="band-member">
+								<div class="band-member-info">
+									<h5>{{ member.memberName }}</h5>
+									<h6>{{ member.instruments }}</h6>
+									{% if member.memberLink | length %}
+										<h6><a href="{{ member.memberLink }}" target="_blank">{{ member.memberLink }}</a></h6>
+									{% endif %}
+									{% if member.memberBio | length %}
+										<div class="band-member-bio">
+											{{ member.memberBio }}
+										</div>
+									{% endif %}
+								</div>
+								<div class="band-member-cover"></div>
+								<div class="band-member-image" style="background-image:url({{ member.profilePicture.one().url }})"></div>
+							</div>
+						</div>
+					{% endfor %}
+				</div>
+			{% endif %} #}
+		</div>
+	</section>
+
+	<section class="section-style1 sneaky">
+
+		<div id="music" class="container">
+
+			<h2>{{ entry.songsHeader }}</h2>
+			{% if entry.songsText %}
+				{{ entry.songsText | raw}}
+			{% endif %}
+
+			<div class="mb-5">
+				<div class="row">
+					<div class="col-12 col-lg-8 col-xl-12 m-auto">
+
+						{# <iframe width="100%" height="200" scrolling="no" frameborder="no" allow="autoplay" src="https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/582457401&color=%232bb0ea&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=true&visual=false"></iframe> #}
+
+						{% set vidlen = videos | length %}
+						{% if vidlen > 0 %}
+							<div class="row">
+								{% for video in videos.all() %}
+									<div class="col-12 col-lg-10 {% if vidlen > 1 %}col-xl-6 {% endif %}m-auto">
+										<div class="mt-5">
+											<div class="embed-responsive embed-responsive-16by9">
+												<div id="video-{{ video.id }}" data-video="{{ video.youtubeVideoId | trim }}"></div>
+											</div>
+										</div>
+										{% if video.description | length %}
+											<div class="video-description{% if vidlen == 1 %} ml-md-5 mr-md-5{% endif %}">
+												{{ video.description }}
+											</div>
+										{% endif %}
+									</div>
+								{% endfor %}
+							</div>
+						{% endif %}
+
+					</div>
+				</div>
+			</div>
+		</div>
+
+			{# <h5><a href="https://open.spotify.com/user/jacksutherl/playlist/5nb0dSo3jylpT5r7v9m1C1?si=eaAwGGeZTvmgj1UpjyEAVQ" target="_blank">Spotify Playlist <i class="fas fa-volume-down"></i></a></h5> #}
+
+		<div id="songs" class="container">
+
+			<h2>{{ entry.coversTitle }}</h2>
+			{% if entry.coversText | length %}
+				{{ entry.coversText | raw }}
+			{% endif %}
+
+			{% if setlist90s.count() > 0 %}
+				<h5>{{ setlist90s.one().title }}</h5>
+				<div class="row">
+					{% for song in setlist90s.one().children.all() %}
+						<div class="col-sm-6 col-md-4 col-lg-3">
+							<div id="song-{{ song.id }}" class="cover-block" data-artist="{{ song.songArtist }}" data-song="{{ song.title }}" title="If you like this song or artist, then click it to let us know!">
+								{% if song.songImage.count %}
+									<div class="cover-block-image artist-song" style="background-image:url({{ song.songImage.one().url('songImage') }})"></div>
+								{% endif %}
+								<div class="cover-block-content">
+									<div class="cover-block-inner-content">
+										{{ song.title }} 
+										<br />
+										<i>{{ song.songArtist }}</i>
+									</div>
+								</div>
+							</div>
+						</div>
+					{% endfor %}
+				</div>
+			{% endif %}
+
+			{% if setlist80s.count() > 0 %}
+				<h5>{{ setlist80s.one().title }}</h5>
+				<div class="row">
+					{% for song in setlist80s.one().children.all() %}
+						<div class="col-sm-6 col-md-4 col-lg-3">
+							<div id="song-{{ song.id }}" class="cover-block" data-artist="{{ song.songArtist }}" data-song="{{ song.title }}" title="If you like this song or artist, then click it to let us know!">
+								{% if song.songImage.count %}
+									<div class="cover-block-image artist-song" style="background-image:url({{ song.songImage.one().url('songImage') }})"></div>
+								{% endif %}
+								<div class="cover-block-content">
+									<div class="cover-block-inner-content">
+										{{ song.title }} 
+										<br />
+										<i>{{ song.songArtist }}</i>
+									</div>
+								</div>
+							</div>
+						</div>
+					{% endfor %}
+				</div>
+			{% endif %}
+
+		</div>
+		
+	</section>
+	
+
+{% endblock %}

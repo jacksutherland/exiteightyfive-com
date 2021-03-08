@@ -1,0 +1,9 @@
+format: null
+handle: bandImage
+height: null
+interlace: none
+mode: fit
+name: 'Band Image'
+position: center-center
+quality: 82
+width: 800

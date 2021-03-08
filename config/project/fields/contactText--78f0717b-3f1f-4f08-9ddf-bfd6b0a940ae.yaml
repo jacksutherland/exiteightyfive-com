@@ -1,0 +1,16 @@
+contentColumnType: text
+fieldGroup: c63d8315-03bd-4bc1-8eb6-50a7a823f02a
+handle: contactText
+instructions: ''
+name: 'Contact Text'
+searchable: true
+settings:
+  charLimit: ''
+  code: ''
+  columnType: text
+  initialRows: '4'
+  multiline: '1'
+  placeholder: ''
+translationKeyFormat: null
+translationMethod: none
+type: craft\fields\PlainText

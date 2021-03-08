@@ -1,0 +1,42 @@
+<div class="show {{ showtype }}-show">
+	<div class="row">
+		<div class="col-md-4 col-lg-3 text-center">
+			<div class="date-box mb-3 mb-md-0">
+				{% if showtype == 'past' %}
+					<div class="month">{{ show.showDate | date('mm d, Y') }}</div>
+				{% else %}
+					<div class="month">{{ show.showDate | date('mm Y') }}</div>
+					<div class="date">{{ show.showDate | date('d') }}</div>
+					<div class="weekday">{{ show.showDate | date('l') }} @ {{ show.showDate | date('h:ia') }}</div>
+				{% endif %}
+				{% if show.facebookEventLink | length %}
+					<a href="{{ show.facebookEventLink }}" target="_blank" class="facebook-event-link" onclick="analytics.sendShowDetails('Facebook', '{{ show.title }}', '{{ show.showDate | date('mm d Y') }}')">
+						<i class="fab fa-facebook-square"></i>
+					</a>
+				{% endif %}
+			</div>
+		</div>
+		<div class="col-md-8 col-lg-9">
+			<div class="show-details">
+				{% if show.venueName | length %}
+					<a class="venue" target="_blank" href="https://www.google.com/maps/search/{{ show.venueAddress }}" onclick="analytics.sendShowDetails('Google Maps', '{{ show.title }}', '{{ show.showDate | date('mm d Y') }}')">
+						<i class="fas fa-map-marker-alt"></i> 
+						{{ show.venueName }}
+					</a>
+				{% endif %}
+				{% if show.showLink | length %}
+					<a href="{{ show.showLink }}" target="_blank" class="show-link" onclick="analytics.sendShowDetails('Detail Page', '{{ show.title }}', '{{ show.showDate | date('mm d Y') }}')">
+						<h5>{{ show.title }}</h5>
+					</a>
+				{% else %}
+					<a href="{{ show.url }}" class="show-link" onclick="analytics.sendShowDetails('Detail Page', '{{ show.title }}', '{{ show.showDate | date('mm d Y') }}')">
+						<h5>{{ show.title }}</h5>
+					</a>
+				{% endif %}
+				{% if showtype != 'past' %}
+					<p>{{ show.showDetails }}</p>
+				{% endif %}
+			</div>
+		</div>
+	</div>
+</div>

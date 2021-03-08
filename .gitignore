@@ -1,0 +1,14 @@
+/.env
+
+# Node & Gulp
+/node_modules
+/node_modules/*
+
+# Website Resources
+/web/files
+/web/files/*
+/web/cpresources
+/web/cpresources/*
+
+# SEO
+/web/robots.txt

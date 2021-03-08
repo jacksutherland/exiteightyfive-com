@@ -1,0 +1,9 @@
+siteUid: null
+sortOrder: 1
+template: /index
+uriParts:
+  - /sections/
+  -
+    - '*'
+    - '[^\/]+'
+uriPattern: '/sections/<any:[^\/]+>'

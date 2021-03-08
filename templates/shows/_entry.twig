@@ -1,0 +1,63 @@
+{% extends "_layouts/main" %}
+
+{% block title %}
+    {{ entry.title }}
+{% endblock %}
+
+{% block scripts %}
+	<script>
+	</script>
+{% endblock %}
+
+{% block hero %}
+	<div class="hero small-hero">
+		<div class="hero-image hero-darker" style="background-image: url({{ entry.hero.count ? entry.hero.one().url : '/images/corkscrew1.jpg' }});"></div>
+		<div class="hero-text">
+			<h1>{{ entry.title }}</h1>
+		</div>
+	</div>
+{% endblock %}
+
+{% block content %}
+
+	<div id="shows" class="section-style1">
+		<div class="container">
+			<div class="show pt-5">
+				<div class="row">
+					<div class="col-md-4 col-lg-3 text-center">
+						<div class="date-box mb-3 mb-md-0">
+							<div class="month">{{ entry.showDate | date('mm Y') }}</div>
+							<div class="date">{{ entry.showDate | date('d') }}</div>
+							<div class="weekday">{{ entry.showDate | date('l') }} @ {{ entry.showDate | date('h:ia') }}</div>
+							{% if entry.facebookEventLink | length %}
+								<a href="{{ entry.facebookEventLink }}" target="_blank" class="facebook-event-link"><i class="fab fa-facebook-square"></i></a>
+							{% endif %}
+						</div>
+					</div>
+					<div class="col-md-8 col-lg-9">
+						{% if entry.venueName | length %}
+							<a class="venue" target="_blank" href="https://www.google.com/maps/search/{{ entry.venueAddress }}">
+								<i class="fas fa-map-marker-alt"></i> 
+								{{ entry.venueName }}
+							</a>
+						{% endif %}
+						{% if entry.showLink | length %}
+							<a href="{{ entry.showLink }}" target="_blank" class="show-link"><h5>{{ entry.title }}</h5></a>
+						{% else %}
+							<h5>{{ entry.title }}</h5>
+						{% endif %}
+						<p>{{ entry.showDetails }}</p>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	{% if entry.venueAddress | trim | length %}
+		{% set query = entry.venueName | length ? entry.venueName ~ '+' ~ entry.venueAddress : entry.venueAddress %}
+		<div class="show-map">
+			<iframe frameborder="0" style="border:0" src="https://www.google.com/maps/embed/v1/place?q={{ query }}&key=AIzaSyAYuX8uxkqzSLD34_tJg1oY4NJp8xhVSF0" allowfullscreen></iframe>
+		</div>
+	{% endif %}
+
+{% endblock %}

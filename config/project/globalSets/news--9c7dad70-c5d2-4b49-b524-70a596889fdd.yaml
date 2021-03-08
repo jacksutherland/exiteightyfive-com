@@ -1,0 +1,12 @@
+fieldLayouts:
+  ab3b14ba-342b-423d-88fe-8a536dc3348e:
+    tabs:
+      -
+        fields:
+          34f6168a-3b71-4839-83f1-2076a8c34806:
+            required: false
+            sortOrder: 1
+        name: News
+        sortOrder: 1
+handle: news
+name: News
