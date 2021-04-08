@@ -8,11 +8,11 @@
 					<div class="month">{{ show.showDate | date('mm Y') }}</div>
 					<div class="date">{{ show.showDate | date('d') }}</div>
 					<div class="weekday">{{ show.showDate | date('l') }} @ {{ show.showDate | date('h:ia') }}</div>
-				{% endif %}
-				{% if show.facebookEventLink | length %}
-					<a href="{{ show.facebookEventLink }}" target="_blank" class="facebook-event-link" onclick="analytics.sendShowDetails('Facebook', '{{ show.title }}', '{{ show.showDate | date('mm d Y') }}')">
-						<i class="fab fa-facebook-square"></i>
-					</a>
+					{% if show.facebookEventLink | length %}
+						<a href="{{ show.facebookEventLink }}" target="_blank" class="facebook-event-link" onclick="analytics.sendShowDetails('Facebook', '{{ show.title }}', '{{ show.showDate | date('mm d Y') }}')">
+							<i class="fab fa-facebook-square"></i>
+						</a>
+					{% endif %}
 				{% endif %}
 			</div>
 		</div>
