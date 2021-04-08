@@ -24,20 +24,18 @@
 						{{ show.venueName }}
 					</a>
 				{% endif %}
-				{% if show.showLink | length %}
-					{% if showtype == 'past' %}
-						<h5>{{ show.title }}</h5>
-					{% else %}
+				{% if showtype == 'past' %}
+					<h5>{{ show.title }}</h5>
+				{% else %}
+					{% if show.showLink | length %}
 						<a href="{{ show.showLink }}" target="_blank" class="show-link" onclick="analytics.sendShowDetails('Detail Page', '{{ show.title }}', '{{ show.showDate | date('mm d Y') }}')">
 							<h5>{{ show.title }}</h5>
 						</a>
+					{% else %}
+						<a href="{{ show.url }}" class="show-link" onclick="analytics.sendShowDetails('Detail Page', '{{ show.title }}', '{{ show.showDate | date('mm d Y') }}')">
+							<h5>{{ show.title }}</h5>
+						</a>
 					{% endif %}
-				{% else %}
-					<a href="{{ show.url }}" class="show-link" onclick="analytics.sendShowDetails('Detail Page', '{{ show.title }}', '{{ show.showDate | date('mm d Y') }}')">
-						<h5>{{ show.title }}</h5>
-					</a>
-				{% endif %}
-				{% if showtype != 'past' %}
 					<p>{{ show.showDetails }}</p>
 				{% endif %}
 			</div>
