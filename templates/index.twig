@@ -11,8 +11,8 @@
 {% set setlist90s = craft.categories.group('songs').slug('setlist90s') %}
 {% set setlist80s = craft.categories.group('songs').slug('setlist80s') %}
 {# {% set members = craft.entries.section('members').orderBy('postDate') %} #}
-{% set upcomingShows = craft.entries().section('shows').showDate('>=' ~ now | date | atom).orderBy('showDate asc').all() %}
-{% set pastShows = craft.entries().section('shows').showDate('<' ~ now | date | atom).orderBy('showDate desc').limit(13).all() %}
+{% set upcomingShows = craft.entries().section('shows').showDate('>=' ~ now | date | atom).orderBy('showDate asc').limit(events.upcomingShowLimit).all() %}
+{% set pastShows = craft.entries().section('shows').showDate('<' ~ now | date | atom).orderBy('showDate desc').limit(events.pastShowLimit).all() %}
 {% set videos = craft.categories.group('videos') %}
 {% set featuredVideos = craft.categories.group('videos').isFeatured('1') %}
 
@@ -78,26 +78,32 @@
 		</div>
 	</section>
 
-	<section id="shows" class="section-style1 sneaky">
-		<div class="container">
-			<div>
-				<h2 class="text-left">{{ events.showsTitle }}</h2>
-				<p class="text-left mb-5 mr-5">
-					{{ events.eventText | replace({'contact us': '<a href="/sections/contact" data-section="#contact" class="jump-link">contact us soon</a>'}) | raw }}
-					<br><br>
-					<a href="/calendar"><i class="fas fa-calendar-alt"></i> <span>View Our Entire Calendar</span></a>
-				</p>
-				{% for us in upcomingShows %}
-					{% include 'shows/_show' with { show: us, showtype: 'upcoming' } %}
-				{% endfor %}
-				<h2>Past Shows</h2>
-				{% for ps in pastShows %}
-					{% include 'shows/_show' with { show: ps, showtype: 'past' } %}
-				{% endfor %}
+	{% if events.upcomingShowLimit > 0 or events.pastShowLimit > 0 %}
+		<section id="shows" class="section-style1 sneaky">
+			<div class="container">
+				<div>
+					<h2 class="text-left">{{ events.showsTitle }}</h2>
+					<p class="text-left mb-5 mr-5">
+						{{ events.eventText | replace({'contact us': '<a href="/sections/contact" data-section="#contact" class="jump-link">contact us soon</a>'}) | raw }}
+						<br><br>
+						<a href="/calendar"><i class="fas fa-calendar-alt"></i> <span>View Our Entire Calendar</span></a>
+					</p>
+					{% if events.upcomingShowLimit > 0 %}
+						{% for us in upcomingShows %}
+							{% include 'shows/_show' with { show: us, showtype: 'upcoming' } %}
+						{% endfor %}
+					{% endif %}
+					{% if events.pastShowLimit > 0 %}
+						<h2>Past Shows</h2>
+						{% for ps in pastShows %}
+							{% include 'shows/_show' with { show: ps, showtype: 'past' } %}
+						{% endfor %}
+					{% endif %}
+				</div>
+				<a itemprop="url" href="/calendar"><i class="fas fa-calendar-alt"></i> <span itemprop="name">View Our Entire Calendar</span></a>
 			</div>
-			<a itemprop="url" href="/calendar"><i class="fas fa-calendar-alt"></i> <span itemprop="name">View Our Entire Calendar</span></a>
-		</div>
-	</section>
+		</section>
+	{% endif %}
 
 	<section id="members" class="sneaky">
 		<div class="container">

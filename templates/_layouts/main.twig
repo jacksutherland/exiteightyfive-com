@@ -109,9 +109,11 @@
                 <a itemprop="url" href="/sections/about" class="{{ jumpLink }} d-none d-md-inline" data-section="#about" title="About Us">
                     <span itemprop="name">ABOUT</span>
                 </a>
-                <a itemprop="url" href="/sections/shows" class="{{ jumpLink }}" data-section="#shows" title="Upcoming Shows">
-                    <span itemprop="name">SHOWS</span>
-                </a>
+                {% if events.upcomingShowLimit > 0 or events.pastShowLimit > 0 %}
+                    <a itemprop="url" href="/sections/shows" class="{{ jumpLink }}" data-section="#shows" title="Upcoming Shows">
+                        <span itemprop="name">SHOWS</span>
+                    </a>
+                 {% endif %}
                 <a itemprop="url" href="/sections/members" class="{{ jumpLink }}" data-section="#members" title="Meet the Band">
                     <span itemprop="name">BAND</span>
                 </a>
