@@ -1,7 +1,11 @@
-dateModified: 1615227243
+dateModified: 1625346697
 email:
   fromEmail: jack@jacksutherland.com
-  fromName: Magus
+  fromName: 'Exit 85 CMS'
+  replyToEmail: null
+  template: ''
+  transportSettings:
+    command: ''
   transportType: craft\mail\transportadapters\Sendmail
 plugins:
   mobile-detect:

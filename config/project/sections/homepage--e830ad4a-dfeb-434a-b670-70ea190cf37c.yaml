@@ -1,6 +1,6 @@
 enableVersioning: true
 entryTypes:
-  d8bc7357-d211-4b9c-8269-272ace2c5b1b:
+  d8bc7357-d211-4b9c-8269-272ace2c5b1b: # Homepage
     fieldLayouts:
       238f1d6d-62ea-4af1-ac63-7c2b87493a92:
         tabs:

@@ -1,0 +1,18 @@
+contentColumnType: text
+fieldGroup: 170555c3-76ee-4a23-ba64-9dc060c99120
+handle: ctaText
+instructions: ''
+name: 'CTA Text'
+searchable: true
+settings:
+  byteLimit: null
+  charLimit: null
+  code: ''
+  columnType: null
+  initialRows: '4'
+  multiline: ''
+  placeholder: null
+  uiMode: normal
+translationKeyFormat: null
+translationMethod: none
+type: craft\fields\PlainText

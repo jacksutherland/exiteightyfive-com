@@ -37,7 +37,7 @@ permissions:
   - 'editpeerentrydrafts:7b556dc4-3462-4661-9940-e8be99cfa1f3'
   - 'editentries:7b556dc4-3462-4661-9940-e8be99cfa1f3'
   - 'editglobalset:345ae565-7a74-401c-826c-d47ada51b5bf'
-  - 'editglobalset:33ae1668-175a-4ad7-ba38-7ac22cd5d8b4'
+  - 'editglobalset:33ae1668-175a-4ad7-ba38-7ac22cd5d8b4' # Events
   - 'editglobalset:9c7dad70-c5d2-4b49-b524-70a596889fdd'
   - 'editglobalset:93f7c424-a185-4c8e-85cd-1f861e232f4c'
   - 'editcategories:2e770ce7-51ec-4b5d-a13d-7990d7f8146d'
