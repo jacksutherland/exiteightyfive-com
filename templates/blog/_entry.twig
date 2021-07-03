@@ -46,6 +46,7 @@
 							{% case 'image' %}
 								<div class="blog-image">
 									<img src="{{ module.image.one().url }}" alt="{{ module.image.one().title }}" title="{{ module.image.one().title }}" loading="lazy">
+									<div class="blog-image-caption">{{ module.caption }}</div>
 								</div>
 							{% case 'embedCode' %}
 								<div class="blog-embed">

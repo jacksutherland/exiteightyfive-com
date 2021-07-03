@@ -178,6 +178,11 @@ footer {
   .blog-post .blog-image img {
     width: 100%; }
 
+.blog-post .blog-image-caption {
+  margin: 5px 0 0 0;
+  font-size: 0.85;
+  font-style: italic; }
+
 .blog-post .blog-embed {
   margin: 50px 0;
   text-align: center; }
