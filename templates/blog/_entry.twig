@@ -1,0 +1,84 @@
+{% extends "_layouts/main" %}
+
+{% set author = null %}
+{% if entry.author.email == 'jack@jacksutherland.com' %}
+	{% set author = craft.entries.section('members').slug('warlock').one() %}
+{% elseif entry.author.email == 'robstewart@comporium.net' %}
+	{% set author = craft.entries.section('members').slug('rob-stewart').one() %}
+{% elseif entry.author.email == 'maxer28@yahoo.com' %}
+	{% set author = craft.entries.section('members').slug('david-kiser').one() %}
+{% endif %}
+
+{% block title %}
+    {{ entry.blogTitle }}
+{% endblock %}
+
+{% block hero %}
+	{% if entry.hero.count %}
+		<div class="hero small-hero">
+			<div class="hero-image hero-band hero-grayscale" style="background-image: url({{ entry.hero.one().url }})"></div>
+			{% if entry.heroText | length %}
+				<div class="hero-text">
+					<h1>{{ entry.heroText }}</h1>
+				</div>
+			{% endif %}
+		</div> 
+	{% endif %}
+{% endblock %}
+
+{% block content %}
+
+	<article class="blog-post">
+		<div class="container">
+			<div class="row justify-content-center">
+				<div class="col-lg-8">
+
+					<h2>{{ entry.blogTitle }}</h2>
+
+					<h6>Written by <a href="/sections/members"><strong>{{ entry.author.fullName }}</strong></a></h6>
+
+					{% for module in entry.blogModule %}
+						{% switch module.type %}
+							{% case 'richText' %}
+								<div class="blog-text">
+									{{ module.richText }}
+								</div>
+							{% case 'image' %}
+								<div class="blog-image">
+									<img src="{{ module.image.one().url }}" alt="{{ module.image.one().title }}" title="{{ module.image.one().title }}" loading="lazy">
+								</div>
+							{% case 'embedCode' %}
+								<div class="blog-embed">
+									{{ module.embedcode | raw }}
+								</div>	
+						{% endswitch %}
+					{% endfor %}
+
+				</div>
+			</div>
+		</div>
+	</article>
+
+	{% if author != null %}
+		<section class="section-style1">
+			<div class="container mt-5">
+				<div class="row justify-content-center">
+					<div class="col-lg-8">
+						<h5>About the Author</h5>
+						<h3>{{ author.memberName }}</h3>
+						<h6><strong>{{ author.instruments }}</strong></h6>
+						<div class="mt-3">
+							<p>{{ author.memberBio }}</p>
+						</div>
+						{% if author.memberLink %}
+							<div class="mt-3">
+								<strong>Find {{ author.memberName }} at <a href="{{ author.memberLink }}">{{ author.memberLink }}</a></strong>
+							</div>
+						{% endif %}
+					</div>
+				</div>
+			</div>
+		</section>
+	{% endif %}
+
+{% endblock %}
