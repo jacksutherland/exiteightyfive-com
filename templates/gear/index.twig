@@ -1,0 +1,154 @@
+{% extends "_layouts/main" %}
+
+{% set rob = craft.entries.section('members').slug('rob-stewart').one() %}
+{% set jack = craft.entries.section('members').slug('warlock').one() %}
+{% set entry = { title: 'Play Like Exit 85', slug: 'gear', section: { handle: 'gear' } } %}
+
+{% block title %}
+    {{ entry.title }}
+{% endblock %}
+
+{% block scripts %}
+	<script>
+	</script>
+{% endblock %}
+
+{% block hero %}
+	<div class="hero small-hero">
+		<div class="hero-image hero-darker hero-grayscale" style="background-image: url('/images/corkscrew1.jpg');"></div>
+		<div class="hero-text">
+			<h1>Play Like Exit 85!</h1>
+		</div>
+	</div>
+{% endblock %}
+
+{% block content %}
+	<section>
+		<div class="container">
+			<div class="row justify-content-lg-center">
+				<div class="col-lg-8 text-center">
+					<h2>Want to learn the secret sauce behind Exit 85's rockin' sound?</h2>
+					<p>It requires a lot of trial and error to get the right sound on a consistent basis. Below is a list of equipment and accessories the band has used over the years. We've personally vetted and recommend all of these, as they've lots of travel, multiple cities and venues, and even rain, drink spills and the occasional tipsy fan.</p>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<section class="section-style1">
+		<div class="container text-center">
+			<h2>Alto Professional 2-Way Powered Loudspeakers</h2>
+			<div class="row justify-content-lg-center">
+				<div class="col-md-4 col-lg-3">
+					<h5>TS215 15" Mains</h5>
+					<iframe style="width:120px;height:240px;" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" src="//ws-na.amazon-adsystem.com/widgets/q?ServiceVersion=20070822&OneJS=1&Operation=GetAdHtml&MarketPlace=US&source=ac&ref=qf_sp_asin_til&ad_type=product_link&tracking_id=infinitycyb0f-20&marketplace=amazon&amp;region=US&placement=B018W2BLAA&asins=B018W2BLAA&linkId=2df8985e775774a1f74e729f931c4d27&show_border=false&link_opens_in_new_window=true&price_color=c7a268&title_color=1d375c&bg_color=f3f3f3"></iframe>
+				</div>
+				<div class="col-md-4 col-lg-3">
+					<h5>TS312S 15" Subwoofers</h5>
+					<iframe style="width:120px;height:240px;" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" src="//ws-na.amazon-adsystem.com/widgets/q?ServiceVersion=20070822&OneJS=1&Operation=GetAdHtml&MarketPlace=US&source=ac&ref=qf_sp_asin_til&ad_type=product_link&tracking_id=infinitycyb0f-20&marketplace=amazon&amp;region=US&placement=B07S9SC7GX&asins=B07S9SC7GX&linkId=59f3aa2875cbdb7950bd32c715164e84&show_border=false&link_opens_in_new_window=true&price_color=c7a268&title_color=1d375c&bg_color=f3f3f3"></iframe>
+				</div>
+				<div class="col-md-4 col-lg-3">
+					<h5>TS212 12" Mains or Monitors</h5>
+					<iframe style="width:120px;height:240px;" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" src="//ws-na.amazon-adsystem.com/widgets/q?ServiceVersion=20070822&OneJS=1&Operation=GetAdHtml&MarketPlace=US&source=ac&ref=qf_sp_asin_til&ad_type=product_link&tracking_id=infinitycyb0f-20&marketplace=amazon&amp;region=US&placement=B018W31TM4&asins=B018W31TM4&linkId=53ca79c908a8f45626b5c88aae509c4a&show_border=false&link_opens_in_new_window=true&price_color=c7a268&title_color=1d375c&bg_color=f3f3f3"></iframe>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<section class="section-style2">
+		<div class="container">
+			<h2>{{ rob.memberName }}'s Gear</h2>
+			<h5>{{ rob.instruments }}</h5>
+			<p>{{ rob.memberBio }}</p>
+			<h5>Guitar Accessories and Amps</h5>
+			<div class="row mt-3">
+				<div class="col-md-4 col-lg-2">
+					<p class="font-weight-normal">D'Addario Pure Nickel Strings</p>
+					<iframe style="width:120px;height:240px;" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" src="//ws-na.amazon-adsystem.com/widgets/q?ServiceVersion=20070822&OneJS=1&Operation=GetAdHtml&MarketPlace=US&source=ac&ref=qf_sp_asin_til&ad_type=product_link&tracking_id=infinitycyb0f-20&marketplace=amazon&amp;region=US&placement=B0013N3VWM&asins=B0013N3VWM&linkId=5833a21a6497e3b6c6b72143ca7a7328&show_border=false&link_opens_in_new_window=true&price_color=c7a268&title_color=1d375c&bg_color=f3f3f3"></iframe>
+				</div>
+				<div class="col-md-4 col-lg-2">
+					<p class="font-weight-normal">Blackstar 1x12 MKII Combo Amplifier</p>
+					<iframe style="width:120px;height:240px;" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" src="//ws-na.amazon-adsystem.com/widgets/q?ServiceVersion=20070822&OneJS=1&Operation=GetAdHtml&MarketPlace=US&source=ac&ref=qf_sp_asin_til&ad_type=product_link&tracking_id=infinitycyb0f-20&marketplace=amazon&amp;region=US&placement=B0773FL8P3&asins=B0773FL8P3&linkId=7300f0bf603fb2d40c8702fd1824b0e4&show_border=false&link_opens_in_new_window=true&price_color=c7a268&title_color=1d375c&bg_color=f3f3f3"></iframe>
+				</div>
+				<div class="col-md-4 col-lg-2">
+					<p class="font-weight-normal">Line 6 Helix LT Guitar Processor</p>
+					<iframe style="width:120px;height:240px;" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" src="//ws-na.amazon-adsystem.com/widgets/q?ServiceVersion=20070822&OneJS=1&Operation=GetAdHtml&MarketPlace=US&source=ac&ref=qf_sp_asin_til&ad_type=product_link&tracking_id=infinitycyb0f-20&marketplace=amazon&amp;region=US&placement=B06Y1WMTQ7&asins=B06Y1WMTQ7&linkId=176bbf8ba38527de5fc173f96f7b46c3&show_border=false&link_opens_in_new_window=true&price_color=c7a268&title_color=1d375c&bg_color=f3f3f3"></iframe>
+				</div>
+				<div class="col-md-4 col-lg-2">
+					<p class="font-weight-normal">Line 6 PowerCab 112 Plus</p>
+					<iframe style="width:120px;height:240px;" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" src="//ws-na.amazon-adsystem.com/widgets/q?ServiceVersion=20070822&OneJS=1&Operation=GetAdHtml&MarketPlace=US&source=ac&ref=qf_sp_asin_til&ad_type=product_link&tracking_id=infinitycyb0f-20&marketplace=amazon&amp;region=US&placement=B07CJQHLWJ&asins=B07CJQHLWJ&linkId=2ae67d7fbfec9bb244f450e3df445176&show_border=false&link_opens_in_new_window=true&price_color=c7a268&title_color=1d375c&bg_color=f3f3f3"></iframe>
+				</div>
+				<div class="col-md-4 col-lg-2">
+					<p class="font-weight-normal">Line 6 Wireless Guitar System</p>
+					<iframe style="width:120px;height:240px;" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" src="//ws-na.amazon-adsystem.com/widgets/q?ServiceVersion=20070822&OneJS=1&Operation=GetAdHtml&MarketPlace=US&source=ac&ref=qf_sp_asin_til&ad_type=product_link&tracking_id=infinitycyb0f-20&marketplace=amazon&amp;region=US&placement=B003AM913M&asins=B003AM913M&linkId=4833d47d98feb5488eb98ff31957da30&show_border=false&link_opens_in_new_window=true&price_color=c7a268&title_color=1d375c&bg_color=f3f3f3"></iframe>
+				</div>
+			</div>
+			<h5>Pedals and Effects</h5>
+			<div class="row mt-3">
+				<div class="col-md-4 col-lg-2">
+					<p class="font-weight-normal">Pedaltrain Pedal Board</p>
+					<iframe style="width:120px;height:240px;" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" src="//ws-na.amazon-adsystem.com/widgets/q?ServiceVersion=20070822&OneJS=1&Operation=GetAdHtml&MarketPlace=US&source=ac&ref=qf_sp_asin_til&ad_type=product_link&tracking_id=infinitycyb0f-20&marketplace=amazon&amp;region=US&placement=B00XBKW6T4&asins=B00XBKW6T4&linkId=c39c9ceeb64cd692f97ec3d639371ca8&show_border=false&link_opens_in_new_window=true&price_color=c7a268&title_color=1d375c&bg_color=f3f3f3"></iframe>
+				</div>
+				<div class="col-md-4 col-lg-2">
+					<p class="font-weight-normal">MXR M117R Flanger Pedal</p>
+					<iframe style="width:120px;height:240px;" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" src="//ws-na.amazon-adsystem.com/widgets/q?ServiceVersion=20070822&OneJS=1&Operation=GetAdHtml&MarketPlace=US&source=ac&ref=qf_sp_asin_til&ad_type=product_link&tracking_id=infinitycyb0f-20&marketplace=amazon&amp;region=US&placement=B000EEHD0W&asins=B000EEHD0W&linkId=2ed01e26ff5e44176e3c1bdc94612bca&show_border=false&link_opens_in_new_window=true&price_color=c7a268&title_color=1d375c&bg_color=f3f3f3"></iframe>
+				</div>
+				<div class="col-md-4 col-lg-2">
+					<p class="font-weight-normal">MXR EVH90 Phase 90 Pedal</p>
+					<iframe style="width:120px;height:240px;" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" src="//ws-na.amazon-adsystem.com/widgets/q?ServiceVersion=20070822&OneJS=1&Operation=GetAdHtml&MarketPlace=US&source=ac&ref=qf_sp_asin_til&ad_type=product_link&tracking_id=infinitycyb0f-20&marketplace=amazon&amp;region=US&placement=B00065VQN4&asins=B00065VQN4&linkId=d545a1d96ebd3f0a6ea60c44898b4c10&show_border=false&link_opens_in_new_window=true&price_color=c7a268&title_color=1d375c&bg_color=f3f3f3"></iframe>
+				</div>
+				<div class="col-md-4 col-lg-2">
+					<p class="font-weight-normal">Xotic Effects Wah XW-1 Pedal</p>
+					<iframe style="width:120px;height:240px;" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" src="//ws-na.amazon-adsystem.com/widgets/q?ServiceVersion=20070822&OneJS=1&Operation=GetAdHtml&MarketPlace=US&source=ac&ref=qf_sp_asin_til&ad_type=product_link&tracking_id=infinitycyb0f-20&marketplace=amazon&amp;region=US&placement=B00R7J4116&asins=B00R7J4116&linkId=6567d7726bda5b0760fea2a8bd8a532f&show_border=false&link_opens_in_new_window=true&price_color=c7a268&title_color=1d375c&bg_color=f3f3f3"></iframe>
+				</div>
+				<div class="col-md-4 col-lg-2">
+					<p class="font-weight-normal">Walrus Audio Phoenix Power Supply</p>
+					<iframe style="width:120px;height:240px;" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" src="//ws-na.amazon-adsystem.com/widgets/q?ServiceVersion=20070822&OneJS=1&Operation=GetAdHtml&MarketPlace=US&source=ac&ref=qf_sp_asin_til&ad_type=product_link&tracking_id=infinitycyb0f-20&marketplace=amazon&amp;region=US&placement=B072HSXV72&asins=B072HSXV72&linkId=31626d0d1a62c48d43c763ca0f9a5bf1&show_border=false&link_opens_in_new_window=true&price_color=c7a268&title_color=1d375c&bg_color=f3f3f3"></iframe>
+				</div>
+				<div class="col-md-4 col-lg-2">
+					<p class="font-weight-normal">MXR M237 Brick Power Supply</p>
+					<iframe style="width:120px;height:240px;" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" src="//ws-na.amazon-adsystem.com/widgets/q?ServiceVersion=20070822&OneJS=1&Operation=GetAdHtml&MarketPlace=US&source=ac&ref=qf_sp_asin_til&ad_type=product_link&tracking_id=infinitycyb0f-20&marketplace=amazon&amp;region=US&placement=B00B5I9GYW&asins=B00B5I9GYW&linkId=d57b242cd71602643ce9bf93fee86e16&show_border=false&link_opens_in_new_window=true&price_color=c7a268&title_color=1d375c&bg_color=f3f3f3"></iframe>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<section class="section-style1">
+		<div class="container">
+			<h2>{{ jack.memberName }}'s Gear</h2>
+			<h5>{{ jack.instruments }}</h5>
+			<p>{{ jack.memberBio }}</p>
+			<div class="row justify-content-lg-center text-center mt-5">
+				<div class="col-md-4 col-lg-2">
+					<p class="font-weight-bold">DR PURE BLUES 40-120 5st Bass Strings</p>
+					<iframe style="width:120px;height:240px;" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" src="//ws-na.amazon-adsystem.com/widgets/q?ServiceVersion=20070822&OneJS=1&Operation=GetAdHtml&MarketPlace=US&source=ac&ref=qf_sp_asin_til&ad_type=product_link&tracking_id=infinitycyb0f-20&marketplace=amazon&amp;region=US&placement=B009P71UMG&asins=B009P71UMG&linkId=ff44fb6a8b5d81362a54be23bd83428a&show_border=false&link_opens_in_new_window=true&price_color=c7a268&title_color=1d375c&bg_color=f3f3f3"></iframe>
+				</div>
+				<div class="col-md-4 col-lg-2">
+					<p class="font-weight-bold">DR PURE BLUES 40-100 4st Bass Strings</p>
+					<iframe style="width:120px;height:240px;" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" src="//ws-na.amazon-adsystem.com/widgets/q?ServiceVersion=20070822&OneJS=1&Operation=GetAdHtml&MarketPlace=US&source=ac&ref=qf_sp_asin_til&ad_type=product_link&tracking_id=infinitycyb0f-20&marketplace=amazon&amp;region=US&placement=B009P6TKYC&asins=B009P6TKYC&linkId=94e5b0cce03e22bde75da8e6d3844485&show_border=false&link_opens_in_new_window=true&price_color=c7a268&title_color=1d375c&bg_color=f3f3f3"></iframe>
+				</div>
+				<div class="col-md-4 col-lg-2">
+					<p class="font-weight-bold">Fender Rumble 800W 2x10" Combo</p>
+					<iframe style="width:120px;height:240px;" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" src="//ws-na.amazon-adsystem.com/widgets/q?ServiceVersion=20070822&OneJS=1&Operation=GetAdHtml&MarketPlace=US&source=ac&ref=qf_sp_asin_til&ad_type=product_link&tracking_id=infinitycyb0f-20&marketplace=amazon&amp;region=US&placement=B07984W7W2&asins=B07984W7W2&linkId=8a3e6b24cf1ea675f7d105ac6f85c475&show_border=false&link_opens_in_new_window=true&price_color=c7a268&title_color=1d375c&bg_color=f3f3f3"></iframe>
+				</div>
+				<div class="col-md-4 col-lg-2">
+					<p class="font-weight-bold">Hartke HD210 500W 2x10" Bass Cabinet</p>
+					<iframe style="width:120px;height:240px;" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" src="//ws-na.amazon-adsystem.com/widgets/q?ServiceVersion=20070822&OneJS=1&Operation=GetAdHtml&MarketPlace=US&source=ac&ref=qf_sp_asin_til&ad_type=product_link&tracking_id=infinitycyb0f-20&marketplace=amazon&amp;region=US&placement=B0714LH4B7&asins=B0714LH4B7&linkId=7049f4da4849bfb1fa50874fe39018f5&show_border=false&link_opens_in_new_window=true&price_color=c7a268&title_color=1d375c&bg_color=f3f3f3"></iframe>
+				</div>
+				<div class="col-md-4 col-lg-2">
+					<p class="font-weight-bold">Hartke HD115 500W 1x15" Bass Cabinet</p>
+					<iframe style="width:120px;height:240px;" marginwidth="0" marginheight="0" scrolling="no" frameborder="0" src="//ws-na.amazon-adsystem.com/widgets/q?ServiceVersion=20070822&OneJS=1&Operation=GetAdHtml&MarketPlace=US&source=ac&ref=qf_sp_asin_til&ad_type=product_link&tracking_id=infinitycyb0f-20&marketplace=amazon&amp;region=US&placement=B072C4QY7N&asins=B072C4QY7N&linkId=f816b0a63e255d2e5a42f315613460f7&show_border=false&link_opens_in_new_window=true&price_color=c7a268&title_color=1d375c&bg_color=f3f3f3"></iframe>
+				</div>
+			</div>
+			<div class="row justify-content-lg-center mt-5">
+				<div class="col-md-5 col-lg-4 text-right">
+					<a target="_blank"  href="https://www.amazon.com/gp/offer-listing/B07G4X7Y94/ref=as_li_tl?ie=UTF8&camp=1789&creative=9325&creativeASIN=B07G4X7Y94&linkCode=am2&tag=infinitycyb0f-20&linkId=029b4371e649590e516aa2e28062f8f1"><img border="0" src="//ws-na.amazon-adsystem.com/widgets/q?_encoding=UTF8&MarketPlace=US&ASIN=B07G4X7Y94&ServiceVersion=20070822&ID=AsinImage&WS=1&Format=_SL250_&tag=infinitycyb0f-20" ></a>
+				</div>
+				<div class="col-md-7 col-lg-8 col-xl-7 text-left">
+					<h5 class="mt-0">Looking for the perfect beginner bass guitar or amp?</h5>
+					<p>Jack rotates between Fender and Warwick basses. But over the years the Jazz or P-Bass has always been his perfect do-it-all bass guitar. And Fender's Rumble series of amps provides the best mix of modern electronics, power and portability. Combined with a P-Bass, Rumble Amp, strap and cable, <a target="_blank" href="https://www.amazon.com/gp/product/B07G4X7Y94/ref=as_li_tl?ie=UTF8&camp=1789&creative=9325&creativeASIN=B07G4X7Y94&linkCode=as2&tag=infinitycyb0f-20&linkId=0886f6167e793daa3f5dfa51fdfb82ef">this P-Bass kit on Amazon is THE PERFECT all-in-one bass package</a>, for beginners, or former players looking to gear-up again.</p>
+				</div>
+			</div>
+		</div>
+	</section>
+
+{% endblock %}
