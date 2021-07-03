@@ -34,10 +34,16 @@
 		{% if entry.heroText | length %}
 			<div class="hero-text">
 				<h1 class="glitch" data-text="{{ entry.heroText }}">{{ entry.heroText }}</h1>
-				<a href="/sections/contact" class="hero-cta jump-link" data-section="#contact">
-					<span class="d-inline d-md-none">Contact Us</span>
-					<span class="d-none d-md-inline">Book Your Venue or Event Today</span>
-				</a>
+				{% if entry.ctaText | length and entry.ctaEntry.count %}
+					<a href="{{ entry.ctaEntry.one().url }}" class="hero-cta">
+						<span>{{ entry.ctaText }}</span>
+					</a>
+				{% else %}
+					<a href="/sections/contact" class="hero-cta jump-link" data-section="#contact">
+						<span class="d-inline d-md-none">Contact Us</span>
+						<span class="d-none d-md-inline">Book Your Venue or Event Today</span>
+					</a>
+				{% endif %}
 			</div>
 		{% endif %}
 	</div>
