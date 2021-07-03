@@ -34,8 +34,8 @@
 		{% if entry.heroText | length %}
 			<div class="hero-text">
 				<h1 class="glitch" data-text="{{ entry.heroText }}">{{ entry.heroText }}</h1>
-				{% if entry.ctaText | length and entry.ctaEntry.count %}
-					<a href="{{ entry.ctaEntry.one().url }}" class="hero-cta">
+				{% if entry.ctaText | length and entry.ctaUrl | length %}
+					<a href="{{ entry.ctaUrl }}" class="hero-cta">
 						<span>{{ entry.ctaText }}</span>
 					</a>
 				{% else %}
