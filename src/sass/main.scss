@@ -245,6 +245,27 @@ footer {
     }
 }
 
+.ad {
+    &.cybershop {
+        color: #1d375c;
+        background-color: #f9f5ec;
+        height: 100px;
+        align-items: center;
+        justify-content: center;
+        display: flex;
+        &:hover {
+            text-decoration: none;
+        }
+        img {
+            max-width: 50%;
+            vertical-align: middle;
+        }
+        span {
+            color: #1d375c;
+        }
+    }
+}
+
 
 .embed-responsive {
     z-index: 200;

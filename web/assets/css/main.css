@@ -192,6 +192,21 @@ footer {
 .blog-post ~ .section-style1 {
   border-top: solid 1px #000; }
 
+.ad.cybershop {
+  color: #1d375c;
+  background-color: #f9f5ec;
+  height: 100px;
+  align-items: center;
+  justify-content: center;
+  display: flex; }
+  .ad.cybershop:hover {
+    text-decoration: none; }
+  .ad.cybershop img {
+    max-width: 50%;
+    vertical-align: middle; }
+  .ad.cybershop span {
+    color: #1d375c; }
+
 .embed-responsive {
   z-index: 200; }
 
