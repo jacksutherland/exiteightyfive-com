@@ -189,6 +189,9 @@ footer {
   margin: 50px 0;
   text-align: center; }
 
+.blog-post ~ .section-style1 {
+  border-top: solid 1px #000; }
+
 .embed-responsive {
   z-index: 200; }
 
