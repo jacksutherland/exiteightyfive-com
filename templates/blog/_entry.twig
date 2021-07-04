@@ -31,8 +31,8 @@
     <meta property="og:logo" content="http://exiteightyfive.com/images/logo-sign-small.png" />
 
     {% if entry.hero.count %}
-	    <meta property="og:image" content="{{ siteUrl }}{{ entry.hero.one().url('seoImage') }}" />
-	    <meta name="twitter:image" content="{{ siteUrl }}{{ entry.hero.one().url('seoImage') }}">
+	    <meta property="og:image" content="https://exiteightyfive.com{{ entry.hero.one().url('seoImage') }}" />
+	    <meta name="twitter:image" content="https://exiteightyfive.com{{ entry.hero.one().url('seoImage') }}">
     {% endif %}
 
     {# Twitter Tags #}
