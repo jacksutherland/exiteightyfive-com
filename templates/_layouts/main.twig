@@ -34,24 +34,26 @@
             {% block title %}
                 {{ seo.seoTitle }} 
             {% endblock %}
-           {#  {{ seo.seoSuffix }} #}
         </title>
-        <meta name="description" content="{{ seo.seoDescription }}">
 
-        {# OG Tags #}
-        <meta property="og:title" content="{{ siteName }}" />
-        <meta property="og:description" content="{{ seo.seoDescription }}" />
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content="http://exiteightyfive.com" />
-        <meta property="og:image" content="http://exiteightyfive.com/images/exit85-road-socialmedia.jpg" />
-        <meta property="og:logo" content="http://exiteightyfive.com/images/logo-sign-small.png" />
+        {% block meta %}
+            <meta name="description" content="{{ seo.seoDescription }}">
 
-        {# Twitter Tags #}
-        <meta name="twitter:creator" content="@jacksutherland" />
-        <meta name="twitter:card" content="summary">
-        <meta name="twitter:title" content="{{ siteName }}">
-        <meta name="twitter:description" content="{{ seo.seoDescription }}">
-        <meta name="twitter:image" content="http://exiteightyfive.com/images/kiser-landscape.jpg">
+            {# OG Tags #}
+            <meta property="og:title" content="{{ siteName }}" />
+            <meta property="og:description" content="{{ seo.seoDescription }}" />
+            <meta property="og:type" content="website" />
+            <meta property="og:url" content="http://exiteightyfive.com" />
+            <meta property="og:image" content="http://exiteightyfive.com/images/exit85-road-socialmedia.jpg" />
+            <meta property="og:logo" content="http://exiteightyfive.com/images/logo-sign-small.png" />
+
+            {# Twitter Tags #}
+            <meta name="twitter:creator" content="@jacksutherland" />
+            <meta name="twitter:card" content="summary">
+            <meta name="twitter:title" content="{{ siteName }}">
+            <meta name="twitter:description" content="{{ seo.seoDescription }}">
+            <meta name="twitter:image" content="http://exiteightyfive.com/images/kiser-landscape.jpg">
+        {% endblock %}
 
         {# RESOURCES #}
         <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.2/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-Smlep5jCw/wG7hdkwQ/Z5nLIefveQRIY9nfy6xoR1uRYBtpZgI6339F5dgvm/e9B" crossorigin="anonymous">
