@@ -215,6 +215,22 @@ footer {
   padding: 5px 0 50px 0;
   background: #262626; }
 
+.black-section {
+  background-color: #000; }
+
+.border-bottom {
+  border-bottom: solid 1px #262626 !important; }
+
+button, .button {
+  background: #262626;
+  border: solid 1px #353535;
+  color: #FFF;
+  padding: 10px 40px;
+  margin: 0 0 20px 0; }
+  button:hover, .button:hover {
+    background: #2b2b2b;
+    cursor: pointer; }
+
 .ux-form {
   margin: 0 0 0 0;
   padding: 1px 0 50px 0;
@@ -229,15 +245,6 @@ footer {
     margin: 0 0 20px 0; }
   .ux-form textarea {
     height: 200px; }
-  .ux-form button {
-    background: #262626;
-    border: solid 1px #353535;
-    color: #FFF;
-    padding: 10px 40px;
-    margin: 0 0 20px 0; }
-    .ux-form button:hover {
-      background: #2b2b2b;
-      cursor: pointer; }
   .ux-form .info {
     margin-left: 10px; }
     .ux-form .info.is-error {

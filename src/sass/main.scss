@@ -277,6 +277,26 @@ footer {
 	background: $section-gray;
 }
 
+.black-section {
+    background-color: $black;
+}
+
+.border-bottom {
+    border-bottom: $thin-border !important;
+}
+
+button, .button {
+    background: $section-gray;
+    border: solid 1px lighten($section-gray, 6%);
+    color: $white;
+    padding: 10px 40px;
+    margin: 0 0 20px 0;
+    &:hover {
+        background: lighten($section-gray, 2%);
+        cursor: pointer;
+    }
+}
+
 .ux-form {
     margin: 0 0 0 0;
     padding: 1px 0 50px 0;
@@ -292,17 +312,6 @@ footer {
     }
     textarea {
         height: 200px;
-    }
-    button {
-        background: $section-gray;
-        border: solid 1px lighten($section-gray, 6%);
-        color: $white;
-        padding: 10px 40px;
-        margin: 0 0 20px 0;
-        &:hover {
-            background: lighten($section-gray, 2%);
-            cursor: pointer;
-        }
     }
     .info {
         margin-left: 10px;

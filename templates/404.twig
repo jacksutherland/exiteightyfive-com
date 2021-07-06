@@ -1,0 +1,25 @@
+{% extends "_layouts/main" %}
+
+{% block hero %}
+	<div class="hero small-hero">
+		<div class="hero-image hero-darker" style="background-image: url({{ '/images/sad-stick.jpg' }});"></div>
+		<div class="hero-text">
+			<h1>404 - Page Not Found</h1>
+		</div>
+	</div>
+{% endblock %}
+
+{% block content %}
+	<div class="black-section pt-5 pb-5 border-bottom">
+		<div class="container">
+			<div class="row justify-content-center">
+				<div class="col-lg-8 text-center">
+					<h3>It looks like something went wrong on our end.</h3>
+					<br><br>    
+					<a class="button" href="/">Go Home</a>
+				</div>
+			</div>
+		</div>
+	</div>
+
+{% endblock %}
