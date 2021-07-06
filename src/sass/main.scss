@@ -817,6 +817,11 @@ $hero-intro-duration: 10s;
                 &:hover {
                     color: lighten($link-color, 10%);
                 }
+                &:not(a)
+                {
+                    animation: none !important;
+                    color: lighten($link-color, 10%);
+                }
             }
         }
     }

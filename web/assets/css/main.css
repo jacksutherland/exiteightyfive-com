@@ -646,6 +646,9 @@ section .container {
       animation: hero-cta 10s linear; }
       .page-header .hero .hero-text .hero-cta:hover {
         color: #91c790; }
+      .page-header .hero .hero-text .hero-cta:not(a) {
+        animation: none !important;
+        color: #91c790; }
 
 /*** MEDIA QUERIES ***/
 @media (max-width: 480px) {

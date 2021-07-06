@@ -37,10 +37,11 @@
 {% block hero %}
 	{% if entry.hero.count %}
 		<div class="hero small-hero">
-			<div class="hero-image hero-band hero-grayscale" style="background-image: url({{ entry.hero.one().url }})"></div>
+			<div class="hero-image {% if entry.heroGrayscale %} hero-grayscale{% endif %}" style="background-image: url({{ entry.hero.one().url }})"></div>
 			{% if entry.heroText | length %}
 				<div class="hero-text">
 					<h1>{{ entry.heroText }}</h1>
+					<span class="hero-cta">From The Road</span>
 				</div>
 			{% endif %}
 		</div> 
