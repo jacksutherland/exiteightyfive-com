@@ -58,18 +58,42 @@
 
 {% block content %}
 
-	<div class="container">
-		<section class="blog">
 
+	<section class="blog">
+		<div class="container">
 			{% for post in posts %}
 
 				<article class="blog-post">
+					<div class="row justify-content-center">
+						<div class="col-lg-8">
 
-					<h3>{{ post.blogTitle }}</h3>
-					{% if post.author != null %}
-						<h6>Written by <a href="/sections/members"><strong>{{ post.author.fullName }}</strong></a> on {{ post.dateCreated | date('m/d/Y') }}</h6>
-					{% endif %}
+							<h3><a href="{{ post.url }}">{{ post.blogTitle }}</a></h3>
+							{% if post.author != null %}
+								<h6>Written by <a href="/sections/members"><strong>{{ post.author.fullName }}</strong></a> on {{ post.dateCreated | date('m/d/Y') }}</h6>
+							{% endif %}
 
+							{% for module in post.blogModule.limit(5) %}
+								{% switch module.type %}
+									{% case 'richText' %}
+										<div class="blog-text">
+											{{ module.richText }}
+										</div>
+									{% case 'image' %}
+										<div class="blog-image">
+											<img src="{{ module.image.one().url }}" alt="{{ module.image.one().title }}" title="{{ module.caption }}" loading="lazy">
+											<div class="blog-image-caption">{{ module.caption }}</div>
+										</div>
+									{% case 'embedCode' %}
+										<div class="blog-embed">
+											{{ module.embedcode | raw }}
+										</div>	
+								{% endswitch %}
+							{% endfor %}
+
+							<a href="{{ post.url }}"><strong>Keep Reading ({{ post.blogModule.count * 5 }} minute read) &#8250;&#8250;</strong></a>
+
+						</div>
+					</div>
 				</article>
 
 			{% endfor %}
@@ -107,9 +131,9 @@
 				</div>
 			</article>
 			#}
-		</section>
-	</div>
+		</div>
+	</section>
 
-	{#% include "_includes/ad" %#}
+	{% include "_includes/ad" %}
 
 {% endblock %}

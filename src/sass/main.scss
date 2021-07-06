@@ -214,10 +214,31 @@ footer {
 }
 
 .blog {
-    
+    background-color: #f5f7fa; //$white;
+    color: $black;
+    .blog-post {
+        padding: 30px 0 60px 0;
+        &:not(:last-child)
+        {
+            border-bottom: solid 3px darken(#f5f7fa, 1%); //$thin-border;
+        }
+        h3 {
+            a {
+                color: $section-gray;
+                &:hover {
+                    color: $link-color;
+                }
+            }
+        }
+    }
 }
 
 .blog-post {
+    background-color: $white;
+    color: $black;
+    h2, h3, h5, p strong {
+        color: $section-gray;
+    }
     h6 {
         margin-top: -10px;
     }
@@ -237,7 +258,7 @@ footer {
         margin: 10px 0 0 0;
         font-size: 0.85rem;
         font-style: italic;
-        color: #aaa;
+        color: #777;
         text-align: center;
     }
     .blog-embed {
@@ -246,6 +267,7 @@ footer {
     }
     &~.section-style1 {
         border-top: solid 1px $black;
+        margin-top: 0;
     }
 }
 
