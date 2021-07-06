@@ -213,6 +213,10 @@ footer {
     }
 }
 
+.blog {
+    
+}
+
 .blog-post {
     h6 {
         margin-top: -10px;
@@ -715,8 +719,8 @@ $hero-intro-duration: 10s;
         }
     	.hero-image {
             &.hero-grayscale {
-                -webkit-filter: grayscale(100%);
-                filter: grayscale(100%);
+                -webkit-filter: brightness(70%) grayscale(100%);
+                filter: brightness(70%) grayscale(100%);
             }
             &.hero-band {
                 background-image: url(/images/band-1920s-bw.jpg);

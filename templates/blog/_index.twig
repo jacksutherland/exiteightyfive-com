@@ -1,12 +1,18 @@
 {% extends "_layouts/main" %}
 
+{% set posts = craft.entries.section('blog').orderBy('dateCreated asc').limit(20).all() %}
+
+{% set title = entry.heroText %}
+{% if entry.ctaText | length %}
+	{% set title = (title ~ ' | ' ~ entry.ctaText) %}
+{% endif %}
+
 {% block title %}
-    {{ entry.heroText }} | Exit 85
+    {{ title }} | Exit 85
 {% endblock %}
 
 {% block meta %}
-    <meta name="description" content="{{ entry.blogAbstract }}">
-    <meta name="author" content="{{ entry.author.fullName }}">
+    <meta name="description" content="{{ entry.seoDescription }}">
 
     <meta name="generator" content="Exit85">
     <meta class="swiftype" name="doc-type" data-type="string" content="Customer">
@@ -14,8 +20,8 @@
     <meta class="swiftype" name="last-updated" data-type="date" content="{{ "now"|date("Y-m-d") }}">
 
     {# OG Tags #}
-    <meta property="og:title" content="{{ entry.heroText }}" />
-    <meta property="og:description" content="{{ entry.blogAbstract }}" />
+    <meta property="og:title" content="{{ title }}" />
+    <meta property="og:description" content="{{ entry.seoDescription }}" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="{{ craft.app.request.absoluteUrl }}" />
 
@@ -29,8 +35,8 @@
     {# Twitter Tags #}
     <meta name="twitter:creator" content="@jacksutherland" />
     <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="{{ entry.heroText }}">
-    <meta name="twitter:description" content="{{ entry.blogAbstract }}">
+    <meta name="twitter:title" content="{{ title }}">
+    <meta name="twitter:description" content="{{ entry.seoDescription }}">
     
 {% endblock %}
 
@@ -41,9 +47,69 @@
 			{% if entry.heroText | length %}
 				<div class="hero-text">
 					<h1>{{ entry.heroText }}</h1>
-					<span class="hero-cta">From The Road</span>
+					{% if entry.ctaText | length %}
+						<span class="hero-cta">{{ entry.ctaText }}</span>
+					{% endif %}
 				</div>
 			{% endif %}
 		</div> 
 	{% endif %}
+{% endblock %}
+
+{% block content %}
+
+	<div class="container">
+		<section class="blog">
+
+			{% for post in posts %}
+
+				<article class="blog-post">
+
+					<h3>{{ post.blogTitle }}</h3>
+					{% if post.author != null %}
+						<h6>Written by <a href="/sections/members"><strong>{{ post.author.fullName }}</strong></a> on {{ post.dateCreated | date('m/d/Y') }}</h6>
+					{% endif %}
+
+				</article>
+
+			{% endfor %}
+
+			{#
+			<article class="blog-post">
+				
+					<div class="row justify-content-center">
+						<div class="col-lg-8">
+
+							<h2>{{ entry.blogTitle }}</h2>
+
+							<h6>Written by <a href="/sections/members"><strong>{{ entry.author.fullName }}</strong></a></h6>
+
+							{% for module in entry.blogModule %}
+								{% switch module.type %}
+									{% case 'richText' %}
+										<div class="blog-text">
+											{{ module.richText }}
+										</div>
+									{% case 'image' %}
+										<div class="blog-image">
+											<img src="{{ module.image.one().url }}" alt="{{ module.image.one().title }}" title="{{ module.caption }}" loading="lazy">
+											<div class="blog-image-caption">{{ module.caption }}</div>
+										</div>
+									{% case 'embedCode' %}
+										<div class="blog-embed">
+											{{ module.embedcode | raw }}
+										</div>	
+								{% endswitch %}
+							{% endfor %}
+
+						</div>
+					</div>
+				</div>
+			</article>
+			#}
+		</section>
+	</div>
+
+	{#% include "_includes/ad" %#}
+
 {% endblock %}

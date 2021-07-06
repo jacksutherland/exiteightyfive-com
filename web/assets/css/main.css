@@ -578,8 +578,8 @@ section .container {
     height: 700px;
     width: 100%; }
     .page-header .hero .hero-image.hero-grayscale {
-      -webkit-filter: grayscale(100%);
-      filter: grayscale(100%); }
+      -webkit-filter: brightness(70%) grayscale(100%);
+      filter: brightness(70%) grayscale(100%); }
     .page-header .hero .hero-image.hero-band {
       background-image: url(/images/band-1920s-bw.jpg);
       background-position: center center; }
