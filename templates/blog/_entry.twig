@@ -1,3 +1,7 @@
+{% if entry.slug == "gear" %}
+	{% redirect "gear" %}
+{% endif %}
+
 {% extends "_layouts/main" %}
 
 {% set author = null %}

@@ -1,0 +1,48 @@
+{% extends "_layouts/main" %}
+
+{% block title %}
+    {{ entry.heroText }} | Exit 85
+{% endblock %}
+
+{% block meta %}
+    <meta name="description" content="{{ entry.blogAbstract }}">
+    <meta name="author" content="{{ entry.author.fullName }}">
+
+    <meta name="generator" content="Exit85">
+    <meta class="swiftype" name="doc-type" data-type="string" content="Customer">
+    <meta class="swiftype" name="meta-description" data-type="text" content="{{ entry.blogAbstract }}">
+    <meta class="swiftype" name="last-updated" data-type="date" content="{{ "now"|date("Y-m-d") }}">
+
+    {# OG Tags #}
+    <meta property="og:title" content="{{ entry.heroText }}" />
+    <meta property="og:description" content="{{ entry.blogAbstract }}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="{{ craft.app.request.absoluteUrl }}" />
+
+    <meta property="og:logo" content="http://exiteightyfive.com/images/logo-sign-small.png" />
+
+    {% if entry.hero.count %}
+	    <meta property="og:image" content="https://exiteightyfive.com{{ entry.hero.one().url('seoImage') }}" />
+	    <meta name="twitter:image" content="https://exiteightyfive.com{{ entry.hero.one().url('seoImage') }}">
+    {% endif %}
+
+    {# Twitter Tags #}
+    <meta name="twitter:creator" content="@jacksutherland" />
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{{ entry.heroText }}">
+    <meta name="twitter:description" content="{{ entry.blogAbstract }}">
+    
+{% endblock %}
+
+{% block hero %}
+	{% if entry.hero.count %}
+		<div class="hero small-hero">
+			<div class="hero-image hero-band hero-grayscale" style="background-image: url({{ entry.hero.one().url }})"></div>
+			{% if entry.heroText | length %}
+				<div class="hero-text">
+					<h1>{{ entry.heroText }}</h1>
+				</div>
+			{% endif %}
+		</div> 
+	{% endif %}
+{% endblock %}

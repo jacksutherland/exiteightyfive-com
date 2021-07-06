@@ -32,10 +32,10 @@ fields:
       defaultTransform: ''
       manualConfig: ''
       purifierConfig: ''
-      purifyHtml: ''
+      purifyHtml: '1'
       redactorConfig: Standard.json
       removeEmptyTags: '1'
-      removeInlineStyles: ''
+      removeInlineStyles: '1'
       removeNbsp: '1'
       showHtmlButtonForNonAdmins: ''
       showUnpermittedFiles: false
