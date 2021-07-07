@@ -171,16 +171,7 @@ interface VolumeInterface extends SavableComponentInterface
      * @param string $path The path of the directory, relative to the source’s root
      * @throws VolumeObjectExistsException if a directory with such name already exists
      * @throws VolumeException if something else goes wrong
-     * @deprecated in 3.6.0. Use [[createDirectory()]] instead.
-     */
-    public function createDir(string $path);
-
-    /**
-     * Creates a directory.
-     *
-     * @param string $path The path of the directory, relative to the source’s root
-     * @throws VolumeObjectExistsException if a directory with such name already exists
-     * @throws VolumeException if something else goes wrong
+     * @since 3.6.0
      */
     public function createDirectory(string $path);
 
@@ -189,15 +180,7 @@ interface VolumeInterface extends SavableComponentInterface
      *
      * @param string $path The path of the directory, relative to the source’s root
      * @throws VolumeException if something goes wrong
-     * @deprecated in 3.6.0. Use [[deleteDirectory()]] instead.
-     */
-    public function deleteDir(string $path);
-
-    /**
-     * Deletes a directory.
-     *
-     * @param string $path The path of the directory, relative to the source’s root
-     * @throws VolumeException if something goes wrong
+     * @since 3.6.0
      */
     public function deleteDirectory(string $path);
 
@@ -209,18 +192,7 @@ interface VolumeInterface extends SavableComponentInterface
      * @throws VolumeObjectNotFoundException if a directory with such name already exists
      * @throws VolumeObjectExistsException if a directory with such name already exists
      * @throws VolumeException if something else goes wrong
-     * @deprecated in 3.6.0. Use [[renameDirectory()]] instead.
-     */
-    public function renameDir(string $path, string $newName);
-
-    /**
-     * Renames a directory.
-     *
-     * @param string $path The path of the directory, relative to the source’s root
-     * @param string $newName The new path of the directory, relative to the source’s root
-     * @throws VolumeObjectNotFoundException if a directory with such name already exists
-     * @throws VolumeObjectExistsException if a directory with such name already exists
-     * @throws VolumeException if something else goes wrong
+     * @since 3.6.0
      */
     public function renameDirectory(string $path, string $newName);
 }

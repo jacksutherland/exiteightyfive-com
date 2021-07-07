@@ -62,6 +62,15 @@ fieldLayouts:
             type: craft\fieldlayoutelements\CustomField
             warning: null
             width: 100
+          -
+            fieldUid: 7c1b1669-fb76-4b7a-96c2-002b0a135163
+            instructions: 'This will darken and grayscale the hero image. Use it when the Hero Text doesn''t contrast well.'
+            label: ''
+            required: ''
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
         name: Overview
         sortOrder: 1
       -

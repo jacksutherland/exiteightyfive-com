@@ -6,21 +6,21 @@ entryTypes:
         tabs:
           -
             fields:
-              296b7b69-efdd-475f-a1b0-bdba61d58d49:
+              7c1b1669-fb76-4b7a-96c2-002b0a135163:
                 required: false
-                sortOrder: 3
+                sortOrder: 4
               36c09d73-9ed7-4f69-91f6-784ef5cf344f:
                 required: false
                 sortOrder: 5
               60b734c9-66e9-4743-84a4-310f6f31036c:
                 required: true
                 sortOrder: 1
+              296b7b69-efdd-475f-a1b0-bdba61d58d49:
+                required: false
+                sortOrder: 3
               724bf21b-cea5-4e49-a9c9-da4f85771259:
                 required: false
                 sortOrder: 2
-              7c1b1669-fb76-4b7a-96c2-002b0a135163:
-                required: false
-                sortOrder: 4
             name: Homepage
             sortOrder: 1
           -
@@ -48,15 +48,15 @@ entryTypes:
             sortOrder: 3
           -
             fields:
-              06871b30-712c-4682-a5fd-8e8d347c2dc4:
-                required: false
-                sortOrder: 3
-              35f147cd-67f9-4b1b-865b-e4d3feea6b2e:
-                required: false
-                sortOrder: 1
               4d1360d5-2fd6-42f4-8e9c-787bee78c4aa:
                 required: false
                 sortOrder: 2
+              35f147cd-67f9-4b1b-865b-e4d3feea6b2e:
+                required: false
+                sortOrder: 1
+              06871b30-712c-4682-a5fd-8e8d347c2dc4:
+                required: false
+                sortOrder: 3
               b5a074a8-ff75-4632-98aa-62072a7d31df:
                 required: false
                 sortOrder: 4

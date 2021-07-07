@@ -45,4 +45,22 @@ return array (
       'mobileDetectService' => 'superbig\\mobiledetect\\services\\MobileDetectService',
     ),
   ),
+  'verbb/comments' => 
+  array (
+    'class' => 'verbb\\comments\\Comments',
+    'basePath' => $vendorDir . '/verbb/comments/src',
+    'handle' => 'comments',
+    'aliases' => 
+    array (
+      '@verbb/comments' => $vendorDir . '/verbb/comments/src',
+    ),
+    'name' => 'Comments',
+    'version' => '1.8.7',
+    'description' => 'A Craft CMS plugin for managing comments directly within the CMS.',
+    'developer' => 'Verbb',
+    'developerUrl' => 'https://verbb.io',
+    'developerEmail' => 'support@verbb.io',
+    'documentationUrl' => 'https://github.com/verbb/comments',
+    'changelogUrl' => 'https://raw.githubusercontent.com/verbb/comments/craft-3/CHANGELOG.md',
+  ),
 );

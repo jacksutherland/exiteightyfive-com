@@ -18,11 +18,13 @@ use craft\helpers\Cp;
 use craft\helpers\DateTimeHelper;
 use craft\helpers\Html;
 use craft\helpers\Json;
+use craft\helpers\StringHelper;
 use craft\validators\ColorValidator;
 use craft\validators\HandleValidator;
 use craft\validators\UrlValidator;
 use craft\web\assets\tablesettings\TableSettingsAsset;
 use craft\web\assets\timepicker\TimepickerAsset;
+use DateTime;
 use GraphQL\Type\Definition\InputObjectType;
 use GraphQL\Type\Definition\Type;
 use LitEmoji\LitEmoji;
@@ -434,6 +436,28 @@ class Table extends Field
     /**
      * @inheritdoc
      */
+    protected function searchKeywords($value, ElementInterface $element): string
+    {
+        if (!is_array($value) || empty($this->columns)) {
+            return '';
+        }
+
+        $keywords = [];
+
+        foreach ($value as $row) {
+            foreach (array_keys($this->columns) as $colId) {
+                if (isset($row[$colId]) && !$row[$colId] instanceof DateTime) {
+                    $keywords[] = $row[$colId];
+                }
+            }
+        }
+
+        return implode(' ', $keywords);
+    }
+
+    /**
+     * @inheritdoc
+     */
     public function getStaticHtml($value, ElementInterface $element): string
     {
         return $this->_getInputHtml($value, $element, true);
@@ -536,7 +560,7 @@ class Table extends Field
 
         switch ($type) {
             case 'color':
-                /** @var ColorData $value */
+                /* @var ColorData $value */
                 $value = $value->getHex();
                 $validator = new ColorValidator();
                 break;

@@ -3,6 +3,7 @@
     "craftcms/cms": "^3.6.4",
     "craftcms/redactor": "2.8.5",
     "superbig/craft3-mobiledetect": "1.0.2",
+    "verbb/comments": "1.8.7",
     "vlucas/phpdotenv": "^3.4.0"
   },
   "require-dev": {

@@ -567,9 +567,13 @@ class ProjectConfig extends Component
         $changes = $this->_getPendingChanges();
 
         $this->_applyChanges($changes);
+        $anyChangesApplied = (bool)(count($changes['newItems']) + count($changes['removedItems']) + count($changes['changedItems']));
 
         // Kill the cached config data
         $cache->delete(self::STORED_CACHE_KEY);
+        if ($anyChangesApplied) {
+            $this->_updateConfigVersion();
+        }
 
         $mutex->release($lockName);
     }
@@ -1315,9 +1319,9 @@ class ProjectConfig extends Component
                 throw new OperationAbortedException($message);
             }
 
-            /** @var ConfigEvent $event */
-            /** @var string[]|null $tokenMatches */
-            /** @var callable $handler */
+            /* @var ConfigEvent $event */
+            /* @var string[]|null $tokenMatches */
+            /* @var callable $handler */
             [$event, $tokenMatches, $handler] = array_shift($this->_deferredEvents);
             Craft::info('Re-triggering deferred event for ' . $event->path, __METHOD__);
             $event->tokenMatches = $tokenMatches;
@@ -1690,10 +1694,15 @@ class ProjectConfig extends Component
                 'except' => ['.*', '.*/'],
             ]);
 
-            $projectConfigNames = (new Query())
-                ->select(['uid', 'name'])
-                ->from([Table::PROJECTCONFIGNAMES])
-                ->pairs();
+            // todo: remove this condition after the next breakpoint
+            if (Craft::$app->getDb()->tableExists(Table::PROJECTCONFIGNAMES)) {
+                $projectConfigNames = (new Query())
+                    ->select(['uid', 'name'])
+                    ->from([Table::PROJECTCONFIGNAMES])
+                    ->pairs();
+            } else {
+                $projectConfigNames = [];
+            }
 
             $uids = [];
             $replacements = [];
@@ -1744,7 +1753,11 @@ class ProjectConfig extends Component
     private function _discardProjectConfigNames(): void
     {
         $this->_projectConfigNameChanges = [];
-        Db::truncateTable(Table::PROJECTCONFIGNAMES);
+
+        // todo: remove this condition after the next breakpoint
+        if (Craft::$app->getDb()->tableExists(Table::PROJECTCONFIGNAMES)) {
+            Db::truncateTable(Table::PROJECTCONFIGNAMES);
+        }
     }
 
     /**
@@ -1767,16 +1780,19 @@ class ProjectConfig extends Component
                 }
             }
 
-            if (!empty($remove)) {
-                Db::delete(Table::PROJECTCONFIGNAMES, ['uid' => $remove]);
-            }
+            // todo: remove this condition after the next breakpoint
+            if (Craft::$app->getDb()->tableExists(Table::PROJECTCONFIGNAMES)) {
+                if (!empty($remove)) {
+                    Db::delete(Table::PROJECTCONFIGNAMES, ['uid' => $remove]);
+                }
 
-            if (!empty($set)) {
-                Db::delete(Table::PROJECTCONFIGNAMES, ['uid' => array_keys($set)]);
-                array_walk($set, function(&$value, $key) {
-                    $value = [$key, $value];
-                });
-                Db::batchInsert(Table::PROJECTCONFIGNAMES, ['uid', 'name'], $set, false);
+                if (!empty($set)) {
+                    Db::delete(Table::PROJECTCONFIGNAMES, ['uid' => array_keys($set)]);
+                    array_walk($set, function(&$value, $key) {
+                        $value = [$key, $value];
+                    });
+                    Db::batchInsert(Table::PROJECTCONFIGNAMES, ['uid', 'name'], $set, false);
+                }
             }
 
             $this->_projectConfigNameChanges = [];

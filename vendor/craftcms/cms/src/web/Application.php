@@ -159,8 +159,12 @@ class Application extends \yii\web\Application
         $headers = $this->getResponse()->getHeaders();
         $generalConfig = $this->getConfig()->getGeneral();
 
+        if ($generalConfig->permissionsPolicyHeader) {
+            $headers->set('Permissions-Policy', $generalConfig->permissionsPolicyHeader);
+        }
+
         // Tell bots not to index/follow CP and tokenized pages
-        if ($generalConfig->disallowRobots || $request->getIsCpRequest() || $request->getToken() !== null) {
+        if ($generalConfig->disallowRobots || $request->getIsCpRequest() || $request->getToken() !== null || $request->getIsActionRequest()) {
             $headers->set('X-Robots-Tag', 'none');
         }
 
@@ -434,7 +438,7 @@ class Application extends \yii\web\Application
                 'mail' => MailPanel::class,
             ],
         ]);
-        /** @var DebugModule $module */
+        /* @var DebugModule $module */
         $module = $this->getModule('debug');
         $module->bootstrap($this);
     }

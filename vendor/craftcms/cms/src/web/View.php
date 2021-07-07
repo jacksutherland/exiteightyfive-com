@@ -15,7 +15,6 @@ use craft\helpers\FileHelper;
 use craft\helpers\Html;
 use craft\helpers\Json;
 use craft\helpers\Path;
-use craft\helpers\Session as SessionHelper;
 use craft\helpers\StringHelper;
 use craft\web\twig\Environment;
 use craft\web\twig\Extension;
@@ -313,7 +312,7 @@ class View extends \yii\web\View
         }
 
         // Set our timezone
-        /** @var CoreExtension $core */
+        /* @var CoreExtension $core */
         $core = $twig->getExtension(CoreExtension::class);
         $core->setTimezone(Craft::$app->getTimeZone());
 
@@ -634,7 +633,7 @@ class View extends \yii\web\View
             $variables['_variables'] = $variables;
 
             // Render it!
-            /** @var TwigTemplate $templateObj */
+            /* @var TwigTemplate $templateObj */
             $templateObj = $this->_objectTemplates[$cacheKey];
             $output = $templateObj->render($variables);
         } catch (\Throwable $e) {
@@ -868,7 +867,7 @@ class View extends \yii\web\View
 
         // Should we be looking for a localized version of the template?
         if ($this->_templateMode === self::TEMPLATE_MODE_SITE && Craft::$app->getIsInstalled()) {
-            /** @noinspection PhpUnhandledExceptionInspection */
+            /* @noinspection PhpUnhandledExceptionInspection */
             $sitePath = $this->_templatesPath . DIRECTORY_SEPARATOR . Craft::$app->getSites()->getCurrentSite()->handle;
             if (is_dir($sitePath)) {
                 $basePaths[] = $sitePath;
@@ -894,7 +893,7 @@ class View extends \yii\web\View
 
         if (!empty($roots)) {
             foreach ($roots as $templateRoot => $basePaths) {
-                /** @var string[] $basePaths */
+                /* @var string[] $basePaths */
                 $templateRootLen = strlen($templateRoot);
                 if ($templateRoot === '' || strncasecmp($templateRoot . '/', $name . '/', $templateRootLen + 1) === 0) {
                     $subName = $templateRoot === '' ? $name : (strlen($name) === $templateRootLen ? '' : substr($name, $templateRootLen + 1));
@@ -1792,9 +1791,9 @@ JS;
             return;
         }
 
-        if (SessionHelper::exists()) {
-            $session = Craft::$app->getSession();
-
+        // Explicitly check if the session is active here, in case the session was closed.
+        $session = Craft::$app->getSession();
+        if ($session->getIsActive()) {
             foreach ($session->getAssetBundleFlashes(true) as $name => $position) {
                 if (!is_subclass_of($name, YiiAssetBundle::class)) {
                     throw new Exception("$name is not an asset bundle");

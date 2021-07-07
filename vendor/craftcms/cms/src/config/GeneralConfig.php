@@ -144,6 +144,8 @@ class GeneralConfig extends BaseObject
         'dfxp',
         'doc',
         'docx',
+        'dotm',
+        'dotx',
         'fla',
         'flv',
         'gif',
@@ -857,6 +859,8 @@ class GeneralConfig extends BaseObject
      *
      * This can be set to `false` to disable front-end login.
      *
+     * Note that this config setting is ignored when <config3:headlessMode> is enabled.
+     *
      * See [[ConfigHelper::localizedValue()]] for a list of supported value types.
      *
      * @see getLoginPath()
@@ -868,6 +872,8 @@ class GeneralConfig extends BaseObject
      * @var mixed The URI Craft should use for user logout on the front end.
      *
      * This can be set to `false` to disable front-end logout.
+     *
+     * Note that this config setting is ignored when <config3:headlessMode> is enabled.
      *
      * See [[ConfigHelper::localizedValue()]] for a list of supported value types.
      *
@@ -1002,6 +1008,20 @@ class GeneralConfig extends BaseObject
     public $pathParam = 'p';
 
     /**
+     * @var string|null The `Permissions-Policy` header that should be sent for web responses.
+     *
+     * The default value prevents FLoC tracking due to security & privacy concerns:
+     * - https://www.theverge.com/2021/4/16/22387492/google-floc-ad-tech-privacy-browsers-brave-vivaldi-edge-mozilla-chrome-safari
+     * - https://www.bleepingcomputer.com/news/security/wordpress-may-automatically-disable-google-floc-on-websites/
+     *
+     * This can be set to `null` to prevent the header from being sent.
+     *
+     * @since 3.6.14
+     * @group System
+     */
+    public $permissionsPolicyHeader = 'interest-cohort=()';
+
+    /**
      * @var string|null The maximum amount of memory Craft will try to reserve during memory-intensive operations such as zipping,
      * unzipping and updating. Defaults to an empty string, which means it will use as much memory as it can.
      *
@@ -1055,7 +1075,7 @@ class GeneralConfig extends BaseObject
     public $postLogoutRedirect = '';
 
     /**
-     * @var bool Whether the <config3:gqlTypePrefix> config setting should have an impact on `query`, `mutation`, and `subscirption` types.
+     * @var bool Whether the <config3:gqlTypePrefix> config setting should have an impact on `query`, `mutation`, and `subscription` types.
      * @since 3.6.6
      * @group GraphQL
      */
@@ -1321,7 +1341,9 @@ class GeneralConfig extends BaseObject
     public $sendPoweredByHeader = true;
 
     /**
-     * @var mixed The URI Craft should use for Set Password forms on the front end.
+     * @var mixed The URI or URL that Craft should use for Set Password forms on the front end.
+     *
+     * Note that this config setting is ignored when <config3:headlessMode> is enabled, unless it’s set to an absolute URL.
      *
      * See [[ConfigHelper::localizedValue()]] for a list of supported value types.
      *
@@ -1628,7 +1650,9 @@ class GeneralConfig extends BaseObject
     public $verificationCodeDuration = 86400;
 
     /**
-     * @var mixed The URI Craft should use for email verification links on the front end.
+     * @var mixed The URI or URL that Craft should use for email verification links on the front end.
+     *
+     * Note that this config setting is ignored when <config3:headlessMode> is enabled, unless it’s set to an absolute URL.
      *
      * See [[ConfigHelper::localizedValue()]] for a list of supported value types.
      *
@@ -1751,6 +1775,7 @@ class GeneralConfig extends BaseObject
         $this->elevatedSessionDuration = ConfigHelper::durationInSeconds($this->elevatedSessionDuration);
         $this->invalidLoginWindowDuration = ConfigHelper::durationInSeconds($this->invalidLoginWindowDuration);
         $this->purgePendingUsersDuration = ConfigHelper::durationInSeconds($this->purgePendingUsersDuration);
+        $this->purgeUnsavedDraftsDuration = ConfigHelper::durationInSeconds($this->purgeUnsavedDraftsDuration);
         $this->rememberUsernameDuration = ConfigHelper::durationInSeconds($this->rememberUsernameDuration);
         $this->rememberedUserSessionDuration = ConfigHelper::durationInSeconds($this->rememberedUserSessionDuration);
         $this->softDeleteDuration = ConfigHelper::durationInSeconds($this->softDeleteDuration);

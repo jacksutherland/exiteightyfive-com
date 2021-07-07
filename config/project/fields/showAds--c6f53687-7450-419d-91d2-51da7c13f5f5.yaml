@@ -1,0 +1,13 @@
+contentColumnType: boolean
+fieldGroup: d529c2e3-0fc2-4541-85cf-5ea9726d5718 # Affiliates
+handle: showAds
+instructions: ''
+name: 'Show Ads'
+searchable: false
+settings:
+  default: true
+  offLabel: null
+  onLabel: null
+translationKeyFormat: null
+translationMethod: none
+type: craft\fields\Lightswitch

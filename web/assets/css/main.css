@@ -205,6 +205,20 @@ footer {
     border-top: solid 1px #000;
     margin-top: 0; }
 
+.entry-comments {
+  margin: 50px 0; }
+  .entry-comments .cc-w .cc-n, .entry-comments .cc-w a, .entry-comments .cc-w .cc-a {
+    color: #6FB66E; }
+  .entry-comments .cc-w .cc-f-btn {
+    color: #FFF;
+    background-color: #6FB66E;
+    border-color: transparent;
+    line-height: 14px; }
+    .entry-comments .cc-w .cc-f-btn:hover {
+      background-color: #FFF;
+      border-color: #6FB66E;
+      color: #6FB66E; }
+
 .ad.cybershop {
   color: #1d375c;
   background-color: #f9f5ec;

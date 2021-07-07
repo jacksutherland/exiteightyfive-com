@@ -1,0 +1,18 @@
+fieldLayouts:
+  e6c3ccc8-6980-49a3-9c93-bb147d08ebc5:
+    tabs:
+      -
+        elements:
+          -
+            fieldUid: c6f53687-7450-419d-91d2-51da7c13f5f5 # Show Ads
+            instructions: null
+            label: null
+            required: false
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
+        name: Affiliates
+        sortOrder: 1
+handle: affiliates
+name: Affiliates

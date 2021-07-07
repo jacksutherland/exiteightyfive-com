@@ -1,4 +1,8 @@
-dateModified: 1625609648
+comments:
+  comments:
+    fieldLayouts:
+      3694d1a5-1034-4cb6-947d-977389795a15: null
+dateModified: 1625632172
 email:
   fromEmail: jack@jacksutherland.com
   fromName: 'Exit 85 CMS'
@@ -8,6 +12,68 @@ email:
     command: ''
   transportType: craft\mail\transportadapters\Sendmail
 plugins:
+  comments:
+    enabled: true
+    licenseKey: U811NSF5PKID01Y0UKRDM4E6
+    settings:
+      allowAnonymous: null
+      allowAnonymousFlagging: null
+      allowAnonymousVoting: null
+      allowFlagging: true
+      allowGuest: false
+      allowGuestFlagging: false
+      allowGuestVoting: false
+      allowVoting: true
+      autoCloseDays: ''
+      closed: null
+      defaultQueryStatus:
+        - approved
+      downvoteCommentLimit: 5
+      enableGravatar: false
+      enableSpamChecks: true
+      flaggedCommentLimit: 5
+      guestNotice: ''
+      guestRequireEmailName: true
+      guestShowEmailName: true
+      hideVotingForThreshold: false
+      indexSidebarGroup: true
+      indexSidebarIndividualElements: false
+      indexSidebarLimit: 25
+      maxReplyDepth: null
+      maxUserComments: null
+      moderatorUserGroup: null
+      notificationAdminEnabled: false
+      notificationAuthorEnabled: true
+      notificationFlaggedEnabled: false
+      notificationModeratorApprovedEnabled: false
+      notificationModeratorEnabled: false
+      notificationReplyEnabled: true
+      notificationSubscribeAuto: false
+      notificationSubscribeCommentEnabled: false
+      notificationSubscribeDefault: true
+      notificationSubscribeEnabled: false
+      outputDefaultCss: true
+      outputDefaultJs: true
+      permissions: null
+      placeholderAvatar: null
+      recaptchaEnabled: false
+      recaptchaKey: null
+      recaptchaSecret: null
+      requireModeration: true
+      securityBanned: null
+      securityFlooding: null
+      securityMatchExact: false
+      securityMaxLength: null
+      securityModeration: null
+      securitySpamlist: null
+      showAvatar: true
+      showCustomFieldInstructions: false
+      showCustomFieldNames: false
+      showTimeAgo: true
+      structureUid: 6444bc69-6815-4afe-8223-3600c7713208
+      templateEmail: null
+      templateFolderOverride: null
+      users: null
   mobile-detect:
     edition: standard
     enabled: true
@@ -20,5 +86,6 @@ system:
   edition: pro
   live: true
   name: 'Exit 85'
-  schemaVersion: 3.2.14
+  retryDuration: null
+  schemaVersion: 3.6.8
   timeZone: America/New_York

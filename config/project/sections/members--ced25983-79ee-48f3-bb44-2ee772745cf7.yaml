@@ -9,15 +9,15 @@ entryTypes:
               0eeae9c1-05a1-461f-b24e-0a79a0f566e9:
                 required: false
                 sortOrder: 3
+              5ffa2eed-de44-485e-bd84-b569a5829428:
+                required: false
+                sortOrder: 5
               466f9298-b90b-4f50-98f9-5414624d4a3f:
                 required: false
                 sortOrder: 4
               482648ae-12ef-4061-a2ac-f621cb0d7014:
                 required: true
                 sortOrder: 1
-              5ffa2eed-de44-485e-bd84-b569a5829428:
-                required: false
-                sortOrder: 5
               a8ac21f1-68b7-48be-a535-f36ff8ecaecd:
                 required: false
                 sortOrder: 2

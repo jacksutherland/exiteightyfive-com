@@ -277,7 +277,7 @@ class Elements extends Component
             $config = ['type' => $config];
         }
 
-        /** @noinspection PhpIncompatibleReturnTypeInspection */
+        /* @noinspection PhpIncompatibleReturnTypeInspection */
         return ComponentHelper::createComponent($config, ElementInterface::class);
     }
 
@@ -495,15 +495,28 @@ class Elements extends Component
             return null;
         }
 
-        if ($elementType === null) {
-            $elementType = $this->_elementTypeById($property, $elementId);
+        try {
+            $data = (new Query())
+                ->select(['draftId', 'revisionId', 'type'])
+                ->from([Table::ELEMENTS])
+                ->where([$property => $elementId])
+                ->one();
+
+            if (!$data) {
+                return null;
+            }
 
             if ($elementType === null) {
-                return null;
+                $elementType = $data['type'];
+            }
+        } catch (DbException $e) {
+            // Not on schema 3.2.6+ yet
+            if ($elementType === null) {
+                $elementType = $this->_elementTypeById($property, $elementId);
             }
         }
 
-        if (!class_exists($elementType)) {
+        if ($elementType === null || !class_exists($elementType)) {
             return null;
         }
 
@@ -513,16 +526,6 @@ class Elements extends Component
         $query->anyStatus();
 
         // Is this a draft/revision?
-        try {
-            $data = (new Query())
-                ->select(['draftId', 'revisionId'])
-                ->from([Table::ELEMENTS])
-                ->where([$property => $elementId])
-                ->one();
-        } catch (DbException $e) {
-            // Not on schema 3.2.6+ yet
-        }
-
         if (!empty($data['draftId'])) {
             $query->draftId($data['draftId']);
         } else if (!empty($data['revisionId'])) {
@@ -549,7 +552,7 @@ class Elements extends Component
         }
 
         if ($siteId === null) {
-            /** @noinspection PhpUnhandledExceptionInspection */
+            /* @noinspection PhpUnhandledExceptionInspection */
             $siteId = Craft::$app->getSites()->getCurrentSite()->id;
         }
 
@@ -686,7 +689,7 @@ class Elements extends Component
         return (new Query())
             ->select(['siteId'])
             ->from([Table::ELEMENTS_SITES])
-            ->where(['elementId' => $elementId, 'enabled' => 1])
+            ->where(['elementId' => $elementId, 'enabled' => true])
             ->column();
     }
 
@@ -954,8 +957,10 @@ class Elements extends Component
             throw new Exception('Attempting to duplicate an unsaved element.');
         }
 
-        // Create our first clone for the $element's site
+        // Ensure all fields have been normalized
         $element->getFieldValues();
+
+        // Create our first clone for the $element's site
         $mainClone = clone $element;
         $mainClone->id = null;
         $mainClone->uid = StringHelper::UUID();
@@ -985,6 +990,13 @@ class Elements extends Component
         $supportedSiteIds = ArrayHelper::getColumn($supportedSites, 'siteId');
         if (!in_array($mainClone->siteId, $supportedSiteIds, false)) {
             throw new UnsupportedSiteException($element, $mainClone->siteId, 'Attempting to duplicate an element in an unsupported site.');
+        }
+
+        // Clone any field values that are objects
+        foreach ($mainClone->getFieldValues() as $handle => $value) {
+            if (is_object($value)) {
+                $mainClone->setFieldValue($handle, clone $value);
+            }
         }
 
         // If we are duplicating a draft as another draft, create a new draft row
@@ -1093,7 +1105,9 @@ class Elements extends Component
                         continue;
                     }
 
+                    // Ensure all fields have been normalized
                     $siteElement->getFieldValues();
+
                     $siteClone = clone $siteElement;
                     $siteClone->duplicateOf = $siteElement;
                     $siteClone->propagating = true;
@@ -1115,6 +1129,13 @@ class Elements extends Component
 
                     $siteClone->setAttributes($newAttributes, false);
                     $siteClone->siteId = $siteInfo['siteId'];
+
+                    // Clone any field values that are objects
+                    foreach ($siteClone->getFieldValues() as $handle => $value) {
+                        if (is_object($value)) {
+                            $siteClone->setFieldValue($handle, clone $value);
+                        }
+                    }
 
                     if ($element::hasUris()) {
                         // Make sure it has a valid slug
@@ -1159,6 +1180,7 @@ class Elements extends Component
      * @param bool $updateOtherSites Whether the element’s other sites should also be updated.
      * @param bool $updateDescendants Whether the element’s descendants should also be updated.
      * @param bool $queue Whether the element’s slug and URI should be updated via a job in the queue.
+     * @throws OperationAbortedException if a unique URI can’t be generated based on the element’s URI format
      */
     public function updateElementSlugAndUri(ElementInterface $element, bool $updateOtherSites = true, bool $updateDescendants = true, bool $queue = false)
     {
@@ -1374,7 +1396,7 @@ class Elements extends Component
             }
 
             // Update any reference tags
-            /** @var ElementInterface|null $elementType */
+            /* @var ElementInterface|null $elementType */
             $elementType = $this->getElementTypeById($prevailingElement->id);
 
             if ($elementType !== null && ($refHandle = $elementType::refHandle()) !== null) {
@@ -1426,9 +1448,9 @@ class Elements extends Component
      */
     public function deleteElementById(int $elementId, string $elementType = null, int $siteId = null, bool $hardDelete = false): bool
     {
-        /** @var ElementInterface|string|null $elementType */
+        /* @var ElementInterface|string|null $elementType */
         if ($elementType === null) {
-            /** @noinspection CallableParameterUseCaseInTypeContextInspection */
+            /* @noinspection CallableParameterUseCaseInTypeContextInspection */
             $elementType = $this->getElementTypeById($elementId);
 
             if ($elementType === null) {
@@ -1731,7 +1753,7 @@ class Elements extends Component
         }
 
         foreach ($this->getAllElementTypes() as $class) {
-            /** @var string|ElementInterface $class */
+            /* @var string|ElementInterface $class */
             if (
                 ($elementRefHandle = $class::refHandle()) !== null &&
                 strcasecmp($elementRefHandle, $refHandle) === 0
@@ -2015,7 +2037,7 @@ class Elements extends Component
      */
     public function eagerLoadElements(string $elementType, array $elements, $with)
     {
-        /** @var ElementInterface|string $elementType */
+        /* @var ElementInterface|string $elementType */
         // Bail if there aren't even any elements
         if (empty($elements)) {
             return;
@@ -2055,7 +2077,7 @@ class Elements extends Component
                 }
 
                 // Get the eager-loading map from the source element type
-                /** @var ElementInterface|string $elementType */
+                /* @var ElementInterface|string $elementType */
                 $map = $elementType::eagerLoadingMap($filteredElements, $plan->handle);
 
                 if ($map === null) {
@@ -2168,6 +2190,10 @@ class Elements extends Component
                             }
                         }
 
+                        if (!empty($criteria['inReverse'])) {
+                            $targetElementIdsForSource = array_reverse($targetElementIdsForSource);
+                        }
+
                         // Create the elements
                         $currentOffset = 0;
                         $count = 0;
@@ -2199,7 +2225,7 @@ class Elements extends Component
                 // Pass the instantiated elements to afterPopulate()
                 if (!empty($targetElements)) {
                     $query->asArray = false;
-                    $query->afterPopulate(array_merge(...$targetElements));
+                    $query->afterPopulate(array_merge(...array_values($targetElements)));
                 }
 
                 // Now eager-load any sub paths
@@ -2253,10 +2279,10 @@ class Elements extends Component
      */
     private function _saveElementInternal(ElementInterface $element, bool $runValidation = true, bool $propagate = true, bool $updateSearchIndex = null): bool
     {
-        /** @var ElementInterface|DraftBehavior|RevisionBehavior $element */
+        /* @var ElementInterface|DraftBehavior|RevisionBehavior $element */
         $isNewElement = !$element->id;
 
-        /** @var DraftBehavior|null $draftBehavior */
+        /* @var DraftBehavior|null $draftBehavior */
         $draftBehavior = $element->getIsDraft() ? $element->getBehavior('draft') : null;
 
         // Are we tracking changes?
@@ -2320,12 +2346,18 @@ class Elements extends Component
             $element->setEnabledForSite(true);
         }
 
-        // Set a dummy title if there isn't one already and the element type has titles
-        if (!$runValidation && $element::hasContent() && $element::hasTitles() && !$element->validate(['title'])) {
-            if ($isNewElement) {
-                $element->title = Craft::t('app', 'New {type}', ['type' => $element::displayName()]);
-            } else {
-                $element->title = $element::displayName() . ' ' . $element->id;
+        // If we're skipping validation, at least make sure the title is valid
+        if (!$runValidation && $element::hasContent() && $element::hasTitles()) {
+            foreach ($element->getActiveValidators('title') as $validator) {
+                $validator->validateAttributes($element, ['title']);
+            }
+            if ($element->hasErrors('title')) {
+                // Set a default title
+                if ($isNewElement) {
+                    $element->title = Craft::t('app', 'New {type}', ['type' => $element::displayName()]);
+                } else {
+                    $element->title = $element::displayName() . ' ' . $element->id;
+                }
             }
         }
 

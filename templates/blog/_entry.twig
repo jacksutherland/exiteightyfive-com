@@ -89,10 +89,15 @@
 						{% endswitch %}
 					{% endfor %}
 
+					<div class="entry-comments">
+						{{ craft.comments.render(entry.id) }}
+					</div>
+
 				</div>
 			</div>
 		</div>
 	</article>
+
 
 	{% include "_includes/ad" %}
 
@@ -119,3 +124,6 @@
 	{% endif %}
 
 {% endblock %}
+
+
+

@@ -1,6 +1,6 @@
 siteUid: null
 sortOrder: 3
-template: /gear
+template: /gear/index
 uriParts:
   - blog/gear
 uriPattern: blog/gear

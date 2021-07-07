@@ -6,15 +6,15 @@ entryTypes:
         tabs:
           -
             fields:
-              081fbcad-46eb-45f8-9649-7d6a3bca2228:
-                required: false
-                sortOrder: 2
-              60b734c9-66e9-4743-84a4-310f6f31036c:
-                required: false
-                sortOrder: 4
               9c676ca6-7717-4d0d-9cb6-bcdfdd522e3b:
                 required: false
                 sortOrder: 1
+              60b734c9-66e9-4743-84a4-310f6f31036c:
+                required: false
+                sortOrder: 4
+              081fbcad-46eb-45f8-9649-7d6a3bca2228:
+                required: false
+                sortOrder: 2
               bfb4b7c2-c2ae-4758-afeb-08676c116d14:
                 required: false
                 sortOrder: 6

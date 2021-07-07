@@ -2,7 +2,6 @@
 
 namespace craft\migrations;
 
-use Craft;
 use craft\db\Migration;
 use craft\db\Table;
 
@@ -16,6 +15,7 @@ class m210224_162000_add_projectconfignames_table extends Migration
      */
     public function safeUp()
     {
+        $this->dropTableIfExists(Table::PROJECTCONFIGNAMES);
         $this->createTable(Table::PROJECTCONFIGNAMES, [
             'uid' => $this->uid()->notNull(),
             'name' => $this->string()->notNull(),

@@ -14,7 +14,6 @@ use craft\elements\Category;
 use craft\elements\db\ElementQuery;
 use craft\elements\Entry;
 use craft\helpers\Console;
-use craft\helpers\ProjectConfig as ProjectConfigHelper;
 use craft\models\Section;
 use craft\records\StructureElement;
 use craft\services\ProjectConfig;
@@ -121,12 +120,13 @@ class RepairController extends Controller
                 ['structureelements.structureId' => $structureId],
             ])
             ->orderBy([
-                new Expression('CASE WHEN ([[structureelements.lft]] IS NOT NULL) THEN 0 ELSE [[elements.dateCreated]] END ASC'),
+                new Expression('CASE WHEN [[structureelements.lft]] IS NOT NULL THEN 0 ELSE 1 END ASC'),
                 'structureelements.lft' => SORT_ASC,
+                'elements.dateCreated' => SORT_ASC,
             ])
             ->all();
 
-        /** @var string|ElementInterface $elementType */
+        /* @var string|ElementInterface $elementType */
         $elementType = $query->elementType;
         $displayName = $elementType::pluralLowerDisplayName();
 
@@ -153,7 +153,7 @@ class RepairController extends Controller
             }
 
             foreach ($elements as $element) {
-                /** @var ElementInterface $element */
+                /* @var ElementInterface $element */
                 if (!$element->level) {
                     $issue = 'was missing from structure';
                     if (!$this->dryRun) {

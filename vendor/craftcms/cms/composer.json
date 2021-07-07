@@ -1,7 +1,7 @@
 {
   "name": "craftcms/cms",
   "description": "Craft CMS",
-  "version": "3.6.9",
+  "version": "3.6.17",
   "keywords": [
     "cms",
     "craftcms",
@@ -9,6 +9,12 @@
   ],
   "homepage": "https://craftcms.com",
   "license": "proprietary",
+  "authors": [
+    {
+      "name": "Pixel & Tonic",
+      "homepage": "https://pixelandtonic.com/"
+    }
+  ],
   "support": {
     "email": "support@craftcms.com",
     "issues": "https://github.com/craftcms/cms/issues?state=open",
@@ -27,7 +33,7 @@
     "ext-pcre": "*",
     "ext-pdo": "*",
     "ext-zip": "*",
-    "composer/composer": "2.0.10",
+    "composer/composer": "2.0.13",
     "craftcms/oauth2-craftid": "~1.0.0",
     "craftcms/plugin-installer": "~1.5.6",
     "craftcms/server-check": "~1.2.0",
@@ -48,9 +54,9 @@
     "voku/stringy": "^6.4.0",
     "webonyx/graphql-php": "~14.4.1",
     "yii2tech/ar-softdelete": "^1.0.4",
-    "yiisoft/yii2": "~2.0.41.1",
+    "yiisoft/yii2": "~2.0.42.1",
     "yiisoft/yii2-debug": "^2.1.16",
-    "yiisoft/yii2-queue": "~2.3.1",
+    "yiisoft/yii2-queue": "~2.3.2",
     "yiisoft/yii2-swiftmailer": "^2.1.2"
   },
   "require-dev": {

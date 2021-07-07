@@ -130,6 +130,7 @@ class Db
      * @param mixed $date The date to be prepared
      * @param bool $stripSeconds Whether the seconds should be omitted from the formatted string
      * @return string|null The prepped date, or `null` if it could not be prepared
+     * @todo Remove the $stripSeconds argument in Craft 4
      */
     public static function prepareDateForDb($date, bool $stripSeconds = false)
     {
@@ -678,7 +679,7 @@ class Db
             $db = self::db();
         }
 
-        /** @var \craft\db\mysql\Schema|\craft\db\pgsql\Schema $schema */
+        /* @var \craft\db\mysql\Schema|\craft\db\pgsql\Schema $schema */
         $schema = $db->getSchema();
 
         return isset($schema->typeMap[$type]);
@@ -1022,6 +1023,30 @@ class Db
             return $parsed;
         }
         return false;
+    }
+
+    /**
+     * Returns whether the database supports time zone conversions.
+     *
+     * This could return `false` if MySQL’s time zone tables haven’t been populated yet. See
+     * https://dev.mysql.com/doc/refman/5.7/en/time-zone-support.html for more info.
+     *
+     * @param Connection|null $db
+     * @return bool
+     * @since 3.6.16
+     */
+    public static function supportsTimeZones(?Connection $db = null): bool
+    {
+        if ($db === null) {
+            $db = self::db();
+        }
+
+        if ($db->getIsPgsql()) {
+            return true;
+        }
+
+        $result = $db->createCommand("SELECT CONVERT_TZ('2007-03-11 2:00:00','US/Eastern','US/Central') AS time1")->queryScalar();
+        return (bool)$result;
     }
 
     /**

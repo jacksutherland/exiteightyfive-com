@@ -380,7 +380,7 @@ class User extends Element implements IdentityInterface
      */
     protected static function prepElementQueryForTableAttribute(ElementQueryInterface $elementQuery, string $attribute)
     {
-        /** @var UserQuery $elementQuery */
+        /* @var UserQuery $elementQuery */
         if ($attribute === 'groups') {
             $elementQuery->withGroups();
         } else {
@@ -440,7 +440,7 @@ class User extends Element implements IdentityInterface
             return null;
         }
 
-        /** @var static $user */
+        /* @var static $user */
         if ($user->getStatus() === self::STATUS_ACTIVE) {
             return $user;
         }
@@ -826,7 +826,7 @@ class User extends Element implements IdentityInterface
      */
     public function getAuthKey()
     {
-        $token = Session::get(Craft::$app->getUser()->tokenParam);
+        $token = Craft::$app->getUser()->getToken();
 
         if ($token === null) {
             throw new Exception('No user session token exists.');
@@ -1472,15 +1472,12 @@ class User extends Element implements IdentityInterface
         parent::afterSave($isNew);
 
         if (!$isNew && $changePassword) {
-            // Destroy all sessions for this user
-            Db::delete(Table::SESSIONS, [
-                'userId' => $this->id,
-            ]);
-
-            // If this is for the current user, generate a new user session token for them
-            if ($this->getIsCurrent()) {
-                Craft::$app->getUser()->generateToken($this->id);
+            // Destroy all other sessions for this user
+            $condition = ['userId' => $this->id];
+            if ($this->getIsCurrent() && $token = Craft::$app->getUser()->getToken()) {
+                $condition = ['and', $condition, ['not', ['token' => $token]]];
             }
+            Db::delete(Table::SESSIONS, $condition);
         }
     }
 

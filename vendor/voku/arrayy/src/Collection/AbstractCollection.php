@@ -134,6 +134,7 @@ abstract class AbstractCollection extends Arrayy implements CollectionInterface
             return $this;
         }
 
+        /** @phpstan-ignore-next-line | special? */
         $return = parent::append($value, $key);
         $this->array = $return->array;
         $this->generator = null;
@@ -188,6 +189,7 @@ abstract class AbstractCollection extends Arrayy implements CollectionInterface
             return $this;
         }
 
+        /** @phpstan-ignore-next-line | special? */
         $return = parent::prepend($value, $key);
         $this->array = $return->array;
         $this->generator = null;
@@ -259,9 +261,11 @@ abstract class AbstractCollection extends Arrayy implements CollectionInterface
      *
      * @template     TKeyCreate as int|string
      * @template     TCreate
+     *
      * @phpstan-param  array<TKeyCreate,TCreate> $data
      * @phpstan-param  class-string<\Arrayy\ArrayyIterator> $iteratorClass
      * @phpstan-return static<TKeyCreate,TCreate>
+     *
      * @psalm-mutation-free
      */
     public static function create(
@@ -320,6 +324,7 @@ abstract class AbstractCollection extends Arrayy implements CollectionInterface
             }
         }
 
+        /** @phpstan-var static<int,T> */
         return $return;
     }
 

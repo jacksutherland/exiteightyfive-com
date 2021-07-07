@@ -9,6 +9,7 @@ namespace craft\web\twig\variables;
 
 use Craft;
 use craft\base\UtilityInterface;
+use craft\events\FormActionsEvent;
 use craft\events\RegisterCpNavItemsEvent;
 use craft\events\RegisterCpSettingsEvent;
 use craft\helpers\App;
@@ -27,6 +28,29 @@ use yii\base\InvalidConfigException;
  */
 class Cp extends Component
 {
+    /**
+     * @event FormActionsEvent The event that is triggered when preparing the page’s form actions.
+     *
+     * ```php
+     * use craft\events\FormActionsEvent;
+     * use craft\web\twig\variables\Cp;
+     * use yii\base\Event;
+     *
+     * Event::on(Cp::class, Cp::EVENT_REGISTER_FORM_ACTIONS, function(FormActionsEvent $event) {
+     *     if (Craft::$app->requestedRoute == 'entries/edit-entry') {
+     *         $event->formActions[] = [
+     *             'label' => 'Save and view entry',
+     *             'redirect' => Craft::$app->getSecurity()->hashData('{url}'),
+     *         ];
+     *     }
+     * });
+     * ```
+     *
+     * @see prepFormActions()
+     * @since 3.6.10
+     */
+    const EVENT_REGISTER_FORM_ACTIONS = 'registerFormActions';
+
     /**
      * @event RegisterCpNavItemsEvent The event that is triggered when registering control panel nav items.
      *
@@ -246,7 +270,7 @@ class Cp extends Component
             $badgeCount = 0;
 
             foreach ($utilities as $class) {
-                /** @var UtilityInterface $class */
+                /* @var UtilityInterface $class */
                 $badgeCount += $class::badgeCount();
             }
 
@@ -529,12 +553,12 @@ class Cp extends Component
         });
 
         $iterator = new \RecursiveIteratorIterator($filter);
-        /** @var \SplFileInfo[] $files */
+        /* @var \SplFileInfo[] $files */
         $files = [];
         $pathLengths = [];
 
         foreach ($iterator as $file) {
-            /** @var \SplFileInfo $file */
+            /* @var \SplFileInfo $file */
             if (!$file->isDir() && $file->getFilename()[0] !== '.') {
                 $files[] = $file;
                 $pathLengths[] = strlen($file->getRealPath());
@@ -594,5 +618,21 @@ class Cp extends Component
                 'data' => $suggestions,
             ],
         ];
+    }
+
+    /**
+     * Prepares form actions
+     *
+     * @param array|null $formActions
+     * @return array|null
+     * @since 3.6.10
+     */
+    public function prepFormActions(?array $formActions): ?array
+    {
+        $event = new FormActionsEvent([
+            'formActions' => $formActions ?? [],
+        ]);
+        $this->trigger(self::EVENT_REGISTER_FORM_ACTIONS, $event);
+        return $event->formActions ?: null;
     }
 }

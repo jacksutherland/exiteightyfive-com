@@ -19,6 +19,7 @@ use Twig\Markup;
  * A class implementing this interface should also use [[ElementTrait]] and [[ContentTrait]].
  *
  * @mixin ElementTrait
+ * @mixin \craft\behaviors\CustomFieldBehavior
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
  */
@@ -773,7 +774,7 @@ interface ElementInterface extends ComponentInterface
     /**
      * Returns the same element in other locales.
      *
-     * @return ElementQueryInterface[]|ElementInterface[]
+     * @return ElementQueryInterface[]|static[]
      */
     public function getLocalized();
 
@@ -781,7 +782,7 @@ interface ElementInterface extends ComponentInterface
      * Returns the next element relative to this one, from a given set of criteria.
      *
      * @param mixed $criteria
-     * @return ElementInterface|null
+     * @return static|null
      */
     public function getNext($criteria = false);
 
@@ -789,36 +790,36 @@ interface ElementInterface extends ComponentInterface
      * Returns the previous element relative to this one, from a given set of criteria.
      *
      * @param mixed $criteria
-     * @return ElementInterface|null
+     * @return static|null
      */
     public function getPrev($criteria = false);
 
     /**
      * Sets the default next element.
      *
-     * @param ElementInterface|false $element
+     * @param static|false $element
      */
     public function setNext($element);
 
     /**
      * Sets the default previous element.
      *
-     * @param ElementInterface|false $element
-     * return void
+     * @param static|false $element
+     * @return void
      */
     public function setPrev($element);
 
     /**
      * Returns the element’s parent.
      *
-     * @return ElementInterface|null
+     * @return static|null
      */
     public function getParent();
 
     /**
      * Sets the element’s parent.
      *
-     * @param ElementInterface|null $parent
+     * @param static|null $parent
      */
     public function setParent(ElementInterface $parent = null);
 
@@ -826,7 +827,7 @@ interface ElementInterface extends ComponentInterface
      * Returns the element’s ancestors.
      *
      * @param int|null $dist
-     * @return ElementQueryInterface|ElementInterface[]
+     * @return ElementQueryInterface|static[]
      */
     public function getAncestors(int $dist = null);
 
@@ -834,35 +835,35 @@ interface ElementInterface extends ComponentInterface
      * Returns the element’s descendants.
      *
      * @param int|null $dist
-     * @return ElementQueryInterface|ElementInterface[]
+     * @return ElementQueryInterface|static[]
      */
     public function getDescendants(int $dist = null);
 
     /**
      * Returns the element’s children.
      *
-     * @return ElementQueryInterface|ElementInterface[]
+     * @return ElementQueryInterface|static[]
      */
     public function getChildren();
 
     /**
      * Returns all of the element’s siblings.
      *
-     * @return ElementQueryInterface|ElementInterface[]
+     * @return ElementQueryInterface|static[]
      */
     public function getSiblings();
 
     /**
      * Returns the element’s previous sibling.
      *
-     * @return ElementInterface|null
+     * @return static|null
      */
     public function getPrevSibling();
 
     /**
      * Returns the element’s next sibling.
      *
-     * @return ElementInterface|null
+     * @return static|null
      */
     public function getNextSibling();
 
@@ -883,7 +884,7 @@ interface ElementInterface extends ComponentInterface
     /**
      * Returns whether this element is an ancestor of another one.
      *
-     * @param ElementInterface $element
+     * @param static $element
      * @return bool
      */
     public function isAncestorOf(ElementInterface $element): bool;
@@ -891,7 +892,7 @@ interface ElementInterface extends ComponentInterface
     /**
      * Returns whether this element is a descendant of another one.
      *
-     * @param ElementInterface $element
+     * @param static $element
      * @return bool
      */
     public function isDescendantOf(ElementInterface $element): bool;
@@ -899,7 +900,7 @@ interface ElementInterface extends ComponentInterface
     /**
      * Returns whether this element is a direct parent of another one.
      *
-     * @param ElementInterface $element
+     * @param static $element
      * @return bool
      */
     public function isParentOf(ElementInterface $element): bool;
@@ -907,7 +908,7 @@ interface ElementInterface extends ComponentInterface
     /**
      * Returns whether this element is a direct child of another one.
      *
-     * @param ElementInterface $element
+     * @param static $element
      * @return bool
      */
     public function isChildOf(ElementInterface $element): bool;
@@ -915,7 +916,7 @@ interface ElementInterface extends ComponentInterface
     /**
      * Returns whether this element is a sibling of another one.
      *
-     * @param ElementInterface $element
+     * @param static $element
      * @return bool
      */
     public function isSiblingOf(ElementInterface $element): bool;
@@ -923,7 +924,7 @@ interface ElementInterface extends ComponentInterface
     /**
      * Returns whether this element is the direct previous sibling of another one.
      *
-     * @param ElementInterface $element
+     * @param static $element
      * @return bool
      */
     public function isPrevSiblingOf(ElementInterface $element): bool;
@@ -931,7 +932,7 @@ interface ElementInterface extends ComponentInterface
     /**
      * Returns whether this element is the direct next sibling of another one.
      *
-     * @param ElementInterface $element
+     * @param static $element
      * @return bool
      */
     public function isNextSiblingOf(ElementInterface $element): bool;
@@ -1221,7 +1222,7 @@ interface ElementInterface extends ComponentInterface
     /**
      * Returns the element’s current revision, if one exists.
      *
-     * @return ElementInterface|null
+     * @return static|null
      * @since 3.2.0
      */
     public function getCurrentRevision();

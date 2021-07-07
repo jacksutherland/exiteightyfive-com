@@ -142,6 +142,17 @@ class User extends \yii\web\User
     }
 
     /**
+     * Returns the user token from the session.
+     *
+     * @return string
+     * @since 3.6.11
+     */
+    public function getToken(): ?string
+    {
+        return SessionHelper::get($this->tokenParam);
+    }
+
+    /**
      * Returns the username of the account that the browser was last logged in as.
      *
      * ---
@@ -414,7 +425,7 @@ class User extends \yii\web\User
      */
     protected function afterLogin($identity, $cookieBased, $duration)
     {
-        /** @var UserElement $identity */
+        /* @var UserElement $identity */
 
         if ($duration > 0) {
             // Store the duration on the session
@@ -449,7 +460,7 @@ class User extends \yii\web\User
             SessionHelper::remove($this->tokenParam);
 
             if ($identity) {
-                /** @var UserElement $identity */
+                /* @var UserElement $identity */
                 // Generate a new session token
                 $this->generateToken($identity->id);
             }
@@ -526,7 +537,7 @@ class User extends \yii\web\User
         SessionHelper::remove($this->authDurationParam);
 
         // Delete the session token in the database
-        $token = SessionHelper::get($this->tokenParam);
+        $token = $this->getToken();
         if ($token !== null) {
             SessionHelper::remove($this->tokenParam);
             Db::delete(Table::SESSIONS, [
@@ -543,7 +554,7 @@ class User extends \yii\web\User
      */
     protected function afterLogout($identity)
     {
-        /** @var UserElement $identity */
+        /* @var UserElement $identity */
         // Delete the impersonation session, if there is one
         SessionHelper::remove(UserElement::IMPERSONATE_KEY);
 

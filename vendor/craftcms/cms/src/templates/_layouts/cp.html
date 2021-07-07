@@ -88,6 +88,8 @@
     role: 'main',
 }|merge(mainAttributes ?? []) %}
 
+{% set formActions = craft.cp.prepFormActions(formActions ?? null) %}
+
 {% set mainFormAttributes = {
     id: 'main-form',
     method: 'post',
@@ -114,6 +116,12 @@
         }) }}
     </div>
 {% endset %}
+
+{% js at head %}
+    // Remove the hash so the browser doesn't scroll to it
+    window.LOCATION_HASH = document.location.hash ? decodeURIComponent(document.location.hash.substr(1)) : null;
+    document.location.hash = '';
+{% endjs %}
 
 {% block body %}
     <div id="global-container">

@@ -271,6 +271,24 @@ footer {
     }
 }
 
+.entry-comments {
+    margin: 50px 0;
+    .cc-w .cc-n, .cc-w a, .cc-w .cc-a {
+        color: $link-color;
+    }
+    .cc-w .cc-f-btn {
+        color: $white;
+        background-color: $link-color;
+        border-color: transparent;
+        line-height: 14px;
+        &:hover {
+            background-color: $white;
+            border-color: $link-color;
+            color: $link-color;
+        }
+    }
+}
+
 .ad {
     &.cybershop {
         color: #1d375c;

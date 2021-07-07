@@ -3,12 +3,12 @@ fieldLayouts:
     tabs:
       -
         fields:
-          502b6060-9247-489e-b872-6f3fbe56f670:
-            required: false
-            sortOrder: 3
           8d0b7102-f11f-455a-8b2d-82cfcde44eed:
             required: false
             sortOrder: 1
+          502b6060-9247-489e-b872-6f3fbe56f670:
+            required: false
+            sortOrder: 3
           aefe5222-4b2e-4fca-950e-c7be063c247c:
             required: false
             sortOrder: 2
