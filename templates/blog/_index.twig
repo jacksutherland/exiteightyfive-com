@@ -1,6 +1,6 @@
 {% extends "_layouts/main" %}
 
-{% set posts = craft.entries.section('blog').orderBy('dateCreated asc').limit(20).all() %}
+{% set posts = craft.entries.section('blog').orderBy('dateCreated desc').limit(20).all() %}
 
 {% set title = entry.heroText %}
 {% if entry.ctaText | length %}
