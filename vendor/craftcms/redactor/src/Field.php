@@ -948,6 +948,8 @@ class Field extends \craft\base\Field
                 }
             }
         }
+        
+        ksort($options);
 
         return $options;
     }
@@ -1017,7 +1019,7 @@ class Field extends \craft\base\Field
             'Attr.EnableID' => true,
             'HTML.AllowedComments' => ['pagebreak'],
             'HTML.SafeIframe' => true,
-            'URI.SafeIframeRegexp' => '%^(https?:)?//(www.youtube.com/embed/|player.vimeo.com/video/)%',
+            'URI.SafeIframeRegexp' => '%^(https?:)?//(www\.youtube(-nocookie)?\.com/embed/|player\.vimeo\.com/video/)%',
         ];
 
         foreach ($config as $option => $value) {

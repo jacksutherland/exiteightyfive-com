@@ -166,12 +166,12 @@ class InstalledVersions
     ),
     'craftcms/redactor' => 
     array (
-      'pretty_version' => '2.8.5',
-      'version' => '2.8.5.0',
+      'pretty_version' => '2.8.7',
+      'version' => '2.8.7.0',
       'aliases' => 
       array (
       ),
-      'reference' => 'baa05090b17b9b631ed3eb9f0687f48947d7dbc2',
+      'reference' => 'dd70560df56ec7aef87fe52115fa571d13468714',
     ),
     'craftcms/server-check' => 
     array (
