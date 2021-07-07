@@ -1,4 +1,5 @@
 {
   "buttons": ["bold", "italic", "link", "html"],
-  "toolbarFixed": true
+  "toolbarFixed": true,
+  "removeWithoutAttr": []
 }
