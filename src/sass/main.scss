@@ -292,17 +292,22 @@ footer {
 .ad {
     &.cybershop {
         color: #1d375c;
+        font-weight: $bold-weight;
         background-color: #f9f5ec;
-        height: 100px;
+        height: 130px;
         align-items: center;
         justify-content: center;
         display: flex;
+        margin: 50px auto;
+        padding: 0 20px;
         &:hover {
             text-decoration: none;
         }
         img {
             max-width: 50%;
             vertical-align: middle;
+            max-height: 80%;
+            margin-right: 20px;
         }
         span {
             color: #1d375c;

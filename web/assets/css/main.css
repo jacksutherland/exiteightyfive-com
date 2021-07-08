@@ -221,16 +221,21 @@ footer {
 
 .ad.cybershop {
   color: #1d375c;
+  font-weight: 700;
   background-color: #f9f5ec;
-  height: 100px;
+  height: 130px;
   align-items: center;
   justify-content: center;
-  display: flex; }
+  display: flex;
+  margin: 50px auto;
+  padding: 0 20px; }
   .ad.cybershop:hover {
     text-decoration: none; }
   .ad.cybershop img {
     max-width: 50%;
-    vertical-align: middle; }
+    vertical-align: middle;
+    max-height: 80%;
+    margin-right: 20px; }
   .ad.cybershop span {
     color: #1d375c; }
 
