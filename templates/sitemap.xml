@@ -1,61 +1,72 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+{% set blogs = craft.entries.section("blog").all() %}
+
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 
    <url>
       <loc>https://exiteightyfive.com/</loc>
-      <lastmod>2020-01-08</lastmod>
+      <lastmod>2021-07-08</lastmod>
       <changefreq>weekly</changefreq>
-      <priority>1</priority>
+      <priority>0.5</priority>
    </url>
 
    <url>
-      <loc>https://exiteightyfive.com/#about</loc>
-      <lastmod>2020-01-05</lastmod>
+      <loc>https://exiteightyfive.com/blog</loc>
+      <lastmod>2021-07-08</lastmod>
+      <changefreq>weekly</changefreq>
+      <priority>0.5</priority>
+   </url>
+
+   <url>
+      <loc>https://exiteightyfive.com/sections/about</loc>
+      <lastmod>2021-07-05</lastmod>
       <changefreq>monthly</changefreq>
       <priority>0.5</priority>
    </url>
 
    <url>
-      <loc>https://exiteightyfive.com/#shows</loc>
-      <lastmod>2020-01-08</lastmod>
+      <loc>https://exiteightyfive.com/sections/shows</loc>
+      <lastmod>2021-07-08</lastmod>
       <changefreq>weekly</changefreq>
-      <priority>0.8</priority>
+      <priority>0.5</priority>
+   </url>
+
+   <url>
+      <loc>https://exiteightyfive.com/sections/members</loc>
+      <lastmod>2021-07-05</lastmod>
+      <changefreq>monthly</changefreq>
+      <priority>0.5</priority>
+   </url>
+
+   <url>
+      <loc>https://exiteightyfive.com/sections/music</loc>
+      <lastmod>2021-07-08</lastmod>
+      <changefreq>monthly</changefreq>
+      <priority>0.5</priority>
+   </url>
+
+   <url>
+      <loc>https://exiteightyfive.com/sections/contact</loc>
+      <lastmod>2021-07-05</lastmod>
+      <changefreq>monthly</changefreq>
+      <priority>0.5</priority>
    </url>
 
    <url>
       <loc>https://exiteightyfive.com/calendar</loc>
-      <lastmod>2020-01-08</lastmod>
+      <lastmod>2021-07-08</lastmod>
       <changefreq>weekly</changefreq>
-      <priority>0.8</priority>
-   </url>
-
-   <url>
-      <loc>https://exiteightyfive.com/#members</loc>
-      <lastmod>2020-01-05</lastmod>
-      <changefreq>monthly</changefreq>
       <priority>0.5</priority>
    </url>
 
-   <url>
-      <loc>https://exiteightyfive.com/#music</loc>
-      <lastmod>2020-01-08</lastmod>
-      <changefreq>monthly</changefreq>
-      <priority>0.8</priority>
-   </url>
-
-   <url>
-      <loc>https://exiteightyfive.com/#songs</loc>
-      <lastmod>2020-01-05</lastmod>
-      <changefreq>monthly</changefreq>
+   {% for blog in blogs %}
+    <url>
+      <loc>{{ blog.url }}</loc>
+      <lastmod>{{ blog.dateUpdated | date("c") }}</lastmod>
+      <changefreq>weekly</changefreq>
       <priority>0.5</priority>
-   </url>
-
-   <url>
-      <loc>https://exiteightyfive.com/#contact</loc>
-      <lastmod>2020-01-05</lastmod>
-      <changefreq>monthly</changefreq>
-      <priority>0.8</priority>
-   </url>
+    </url>
+  {% endfor %}
 
 </urlset>
