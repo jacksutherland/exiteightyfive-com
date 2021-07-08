@@ -63,7 +63,7 @@
    {% for blog in blogs %}
     <url>
       <loc>{{ blog.url }}</loc>
-      <lastmod>{{ blog.dateUpdated | date("c") }}</lastmod>
+      <lastmod>{{ blog.dateUpdated | date("Y-m-d") }}</lastmod>
       <changefreq>weekly</changefreq>
       <priority>0.5</priority>
     </url>
