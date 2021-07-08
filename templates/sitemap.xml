@@ -1,61 +1,62 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+{% set homepage = craft.entries.section("homepage").one() %}
 {% set blogs = craft.entries.section("blog").all() %}
 
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 
    <url>
       <loc>https://exiteightyfive.com/</loc>
-      <lastmod>2021-07-08</lastmod>
+      <lastmod>{{ homepage.dateUpdated | date("Y-m-d") }}</lastmod>
       <changefreq>weekly</changefreq>
       <priority>0.5</priority>
    </url>
 
    <url>
       <loc>https://exiteightyfive.com/blog</loc>
-      <lastmod>2021-07-08</lastmod>
+      <lastmod>{{ now | date("Y-m-d") }}</lastmod>
       <changefreq>weekly</changefreq>
       <priority>0.5</priority>
    </url>
 
    <url>
       <loc>https://exiteightyfive.com/sections/about</loc>
-      <lastmod>2021-07-05</lastmod>
+      <lastmod>{{ homepage.dateUpdated | date("Y-m-d") }}</lastmod>
       <changefreq>monthly</changefreq>
       <priority>0.5</priority>
    </url>
 
    <url>
       <loc>https://exiteightyfive.com/sections/shows</loc>
-      <lastmod>2021-07-08</lastmod>
+      <lastmod>{{ homepage.dateUpdated | date("Y-m-d") }}</lastmod>
       <changefreq>weekly</changefreq>
       <priority>0.5</priority>
    </url>
 
    <url>
       <loc>https://exiteightyfive.com/sections/members</loc>
-      <lastmod>2021-07-05</lastmod>
+      <lastmod>{{ homepage.dateUpdated | date("Y-m-d") }}</lastmod>
       <changefreq>monthly</changefreq>
       <priority>0.5</priority>
    </url>
 
    <url>
       <loc>https://exiteightyfive.com/sections/music</loc>
-      <lastmod>2021-07-08</lastmod>
+      <lastmod>{{ homepage.dateUpdated | date("Y-m-d") }}</lastmod>
       <changefreq>monthly</changefreq>
       <priority>0.5</priority>
    </url>
 
    <url>
       <loc>https://exiteightyfive.com/sections/contact</loc>
-      <lastmod>2021-07-05</lastmod>
+      <lastmod>{{ homepage.dateUpdated | date("Y-m-d") }}</lastmod>
       <changefreq>monthly</changefreq>
       <priority>0.5</priority>
    </url>
 
    <url>
       <loc>https://exiteightyfive.com/calendar</loc>
-      <lastmod>2021-07-08</lastmod>
+      <lastmod>{{ now | date("Y-m-d") }}</lastmod>
       <changefreq>weekly</changefreq>
       <priority>0.5</priority>
    </url>
