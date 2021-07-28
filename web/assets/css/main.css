@@ -969,7 +969,8 @@ section .container {
   .page-header .header-ad {
     left: 110px;
     top: 334px;
-    opacity: 1; }
+    opacity: 1;
+    z-index: 301; }
     .page-header .header-ad img {
       width: 90px;
       height: 90px; }
