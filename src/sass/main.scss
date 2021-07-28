@@ -746,10 +746,26 @@ $hero-intro-duration: 10s;
         top: 195px;
         width: 150px;
         text-align: center;
-        opacity: 0.8;
+        opacity: 0.85;
         transition: opacity 0.5s;
         &:hover { 
              opacity: 1;
+        }
+    }
+    .header-ad {
+        position: absolute;
+        z-index: 30;
+        left: 36px;
+        top: 265px;
+        opacity: 0.7;
+        transition: opacity 0.5s;
+        &:hover { 
+             opacity: 1;
+        }
+        img {
+            width: 138px;
+            height: 138px;
+            border-radius: 8px;
         }
     }
     .hero {
@@ -919,8 +935,8 @@ $hero-intro-duration: 10s;
 
             .hero-text {
                 bottom: 25%;
-                width: 80%;
-                left: 10%;
+                width: 60%;
+                left: 20%;
             }
 
             &.animated {
@@ -1253,19 +1269,28 @@ $hero-intro-duration: 10s;
 
     .page-header {
         .logo {
-            top: 320px !important;
+            top: 334px !important;
             left: 10px;
             margin-left: 0;
             opacity: 1;
             img {
-                height: 100px;
-                width: 100px;
+                height: 90px;
+                width: 90px;
+            }
+        }
+        .header-ad {
+            left: 110px;
+            top: 334px;
+            opacity: 1;
+            img {
+                width: 90px;
+                height: 90px;
             }
         }
         .fb-like {
             top: 365px !important;
             left: auto;
-            right: 10px;
+            right: 5px;
             text-align: right;
         }
     	.hero {

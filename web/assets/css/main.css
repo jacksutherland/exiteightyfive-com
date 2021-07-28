@@ -588,10 +588,24 @@ section .container {
   top: 195px;
   width: 150px;
   text-align: center;
-  opacity: 0.8;
+  opacity: 0.85;
   transition: opacity 0.5s; }
   .page-header .fb-like:hover {
     opacity: 1; }
+
+.page-header .header-ad {
+  position: absolute;
+  z-index: 30;
+  left: 36px;
+  top: 265px;
+  opacity: 0.7;
+  transition: opacity 0.5s; }
+  .page-header .header-ad:hover {
+    opacity: 1; }
+  .page-header .header-ad img {
+    width: 138px;
+    height: 138px;
+    border-radius: 8px; }
 
 .page-header .hero {
   position: relative;
@@ -701,8 +715,8 @@ section .container {
     font-size: 3.75rem; }
   .page-header .hero .hero-text {
     bottom: 25%;
-    width: 80%;
-    left: 10%; }
+    width: 60%;
+    left: 20%; }
   .page-header .hero.animated {
     -webkit-animation-duration: 2s;
     animation-duration: 2s;
@@ -945,17 +959,24 @@ section .container {
     header a, header a:visited {
       margin-left: 5px; }
   .page-header .logo {
-    top: 320px !important;
+    top: 334px !important;
     left: 10px;
     margin-left: 0;
     opacity: 1; }
     .page-header .logo img {
-      height: 100px;
-      width: 100px; }
+      height: 90px;
+      width: 90px; }
+  .page-header .header-ad {
+    left: 110px;
+    top: 334px;
+    opacity: 1; }
+    .page-header .header-ad img {
+      width: 90px;
+      height: 90px; }
   .page-header .fb-like {
     top: 365px !important;
     left: auto;
-    right: 10px;
+    right: 5px;
     text-align: right; }
   .page-header .hero {
     height: 400px !important;
