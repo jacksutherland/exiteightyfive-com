@@ -1,8 +1,0 @@
-handle: songImages
-hasUrls: true
-name: 'Song Images'
-settings:
-  path: files/songs/images
-sortOrder: 2
-type: craft\volumes\Local
-url: /files/songs/images

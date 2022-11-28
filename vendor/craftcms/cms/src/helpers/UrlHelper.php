@@ -191,6 +191,19 @@ class UrlHelper
     }
 
     /**
+     * Encodes a URL’s query string params.
+     *
+     * @param string $url
+     * @return string
+     * @since 3.7.24
+     */
+    public static function encodeParams(string $url): string
+    {
+        [$url, $params, $fragment] = self::_extractParams($url);
+        return self::_buildUrl($url, $params, $fragment);
+    }
+
+    /**
      * Returns a root-relative URL based on the given URL.
      *
      * @param string $url
@@ -306,7 +319,7 @@ class UrlHelper
 
         if ($siteId !== null && $siteId != $sites->getCurrentSite()->id) {
             // Get the site
-            $site = $sites->getSiteById($siteId);
+            $site = $sites->getSiteById($siteId, true);
 
             if (!$site) {
                 throw new Exception('Invalid site ID: ' . $siteId);
@@ -320,7 +333,7 @@ class UrlHelper
         $path = trim($path, '/');
         $url = self::_createUrl($path, $params, $scheme, false);
 
-        /* @noinspection UnSafeIsSetOverArrayInspection - FP */
+        /** @noinspection UnSafeIsSetOverArrayInspection - FP */
         if (isset($currentSite)) {
             // Restore the original current site
             $sites->setCurrentSite($currentSite);
@@ -458,8 +471,8 @@ class UrlHelper
             }
         }
 
-        // Use the request's base URL as a fallback
-        return static::baseRequestUrl();
+        // Use @web as a fallback
+        return Craft::getAlias('@web');
     }
 
     /**
@@ -483,6 +496,7 @@ class UrlHelper
      * Returns the base URL (with a trailing slash) for the current request.
      *
      * @return string
+     * @deprecated in 3.7.15. `Craft::getAlias('@web')` should be used instead.
      */
     public static function baseRequestUrl(): string
     {
@@ -603,10 +617,10 @@ class UrlHelper
      * @param string|null $scheme
      * @param bool $cpUrl
      * @param bool|null $showScriptName
-     * @param bool|null $addToken
+     * @param bool $addToken
      * @return string
      */
-    private static function _createUrl(string $path, $params, ?string $scheme = null, bool $cpUrl, ?bool $showScriptName = null, ?bool $addToken = null): string
+    private static function _createUrl(string $path, $params, ?string $scheme, bool $cpUrl, ?bool $showScriptName = null, bool $addToken = true): string
     {
         // Extract any params/fragment from the path
         [$path, $baseParams, $baseFragment] = self::_extractParams($path);
@@ -622,8 +636,8 @@ class UrlHelper
         $request = Craft::$app->getRequest();
 
         // If this is a site URL and there was a (site) token on the request, pass it along
-        if (!$cpUrl && $addToken !== false) {
-            if (!isset($params[$generalConfig->tokenParam]) && ($token = $request->getToken()) !== null) {
+        if (!$cpUrl) {
+            if ($addToken && !isset($params[$generalConfig->tokenParam]) && ($token = $request->getToken()) !== null) {
                 $params[$generalConfig->tokenParam] = $token;
             }
             if (!isset($params[$generalConfig->siteToken]) && ($siteToken = $request->getSiteToken()) !== null) {
@@ -645,7 +659,7 @@ class UrlHelper
             } else {
                 $baseUrl = static::host() . $request->getScriptUrl();
             }
-        } else if ($cpUrl) {
+        } elseif ($cpUrl) {
             $baseUrl = static::baseCpUrl();
         } else {
             $baseUrl = static::baseSiteUrl();
@@ -681,6 +695,19 @@ class UrlHelper
             }
         }
 
+        return self::_buildUrl($url, $params, $fragment);
+    }
+
+    /**
+     * Rebuilds a URL with params and a fragment.
+     *
+     * @param string $url
+     * @param array $params
+     * @param string|null $fragment
+     * @return string
+     */
+    private static function _buildUrl(string $url, array $params, ?string $fragment): string
+    {
         if (($query = static::buildQuery($params)) !== '') {
             $url .= '?' . $query;
         }

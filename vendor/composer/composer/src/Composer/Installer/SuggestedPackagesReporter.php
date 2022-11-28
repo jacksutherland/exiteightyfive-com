@@ -14,6 +14,7 @@ namespace Composer\Installer;
 
 use Composer\IO\IOInterface;
 use Composer\Package\PackageInterface;
+use Composer\Pcre\Preg;
 use Composer\Repository\InstalledRepository;
 use Symfony\Component\Console\Formatter\OutputFormatter;
 
@@ -29,7 +30,7 @@ class SuggestedPackagesReporter
     const MODE_BY_SUGGESTION = 4;
 
     /**
-     * @var array
+     * @var array<array{source: string, target: string, reason: string}>
      */
     protected $suggestedPackages = array();
 
@@ -44,7 +45,7 @@ class SuggestedPackagesReporter
     }
 
     /**
-     * @return array Suggested packages with source, target and reason keys.
+     * @return array<array{source: string, target: string, reason: string}> Suggested packages with source, target and reason keys.
      */
     public function getPackages()
     {
@@ -98,10 +99,10 @@ class SuggestedPackagesReporter
      *
      * Do not list the ones already installed if installed repository provided.
      *
-     * @param  int                       $mode             One of the MODE_* constants from this class
-     * @param  InstalledRepository|null  $installedRepo    If passed in, suggested packages which are installed already will be skipped
-     * @param  PackageInterface|null     $onlyDependentsOf If passed in, only the suggestions from direct dependents of that package, or from the package itself, will be shown
-     * @return SuggestedPackagesReporter
+     * @param  int                      $mode             One of the MODE_* constants from this class
+     * @param  InstalledRepository|null $installedRepo    If passed in, suggested packages which are installed already will be skipped
+     * @param  PackageInterface|null    $onlyDependentsOf If passed in, only the suggestions from direct dependents of that package, or from the package itself, will be shown
+     * @return void
      */
     public function output($mode, InstalledRepository $installedRepo = null, PackageInterface $onlyDependentsOf = null)
     {
@@ -122,7 +123,7 @@ class SuggestedPackagesReporter
                 $this->io->write(sprintf('<info>%s</info>', $name));
             }
 
-            return 0;
+            return;
         }
 
         // Grouped by package
@@ -160,16 +161,14 @@ class SuggestedPackagesReporter
                 $this->io->write('<info>'.$diff.' additional suggestions</info> by transitive dependencies can be shown with <info>--all</info>');
             }
         }
-
-        return $this;
     }
 
     /**
      * Output number of new suggested packages and a hint to use suggest command.
      *
-     * @param  InstalledRepository|null  $installedRepo    If passed in, suggested packages which are installed already will be skipped
-     * @param  PackageInterface|null     $onlyDependentsOf If passed in, only the suggestions from direct dependents of that package, or from the package itself, will be shown
-     * @return SuggestedPackagesReporter
+     * @param  InstalledRepository|null $installedRepo    If passed in, suggested packages which are installed already will be skipped
+     * @param  PackageInterface|null    $onlyDependentsOf If passed in, only the suggestions from direct dependents of that package, or from the package itself, will be shown
+     * @return void
      */
     public function outputMinimalistic(InstalledRepository $installedRepo = null, PackageInterface $onlyDependentsOf = null)
     {
@@ -177,14 +176,12 @@ class SuggestedPackagesReporter
         if ($suggestedPackages) {
             $this->io->writeError('<info>'.count($suggestedPackages).' package suggestions were added by new dependencies, use `composer suggest` to see details.</info>');
         }
-
-        return $this;
     }
 
     /**
      * @param  InstalledRepository|null $installedRepo    If passed in, suggested packages which are installed already will be skipped
      * @param  PackageInterface|null    $onlyDependentsOf If passed in, only the suggestions from direct dependents of that package, or from the package itself, will be shown
-     * @return array[]
+     * @return mixed[]
      */
     private function getFilteredSuggestions(InstalledRepository $installedRepo = null, PackageInterface $onlyDependentsOf = null)
     {
@@ -236,7 +233,7 @@ class SuggestedPackagesReporter
      */
     private function removeControlCharacters($string)
     {
-        return preg_replace(
+        return Preg::replace(
             '/[[:cntrl:]]/',
             '',
             str_replace("\n", ' ', $string)

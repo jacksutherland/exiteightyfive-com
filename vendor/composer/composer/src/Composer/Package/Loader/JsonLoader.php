@@ -13,12 +13,15 @@
 namespace Composer\Package\Loader;
 
 use Composer\Json\JsonFile;
+use Composer\Package\CompletePackage;
+use Composer\Package\CompleteAliasPackage;
 
 /**
  * @author Konstantin Kudryashiv <ever.zet@gmail.com>
  */
 class JsonLoader
 {
+    /** @var LoaderInterface */
     private $loader;
 
     public function __construct(LoaderInterface $loader)
@@ -27,8 +30,8 @@ class JsonLoader
     }
 
     /**
-     * @param  string|JsonFile                    $json A filename, json string or JsonFile instance to load the package from
-     * @return \Composer\Package\PackageInterface
+     * @param  string|JsonFile                      $json A filename, json string or JsonFile instance to load the package from
+     * @return CompletePackage|CompleteAliasPackage
      */
     public function load($json)
     {

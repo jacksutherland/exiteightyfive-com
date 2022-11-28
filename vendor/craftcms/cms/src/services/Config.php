@@ -10,6 +10,7 @@ namespace craft\services;
 use Craft;
 use craft\config\DbConfig;
 use craft\config\GeneralConfig;
+use craft\helpers\App;
 use craft\helpers\ArrayHelper;
 use craft\helpers\FileHelper;
 use craft\helpers\StringHelper;
@@ -23,7 +24,8 @@ use yii\base\InvalidConfigException;
 /**
  * The Config service provides APIs for retrieving the values of Craft’s [config settings](http://craftcms.com/docs/config-settings),
  * as well as the values of any plugins’ config settings.
- * An instance of the Config service is globally accessible in Craft via [[\craft\base\ApplicationTrait::getConfig()|`Craft::$app->config`]].
+ *
+ * An instance of the service is available via [[\craft\base\ApplicationTrait::getConfig()|`Craft::$app->config`]].
  *
  * @property DbConfig $db the DB config settings
  * @property GeneralConfig $general the general config settings
@@ -44,7 +46,7 @@ class Config extends Component
      * ```
      * ```twig
      * {% if craft.app.config.env == 'production' %}
-     *     {% include "_includes/ga" %}
+     *   {% include "_includes/ga" %}
      * {% endif %}
      * ```
      */
@@ -101,7 +103,7 @@ class Config extends Component
 
         // todo: remove this eventually
         if ($category === self::CATEGORY_GENERAL) {
-            /* @var GeneralConfig $config */
+            /** @var GeneralConfig $config */
             if ($config->securityKey === null) {
                 $keyPath = Craft::$app->getPath()->getRuntimePath() . DIRECTORY_SEPARATOR . 'validation.key';
                 if (file_exists($keyPath)) {
@@ -157,7 +159,7 @@ class Config extends Component
      * ```
      * ```twig
      * <a href="{{ url(craft.app.config.general.logoutPath) }}">
-     *     Logout
+     *   Logout
      * </a>
      * ```
      *
@@ -253,21 +255,60 @@ class Config extends Component
         $contents = file_get_contents($path);
         $qName = preg_quote($name, '/');
         $slashedValue = addslashes($value);
+
         // Only surround with quotes if the value contains a space
         if (strpos($slashedValue, ' ') !== false || strpos($slashedValue, '#') !== false) {
             $slashedValue = "\"$slashedValue\"";
         }
-        $qValue = str_replace('$', '\\$', $slashedValue);
-        $contents = preg_replace("/^(\s*){$qName}=.*/m", "\$1$name=$qValue", $contents, -1, $count);
 
-        if ($count === 0) {
+        $def = "$name=$slashedValue";
+        $token = StringHelper::randomString();
+        $contents = preg_replace("/^(\s*){$qName}=.*/m", $token, $contents, -1, $count);
+
+        if ($count !== 0) {
+            $contents = str_replace($token, $def, $contents);
+        } else {
             $contents = rtrim($contents);
-            $contents = ($contents ? $contents . PHP_EOL . PHP_EOL : '') . "$name=$slashedValue" . PHP_EOL;
+            $contents = ($contents ? $contents . PHP_EOL . PHP_EOL : '') . $def . PHP_EOL;
         }
 
         FileHelper::writeToFile($path, $contents);
 
         // Now actually set the environment variable
         putenv("{$name}={$value}");
+    }
+
+    /**
+     * Sets a boolean environment variable value in the project's .env file.
+     *
+     * If the environment variable is already set to a boolean-esque value, its counterpart will be used.
+     * For example, if `true` is passed and the current value is `no`, the variable will be set to `yes`.
+     *
+     * @param string $name The environment variable name
+     * @param bool $value The environment variable value
+     * @throws Exception if the .env file doesn't exist
+     * @since 3.7.24
+     */
+    public function setBooleanDotEnvVar(string $name, bool $value): void
+    {
+        switch (strtolower((string)App::env($name))) {
+            case 'yes':
+            case 'no':
+                $value = $value ? 'yes' : 'no';
+                break;
+            case 'on':
+            case 'off':
+                $value = $value ? 'on' : 'off';
+                break;
+            case '1':
+            case '0':
+                $value = $value ? '1' : '0';
+                break;
+            default:
+                $value = $value ? 'true' : 'false';
+                break;
+        }
+
+        $this->setDotEnvVar($name, $value);
     }
 }

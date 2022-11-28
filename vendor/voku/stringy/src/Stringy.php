@@ -12,6 +12,22 @@ use voku\helper\URLify;
 use voku\helper\UTF8;
 
 /**
+ * ## 🇷🇺 Русским гражданам
+ * В Украине сейчас идет война. Силами РФ наносятся удары по гражданской инфраструктуре в [Харькове][1], [Киеве][2], [Чернигове][3], [Сумах][4], [Ирпене][5] и десятках других городов. Гибнут люди - и гражданское население, и военные, в том числе российские призывники, которых бросили воевать. Чтобы лишить собственный народ доступа к информации, правительство РФ запретило называть войну войной, закрыло независимые СМИ и принимает сейчас ряд диктаторских законов. Эти законы призваны заткнуть рот всем, кто против войны. За обычный призыв к миру сейчас можно получить несколько лет тюрьмы.
+ * Не молчите! Молчание - знак вашего согласия с политикой российского правительства.
+ *  **Вы можете сделать выбор НЕ МОЛЧАТЬ.**
+ * ---
+ * ## 🇺🇸 To people of Russia
+ * There is a war in Ukraine right now. The forces of the Russian Federation are attacking civilian infrastructure in [Kharkiv][1], [Kyiv][2], [Chernihiv][3], [Sumy][4], [Irpin][5] and dozens of other cities. People are dying – both civilians and military servicemen, including Russian conscripts who were thrown into the fighting. In order to deprive its own people of access to information, the government of the Russian Federation has forbidden calling a war a war, shut down independent media and is passing a number of dictatorial laws. These laws are meant to silence all those who are against war. You can be jailed for multiple years for simply calling for peace.
+ * Do not be silent! Silence is a sign that you accept the Russian government's policy.
+ * **You can choose NOT TO BE SILENT.**
+ * ---
+ * - [1] https://cloudfront-us-east-2.images.arcpublishing.com/reuters/P7K2MSZDGFMIJPDD7CI2GIROJI.jpg "Kharkiv under attack"
+ * - [2] https://gdb.voanews.com/01bd0000-0aff-0242-fad0-08d9fc92c5b3_cx0_cy5_cw0_w1023_r1_s.jpg "Kyiv under attack"
+ * - [3] https://ichef.bbci.co.uk/news/976/cpsprodpb/163DD/production/_123510119_hi074310744.jpg "Chernihiv under attack"
+ * - [4] https://www.youtube.com/watch?v=8K-bkqKKf2A "Sumy under attack"
+ * - [5] https://cloudfront-us-east-2.images.arcpublishing.com/reuters/K4MTMLEHTRKGFK3GSKAT4GR3NE.jpg "Irpin under attack"
+ *
  * @template-implements \IteratorAggregate<string>
  * @template-implements \ArrayAccess<array-key,string>
  */
@@ -49,8 +65,8 @@ class Stringy implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSeri
      * an InvalidArgumentException if the first argument is an array or object
      * without a __toString method.
      *
-     * @param mixed  $str      [optional] <p>Value to modify, after being cast to string. Default: ''</p>
-     * @param string $encoding [optional] <p>The character encoding. Fallback: 'UTF-8'</p>
+     * @param object|scalar $str      [optional] <p>Value to modify, after being cast to string. Default: ''</p>
+     * @param string        $encoding [optional] <p>The character encoding. Fallback: 'UTF-8'</p>
      *
      * @throws \InvalidArgumentException
      *                                   <p>if an array or object without a
@@ -60,6 +76,7 @@ class Stringy implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSeri
      */
     public function __construct($str = '', string $encoding = null)
     {
+        /* @phpstan-ignore-next-line | always false in theory */
         if (\is_array($str)) {
             throw new \InvalidArgumentException(
                 'Passed value cannot be an array'
@@ -1241,6 +1258,7 @@ class Stringy implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSeri
             return [];
         }
 
+        /** @phpstan-ignore-next-line - FP -> non-empty-string is already checked */
         $strings = \explode($delimiter, $this->str, $limit);
         /** @phpstan-ignore-next-line - if "$delimiter" is an empty string, then "explode()" will return "false" */
         if ($strings === false) {
@@ -2486,6 +2504,7 @@ class Stringy implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSeri
      *
      * @return string The current value of the $str property
      */
+    #[\ReturnTypeWillChange]
     public function jsonSerialize()
     {
         return (string) $this;
@@ -2944,6 +2963,57 @@ class Stringy implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSeri
     }
 
     /**
+     * Returns the integer value of the current string.
+     *
+     * EXAMPLE: <code>
+     * s('foo1 ba2r')->extractIntegers(); // '12'
+     * </code>
+     *
+     * @psalm-mutation-free
+     *
+     * @return static
+     */
+    public function extractIntegers(): self
+    {
+        if ($this->str === '') {
+            return new static('', $this->encoding);
+        }
+
+        \preg_match_all('/(?<integers>\d+)/', $this->str, $matches);
+
+        return static::create(
+            \implode('', $matches['integers'] ?? []),
+            $this->encoding
+        );
+    }
+
+    /**
+     * Returns the special chars of the current string.
+     *
+     * EXAMPLE: <code>
+     * s('foo1 ba2!r')->extractSpecialCharacters(); // '!'
+     * </code>
+     *
+     * @psalm-mutation-free
+     *
+     * @return static
+     */
+    public function extractSpecialCharacters(): self
+    {
+        if ($this->str === '') {
+            return new static('', $this->encoding);
+        }
+
+        // no letter, no digit, no space
+        \preg_match_all('/((?![\p{L}0-9\s]+).)/u', $this->str, $matches);
+
+        return static::create(
+            \implode('', $matches[0] ?? []),
+            $this->encoding
+        );
+    }
+
+    /**
      * Returns whether or not a character exists at an index. Offsets may be
      * negative to count from the last character in the string. Implements
      * part of the ArrayAccess interface.
@@ -3006,6 +3076,7 @@ class Stringy implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSeri
      *
      * @return void
      */
+    #[\ReturnTypeWillChange]
     public function offsetSet($offset, $value)
     {
         // Stringy is immutable, cannot directly set char
@@ -3026,6 +3097,7 @@ class Stringy implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSeri
      *
      * @return void
      */
+    #[\ReturnTypeWillChange]
     public function offsetUnset($offset)
     {
         // Don't allow directly modifying the string
@@ -3784,6 +3856,8 @@ class Stringy implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSeri
      * @return static
      *                <p>Object whose $str has been converted to an URL slug.</p>
      *
+     * @phpstan-param ASCII::*_LANGUAGE_CODE $language
+     *
      * @noinspection PhpTooManyParametersInspection
      */
     public function slugify(
@@ -4276,11 +4350,11 @@ class Stringy implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSeri
      * s('i like to watch television')->titleize($ignore); // 'I Like to Watch Television'
      * </code>
      *
-     * @param array|string[]|null $ignore            [optional] <p>An array of words not to capitalize or null.
-     *                                               Default: null</p>
-     * @param string|null         $word_define_chars [optional] <p>An string of chars that will be used as whitespace
-     *                                               separator === words.</p>
-     * @param string|null         $language          [optional] <p>Language of the source string.</p>
+     * @param string[]|null $ignore            [optional] <p>An array of words not to capitalize or null.
+     *                                         Default: null</p>
+     * @param string|null   $word_define_chars [optional] <p>An string of chars that will be used as whitespace
+     *                                         separator === words.</p>
+     * @param string|null   $language          [optional] <p>Language of the source string.</p>
      *
      * @psalm-mutation-free
      *
@@ -4357,6 +4431,8 @@ class Stringy implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSeri
      *
      * @return static
      *                <p>Object whose $str contains only ASCII characters.</p>
+     *
+     * @phpstan-param ASCII::*_LANGUAGE_CODE $language
      */
     public function toAscii(string $language = 'en', bool $removeUnsupported = true): self
     {
@@ -5025,7 +5101,7 @@ class Stringy implements \ArrayAccess, \Countable, \IteratorAggregate, \JsonSeri
      * @psalm-mutation-free
      *
      * @return array<string, array<int, string>>
-     *                       <p>An array of replacements.</p>
+     *                                           <p>An array of replacements.</p>
      *
      * @deprecated   this is only here for backward-compatibly reasons
      */

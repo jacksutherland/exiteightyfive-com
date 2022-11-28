@@ -32,14 +32,14 @@ class PluginsAsset extends AssetBundle
      * @inheritdoc
      */
     public $css = [
-        'plugins.css',
+        'css/PluginManager.css',
     ];
 
     /**
      * @inheritdoc
      */
     public $js = [
-        'PluginManager.min.js',
+        'PluginManager.js',
     ];
 
     /**

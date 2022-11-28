@@ -34,14 +34,14 @@ class LoginAsset extends AssetBundle
      * @inheritdoc
      */
     public $css = [
-        'login.css',
+        'css/login.css',
     ];
 
     /**
      * @inheritdoc
      */
     public $js = [
-        'login.min.js',
+        'login.js',
     ];
 
     /**

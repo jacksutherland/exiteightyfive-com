@@ -31,13 +31,13 @@ class RoutesAsset extends AssetBundle
      * @inheritdoc
      */
     public $css = [
-        'routes.css',
+        'css/routes.css',
     ];
 
     /**
      * @inheritdoc
      */
     public $js = [
-        'routes.min.js',
+        'routes.js',
     ];
 }

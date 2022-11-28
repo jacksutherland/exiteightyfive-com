@@ -31,13 +31,13 @@ class DeprecationErrorsAsset extends AssetBundle
      * @inheritdoc
      */
     public $css = [
-        'deprecator.css',
+        'css/deprecator.css',
     ];
 
     /**
      * @inheritdoc
      */
     public $js = [
-        'deprecator.min.js',
+        'deprecator.js',
     ];
 }

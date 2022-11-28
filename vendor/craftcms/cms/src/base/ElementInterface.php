@@ -13,7 +13,6 @@ use craft\models\FieldLayout;
 use craft\models\Site;
 use Twig\Markup;
 
-
 /**
  * ElementInterface defines the common interface to be implemented by element classes.
  * A class implementing this interface should also use [[ElementTrait]] and [[ContentTrait]].
@@ -234,7 +233,8 @@ interface ElementInterface extends ComponentInterface
      * It should return an array whose keys are the status values, and values are the human-facing status labels, or an array
      * with the following keys:
      * - **`label`** – The human-facing status label.
-     * - **`color`** – The status color (green, orange, red, yellow, pink, purple, blue, turquoise, light, grey, black, or white)
+     * - **`color`** – The status color. Possible values include `green`, `orange`, `red`, `yellow`, `pink`, `purple`, `blue`,
+     *   `turquoise`, `light`, `grey`, `black`, and `white`.
      * You can customize the database query condition that should be applied for your custom statuses from
      * [[\craft\elements\db\ElementQuery::statusCondition()]].
      *
@@ -251,24 +251,26 @@ interface ElementInterface extends ComponentInterface
      * Each item in the array should be set to an array that has the following keys:
      * - **`key`** – The source’s key. This is the string that will be passed into the $source argument of [[actions()]],
      *   [[indexHtml()]], and [[defaultTableAttributes()]].
-     * - **`label`** – The human-facing label of the source.
+     * - **`label`** – The human-facing label of the source.
+     * - **`status`** – The status color that should be shown beside the source label. Possible values include `green`,
+     *   `orange`, `red`, `yellow`, `pink`, `purple`, `blue`, `turquoise`, `light`, `grey`, `black`, and `white`. (Optional)
      * - **`badgeCount`** – The badge count that should be displayed alongside the label. (Optional)
      * - **`sites`** – An array of site IDs that the source should be shown for, on multi-site element indexes. (Optional;
      *   by default the source will be shown for all sites.)
-     * - **`criteria`** – An array of element criteria parameters that the source should use when the source is selected.
+     * - **`criteria`** – An array of element criteria parameters that the source should use when the source is selected.
      *   (Optional)
-     * - **`data`** – An array of `data-X` attributes that should be set on the source’s `<a>` tag in the source list’s,
+     * - **`data`** – An array of `data-X` attributes that should be set on the source’s `<a>` tag in the source list’s,
      *   HTML, where each key is the name of the attribute (without the “data-” prefix), and each value is the value of
      *   the attribute. (Optional)
-     * - **`defaultSort`** – A string identifying the sort attribute that should be selected by default, or an array where
+     * - **`defaultSort`** – A string identifying the sort attribute that should be selected by default, or an array where
      *   the first value identifies the sort attribute, and the second determines which direction to sort by. (Optional)
-     * - **`hasThumbs`** – A bool that defines whether this source supports Thumbs View. (Use your element’s
+     * - **`hasThumbs`** – A bool that defines whether this source supports Thumbs View. (Use your element’s
      *   [[getThumbUrl()]] method to define your elements’ thumb URL.) (Optional)
-     * - **`structureId`** – The ID of the Structure that contains the elements in this source. If set, Structure View
+     * - **`structureId`** – The ID of the Structure that contains the elements in this source. If set, Structure View
      *   will be available to this source. (Optional)
-     * - **`newChildUrl`** – The URL that should be loaded when a user selects the “New child” menu option on an
+     * - **`newChildUrl`** – The URL that should be loaded when a user selects the “New child” menu option on an
      *   element in this source while it is in Structure View. (Optional)
-     * - **`nested`** – An array of sources that are nested within this one. Each nested source can have the same keys
+     * - **`nested`** – An array of sources that are nested within this one. Each nested source can have the same keys
      *   as top-level sources.
      *
      * ::: tip
@@ -540,20 +542,69 @@ interface ElementInterface extends ComponentInterface
     public function getIsRevision(): bool;
 
     /**
-     * Returns the element’s ID, or if it’s a draft/revision, its source element’s ID.
+     * Returns whether this is the canonical element.
      *
-     * @return int|null
-     * @since 3.2.0
+     * @return bool
+     * @since 3.7.0
      */
-    public function getSourceId();
+    public function getIsCanonical(): bool;
 
     /**
-     * Returns the element’s UUID, or if it’s a draft/revision, its source element’s UUID.
+     * Returns whether this is a derivative element, such as a draft or revision.
      *
-     * @return string
-     * @since 3.2.0
+     * @return bool
+     * @since 3.7.0
      */
-    public function getSourceUid(): string;
+    public function getIsDerivative(): bool;
+
+    /**
+     * Returns the canonical version of the element.
+     *
+     * If this is a draft or revision, the canonical element will be returned.
+     *
+     * @param bool $anySite Whether the canonical element can be retrieved in any site
+     * @return static
+     * @since 3.7.0
+     */
+    public function getCanonical(bool $anySite = false): ElementInterface;
+
+    /**
+     * Sets the canonical version of the element.
+     *
+     * @param static $element
+     * @return void
+     * @since 3.7.0
+     */
+    public function setCanonical(ElementInterface $element): void;
+
+    /**
+     * Returns the element’s canonical ID.
+     *
+     * If this is a draft or revision, the canonical element’s ID will be returned.
+     *
+     * @return int|null
+     * @since 3.7.0
+     */
+    public function getCanonicalId(): ?int;
+
+    /**
+     * Sets the element’s canonical ID.
+     *
+     * @param int|null $canonicalId
+     * @return void
+     * @since 3.7.0
+     */
+    public function setCanonicalId(?int $canonicalId): void;
+
+    /**
+     * Returns the element’s canonical UUID.
+     *
+     * If this is a draft or revision, the canonical element’s UUID will be returned.
+     *
+     * @return string|null
+     * @since 3.7.11
+     */
+    public function getCanonicalUid(): ?string;
 
     /**
      * Returns whether the element is an unpublished draft.
@@ -562,6 +613,15 @@ interface ElementInterface extends ComponentInterface
      * @since 3.6.0
      */
     public function getIsUnpublishedDraft(): bool;
+
+    /**
+     * Merges changes from the canonical element into this one.
+     *
+     * @return void
+     * @see \craft\services\Elements::mergeCanonicalChanges()
+     * @since 3.7.0
+     */
+    public function mergeCanonicalChanges(): void;
 
     /**
      * Returns the field layout used by this element.
@@ -817,6 +877,15 @@ interface ElementInterface extends ComponentInterface
     public function getParent();
 
     /**
+     * Returns the parent element’s URI, if there is one.
+     *
+     * If the parent’s URI is `__home__` (the homepage URI), then `null` will be returned.
+     *
+     * @return string|null
+     */
+    public function getParentUri(): ?string;
+
+    /**
      * Sets the element’s parent.
      *
      * @param static|null $parent
@@ -955,6 +1024,41 @@ interface ElementInterface extends ComponentInterface
     public function getAttributeStatus(string $attribute);
 
     /**
+     * Returns the attribute names that have been updated on the canonical element since the last time it was
+     * merged into this element.
+     *
+     * @return string[]
+     * @since 3.7.0
+     */
+    public function getOutdatedAttributes(): array;
+
+    /**
+     * Returns whether an attribute value has fallen behind the canonical element’s value.
+     *
+     * @param string $name
+     * @return bool
+     * @since 3.7.0
+     */
+    public function isAttributeOutdated(string $name): bool;
+
+    /**
+     * Returns the attribute names that have changed for this element.
+     *
+     * @return string[]
+     * @since 3.7.0
+     */
+    public function getModifiedAttributes(): array;
+
+    /**
+     * Returns whether an attribute value has changed for this element.
+     *
+     * @param string $name
+     * @return bool
+     * @since 3.7.0
+     */
+    public function isAttributeModified(string $name): bool;
+
+    /**
      * Returns whether an attribute has changed since the element was first loaded.
      *
      * @param string $name
@@ -1065,13 +1169,41 @@ interface ElementInterface extends ComponentInterface
     public function setFieldValue(string $fieldHandle, $value);
 
     /**
-     * Returns the status of a given field.
+     * Returns the field handles that have been updated on the canonical element since the last time it was
+     * merged into this element.
+     *
+     * @return string[]
+     * @since 3.7.0
+     */
+    public function getOutdatedFields(): array;
+
+    /**
+     * Returns whether a field value has fallen behind the canonical element’s value.
      *
      * @param string $fieldHandle
-     * @return array|null
-     * @since 3.4.0
+     * @return bool
+     * @since 3.7.0
      */
-    public function getFieldStatus(string $fieldHandle);
+    public function isFieldOutdated(string $fieldHandle): bool;
+
+    /**
+     * Returns the field handles that have changed for this element.
+     *
+     * @param bool $anySite Whether to check for fields that have changed across any site
+     * @return string[]
+     * @since 3.7.0
+     */
+    public function getModifiedFields(bool $anySite = false): array;
+
+    /**
+     * Returns whether a field value has changed for this element.
+     *
+     * @param string $fieldHandle
+     * @param bool $anySite Whether to check if the field has changed across any site
+     * @return bool
+     * @since 3.7.0
+     */
+    public function isFieldModified(string $fieldHandle, bool $anySite = false): bool;
 
     /**
      * Returns whether a custom field value has changed since the element was first loaded.
@@ -1197,11 +1329,20 @@ interface ElementInterface extends ComponentInterface
     public function setEagerLoadedElementCount(string $handle, int $count);
 
     /**
-     * Returns whether the element’s content is "fresh" (unsaved and without validation errors).
+     * Returns whether the element is "fresh" (not yet explicitly saved, and without validation errors).
      *
-     * @return bool Whether the element’s content is fresh
+     * @return bool
+     * @since 3.7.14
      */
-    public function getHasFreshContent(): bool;
+    public function getIsFresh(): bool;
+
+    /**
+     * Sets whether the element is "fresh" (not yet explicitly saved, and without validation errors).
+     *
+     * @param bool $isFresh
+     * @since 3.7.14
+     */
+    public function setIsFresh(bool $isFresh = true): void;
 
     /**
      * Sets the revision creator ID to be saved.
@@ -1257,11 +1398,29 @@ interface ElementInterface extends ComponentInterface
     public function getTableAttributeHtml(string $attribute): string;
 
     /**
-     * Returns the HTML for the element’s editor HUD.
+     * Returns the HTML for the element’s editor slideout.
      *
-     * @return string The HTML for the editor HUD
+     * @return string The HTML for the editor slideout
+     * @deprecated in 3.7.0. Use [[getSidebarHtml()]] or [[getMetadata()]] instead.
      */
     public function getEditorHtml(): string;
+
+    /**
+     * Returns the HTML for any fields/info that should be shown within the sidebar of element editor slideouts.
+     *
+     * @return string
+     * @since 3.7.0
+     */
+    public function getSidebarHtml(): string;
+
+    /**
+     * Returns element metadata that can be shown on its edit page or within element editor slideouts.
+     *
+     * @return array The data, with keys representing the labels. The values can either be strings or callables.
+     * If a value is `false`, it will be omitted.
+     * @since 3.7.0
+     */
+    public function getMetadata(): array;
 
     /**
      * Returns the GraphQL type name for this element type.

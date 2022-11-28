@@ -211,6 +211,11 @@ abstract class BaseField extends FieldLayoutElement
         return Cp::fieldHtml($inputHtml, [
             'fieldset' => $this->useFieldset(),
             'id' => $this->id(),
+            'instructionsId' => $this->instructionsId(),
+            'tipId' => $this->tipId(),
+            'warningId' => $this->warningId(),
+            'errorsId' => $this->errorsId(),
+            'statusId' => $this->statusId(),
             'fieldAttributes' => $this->containerAttributes($element, $static),
             'inputContainerAttributes' => $this->inputContainerAttributes($element, $static),
             'labelAttributes' => $this->labelAttributes($element, $static),
@@ -218,7 +223,7 @@ abstract class BaseField extends FieldLayoutElement
             'label' => $label !== null ? Html::encode($label) : null,
             'attribute' => $this->attribute(),
             'required' => !$static && $this->required,
-            'instructions' => Html::encode($this->instructions ? Craft::t('site', $this->instructions) : $this->defaultInstructions($element, $static)),
+            'instructions' => $this->instructions($element, $static),
             'tip' => $this->tip($element, $static),
             'warning' => $this->warning($element, $static),
             'orientation' => $this->orientation($element, $static),
@@ -261,6 +266,83 @@ abstract class BaseField extends FieldLayoutElement
     protected function id(): string
     {
         return $this->attribute();
+    }
+
+    /**
+     * Returns the `id` of the field instructions.
+     *
+     * @return string
+     * @since 3.7.24
+     */
+    protected function instructionsId(): string
+    {
+        return sprintf('%s-instructions', $this->id());
+    }
+
+    /**
+     * Returns the `id` of the field tip.
+     *
+     * @return string
+     * @since 3.7.24
+     */
+    protected function tipId(): string
+    {
+        return sprintf('%s-tip', $this->id());
+    }
+
+    /**
+     * Returns the `id` of the field warning.
+     *
+     * @return string
+     * @since 3.7.24
+     */
+    protected function warningId(): string
+    {
+        return sprintf('%s-warning', $this->id());
+    }
+
+    /**
+     * Returns the `id` of the field errors.
+     *
+     * @return string
+     * @since 3.7.24
+     */
+    protected function errorsId(): string
+    {
+        return sprintf('%s-errors', $this->id());
+    }
+
+    /**
+     * Returns the `id` if the field status message.
+     *
+     * @return string
+     * @since 3.7.29
+     */
+    protected function statusId(): string
+    {
+        return sprintf('%s-status', $this->id());
+    }
+
+    /**
+     * Returns the `aria-describedby` attribute value that should be set on the focusable input(s).
+     *
+     * @param ElementInterface|null $element The element the form is being rendered for
+     * @param bool $static Whether the form should be static (non-interactive)
+     * @return string|null
+     * @see inputHtml()
+     * @since 3.7.24
+     */
+    protected function describedBy(ElementInterface $element = null, bool $static = false): ?string
+    {
+        $ids = array_filter([
+            (!$static && $this->errors($element)) ? $this->errorsId() : null,
+            $this->statusClass($element, $static) ? $this->statusId() : null,
+            $this->instructions($element, $static) ? $this->instructionsId() : null,
+            $this->tip($element, $static) ? $this->tipId() : null,
+            $this->warning($element, $static) ? $this->warningId() : null,
+        ]);
+
+        return $ids ? implode(' ', $ids) : null;
     }
 
     /**
@@ -348,6 +430,19 @@ abstract class BaseField extends FieldLayoutElement
     }
 
     /**
+     * Returns the field’s instructions.
+     *
+     * @param ElementInterface|null $element The element the form is being rendered for
+     * @param bool $static Whether the form should be static (non-interactive)
+     * @return string|null
+     * @since 3.7.24
+     */
+    protected function instructions(ElementInterface $element = null, bool $static = false): ?string
+    {
+        return $this->instructions ? Craft::t('site', $this->instructions) : $this->defaultInstructions($element, $static);
+    }
+
+    /**
      * Returns the field’s default instructions, which will be used if [[instructions]] is null.
      *
      * @param ElementInterface|null $element The element the form is being rendered for
@@ -401,12 +496,18 @@ abstract class BaseField extends FieldLayoutElement
      */
     protected function orientation(ElementInterface $element = null, bool $static = false): string
     {
-        if (!$element || !$this->translatable($element, $static)) {
-            return Craft::$app->getLocale()->getOrientation();
+        // If there’s only one site, go with its language
+        if (!Craft::$app->getIsMultiSite()) {
+            // Only one site so use its language
+            $locale = Craft::$app->getSites()->getPrimarySite()->getLocale();
+        } elseif (!$element || !$this->translatable($element, $static)) {
+            // Not translatable, so use the user’s language
+            $locale = Craft::$app->getLocale();
+        } else {
+            // Use the site’s language
+            $locale = $element->getSite()->getLocale();
         }
 
-        $site = $element->getSite();
-        $locale = Craft::$app->getI18n()->getLocaleById($site->language);
         return $locale->getOrientation();
     }
 

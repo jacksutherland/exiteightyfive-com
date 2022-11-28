@@ -21,6 +21,7 @@ use craft\helpers\ArrayHelper;
 use craft\helpers\Cp;
 use craft\helpers\Db;
 use craft\helpers\Json;
+use craft\helpers\StringHelper;
 use GraphQL\Type\Definition\Type;
 use yii\db\Schema;
 
@@ -66,7 +67,7 @@ abstract class BaseOptionsField extends Field implements PreviewableFieldInterfa
                         'value' => $key,
                         'default' => '',
                     ];
-                } else if (!empty($option['isOptgroup'])) {
+                } elseif (!empty($option['isOptgroup'])) {
                     // isOptgroup will be set if this is a settings request
                     $options[] = [
                         'optgroup' => $option['label'],
@@ -239,19 +240,24 @@ abstract class BaseOptionsField extends Field implements PreviewableFieldInterfa
         }
 
         if (is_string($value) && (
-                $value === '' ||
                 strpos($value, '[') === 0 ||
                 strpos($value, '{') === 0
             )) {
             $value = Json::decodeIfJson($value);
-        } else if ($value === null && $this->isFresh($element)) {
+        } elseif ($value === '' && $this->multi) {
+            $value = [];
+        } elseif ($value === null && $this->isFresh($element)) {
             $value = $this->defaultValue();
         }
 
         // Normalize to an array of strings
         $selectedValues = [];
         foreach ((array)$value as $val) {
-            $selectedValues[] = (string)$val;
+            $val = (string)$val;
+            if (StringHelper::startsWith($val, 'base64:')) {
+                $val = base64_decode(StringHelper::removeLeft($val, 'base64:'));
+            }
+            $selectedValues[] = $val;
         }
 
         $options = [];
@@ -276,7 +282,7 @@ abstract class BaseOptionsField extends Field implements PreviewableFieldInterfa
                 $selectedOptions[] = new OptionData($label, $selectedValue, true, $valid);
             }
             $value = new MultiOptionsFieldData($selectedOptions);
-        } else if (!empty($selectedValues)) {
+        } elseif (!empty($selectedValues)) {
             // Convert the value to a SingleOptionFieldData object
             $selectedValue = reset($selectedValues);
             $index = array_search($selectedValue, $optionValues, true);
@@ -300,13 +306,37 @@ abstract class BaseOptionsField extends Field implements PreviewableFieldInterfa
         if ($value instanceof MultiOptionsFieldData) {
             $serialized = [];
             foreach ($value as $selectedValue) {
-                /* @var OptionData $selectedValue */
+                /** @var OptionData $selectedValue */
                 $serialized[] = $selectedValue->value;
             }
             return $serialized;
         }
 
         return parent::serializeValue($value, $element);
+    }
+
+    /**
+     * @inheritdoc
+     */
+    protected function searchKeywords($value, ElementInterface $element): string
+    {
+        $keywords = [];
+
+        if ($this->multi) {
+            /** @var MultiOptionsFieldData|OptionData[] $value */
+            foreach ($value as $option) {
+                $keywords[] = $option->value;
+                $keywords[] = $option->label;
+            }
+        } else {
+            /** @var SingleOptionFieldData $value */
+            if ($value->value !== null) {
+                $keywords[] = $value->value;
+                $keywords[] = $value->label;
+            }
+        }
+
+        return implode(' ', $keywords);
     }
 
     /**
@@ -321,7 +351,7 @@ abstract class BaseOptionsField extends Field implements PreviewableFieldInterfa
                 if (preg_match('/^(not\s+)?([^\*\[\]"]+)$/', $value, $match)) {
                     $value = "{$match[1]}*\"{$match[2]}\"*";
                 }
-            } else if (is_array($value)) {
+            } elseif (is_array($value)) {
                 foreach ($value as &$v) {
                     if (!in_array(strtolower($v), ['and', 'or', 'not']) && preg_match('/^(not\s+)?([^\*\[\]"]+)$/', $v, $match)) {
                         $v = "{$match[1]}*\"{$match[2]}\"*";
@@ -358,7 +388,7 @@ abstract class BaseOptionsField extends Field implements PreviewableFieldInterfa
      */
     public function isValueEmpty($value, ElementInterface $element): bool
     {
-        /* @var MultiOptionsFieldData|SingleOptionFieldData $value */
+        /** @var MultiOptionsFieldData|SingleOptionFieldData $value */
         if ($value instanceof SingleOptionFieldData) {
             return $value->value === null || $value->value === '';
         }
@@ -372,18 +402,21 @@ abstract class BaseOptionsField extends Field implements PreviewableFieldInterfa
     public function getTableAttributeHtml($value, ElementInterface $element): string
     {
         if ($this->multi) {
-            /* @var MultiOptionsFieldData $value */
+            /** @var MultiOptionsFieldData $value */
             $labels = [];
 
             foreach ($value as $option) {
-                $labels[] = Craft::t('site', $option->label);
+                /** @var OptionData $option */
+                if ($option->value) {
+                    $labels[] = Craft::t('site', $option->label);
+                }
             }
 
             return implode(', ', $labels);
         }
 
-        /* @var SingleOptionFieldData $value */
-        return Craft::t('site', (string)$value->label);
+        /** @var SingleOptionFieldData $value */
+        return $value->value ? Craft::t('site', (string)$value->label) : '';
     }
 
     /**
@@ -470,9 +503,10 @@ abstract class BaseOptionsField extends Field implements PreviewableFieldInterfa
     /**
      * Returns the field options, with labels run through Craft::t().
      *
+     * @param bool $encode Whether the option values should be base64-encoded
      * @return array
      */
-    protected function translatedOptions(): array
+    protected function translatedOptions(bool $encode = false): array
     {
         $translatedOptions = [];
 
@@ -484,12 +518,38 @@ abstract class BaseOptionsField extends Field implements PreviewableFieldInterfa
             } else {
                 $translatedOptions[] = [
                     'label' => Craft::t('site', $option['label']),
-                    'value' => $option['value'],
+                    'value' => $encode ? $this->encodeValue($option['value']) : $option['value'],
                 ];
             }
         }
 
         return $translatedOptions;
+    }
+
+    /**
+     * Base64-encodes a value.
+     *
+     * @param OptionData|MultiOptionsFieldData|string|null $value
+     * @rturn string|array|null
+     * @since 3.7.46
+     */
+    protected function encodeValue($value)
+    {
+        if ($value instanceof MultiOptionsFieldData) {
+            return array_map(function(OptionData $value) {
+                return $this->encodeValue($value);
+            }, (array)$value);
+        }
+
+        if ($value instanceof OptionData) {
+            $value = $value->value;
+        }
+
+        if ($value === null || $value === '') {
+            return $value;
+        }
+
+        return sprintf('base64:%s', base64_encode($value));
     }
 
     /**

@@ -11,7 +11,6 @@ use Craft;
 use craft\base\ElementInterface;
 use craft\base\SortableFieldInterface;
 use craft\fields\data\SingleOptionFieldData;
-use craft\helpers\Html;
 
 /**
  * RadioButtons represents a Radio Buttons field.
@@ -50,17 +49,16 @@ class RadioButtons extends BaseOptionsField implements SortableFieldInterface
      */
     protected function inputHtml($value, ElementInterface $element = null): string
     {
-        /* @var SingleOptionFieldData $value */
+        /** @var SingleOptionFieldData $value */
         if (!$value->valid) {
             Craft::$app->getView()->setInitialDeltaValue($this->handle, null);
         }
 
-        $id = Html::id($this->handle);
         return Craft::$app->getView()->renderTemplate('_includes/forms/radioGroup', [
-            'instructionsId' => "$id-instructions",
+            'describedBy' => $this->describedBy,
             'name' => $this->handle,
-            'value' => $value,
-            'options' => $this->translatedOptions(),
+            'value' => $this->encodeValue($value),
+            'options' => $this->translatedOptions(true),
         ]);
     }
 

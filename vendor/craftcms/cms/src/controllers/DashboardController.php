@@ -20,9 +20,9 @@ use craft\models\CraftSupport;
 use craft\web\assets\dashboard\DashboardAsset;
 use craft\web\Controller;
 use craft\web\UploadedFile;
-use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\RequestOptions;
 use Symfony\Component\Yaml\Yaml;
+use Throwable;
 use yii\base\Exception;
 use yii\base\InvalidArgumentException;
 use yii\web\BadRequestHttpException;
@@ -62,22 +62,21 @@ class DashboardController extends Controller
         $dashboardService = Craft::$app->getDashboard();
         $view = $this->getView();
 
-        $namespace = $view->getNamespace();
-
         // Assemble the list of available widget types
         $widgetTypes = $dashboardService->getAllWidgetTypes();
         $widgetTypeInfo = [];
-        $view->setNamespace('__NAMESPACE__');
 
         foreach ($widgetTypes as $widgetType) {
-            /* @var WidgetInterface $widgetType */
+            /** @var WidgetInterface $widgetType */
             if (!$widgetType::isSelectable()) {
                 continue;
             }
 
             $view->startJsBuffer();
             $widget = $dashboardService->createWidget($widgetType);
-            $settingsHtml = $view->namespaceInputs((string)$widget->getSettingsHtml());
+            $settingsHtml = $view->namespaceInputs(function() use ($widget) {
+                return (string)$widget->getSettingsHtml();
+            }, '__NAMESPACE__');
             $settingsJs = (string)$view->clearJsBuffer(false);
 
             $class = get_class($widget);
@@ -94,7 +93,6 @@ class DashboardController extends Controller
         // Sort them by name
         ArrayHelper::multisort($widgetTypeInfo, 'name');
 
-        $view->setNamespace($namespace);
         $variables = [];
 
         // Assemble the list of existing widgets
@@ -136,7 +134,9 @@ class DashboardController extends Controller
 
         // Include all the JS and CSS stuff
         $view->registerAssetBundle(DashboardAsset::class);
-        $view->registerJs('window.dashboard = new Craft.Dashboard(' . Json::encode($widgetTypeInfo) . ');');
+        $view->registerJsWithVars(function($widgetTypeInfo) {
+            return "window.dashboard = new Craft.Dashboard($widgetTypeInfo)";
+        }, [$widgetTypeInfo]);
         $view->registerJs($allWidgetJs);
 
         $variables['widgetTypes'] = $widgetTypeInfo;
@@ -426,7 +426,7 @@ class DashboardController extends Controller
                 try {
                     $backupPath = Craft::$app->getDb()->backup();
                     $zip->addFile($backupPath, basename($backupPath));
-                } catch (\Throwable $e) {
+                } catch (Throwable $e) {
                     Craft::warning('Error adding database backup to support request: ' . $e->getMessage(), __METHOD__);
                     $getHelpModel->message .= "\n\n---\n\nError adding database backup: " . $e->getMessage();
                 }
@@ -450,7 +450,7 @@ class DashboardController extends Controller
                 'contents' => fopen($zipPath, 'rb'),
                 'filename' => 'SupportAttachment-' . FileHelper::sanitizeFilename(Craft::$app->getSites()->getPrimarySite()->getName()) . '.zip',
             ];
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Craft::warning('Error creating support zip: ' . $e->getMessage(), __METHOD__);
             $getHelpModel->message .= "\n\n---\n\nError creating zip: " . $e->getMessage();
         }
@@ -468,7 +468,9 @@ class DashboardController extends Controller
             Craft::$app->getApi()->request('POST', 'support', [
                 RequestOptions::MULTIPART => $parts,
             ]);
-        } catch (RequestException $requestException) {
+        } catch (Throwable $requestException) {
+            Craft::error("Unable to send support request: {$requestException->getMessage()}", __METHOD__);
+            Craft::$app->getErrorHandler()->logException($requestException);
         }
 
         // Delete the zip file
@@ -481,7 +483,9 @@ class DashboardController extends Controller
                 'widgetId' => $widgetId,
                 'success' => false,
                 'errors' => [
-                    'Support' => [$requestException->getMessage()],
+                    'Support' => [
+                        Craft::t('app', 'A server error occurred.'),
+                    ],
                 ],
             ]);
         }
@@ -502,7 +506,6 @@ class DashboardController extends Controller
     private function _getWidgetInfo(WidgetInterface $widget)
     {
         $view = $this->getView();
-        $namespace = $view->getNamespace();
 
         // Get the body HTML
         $widgetBodyHtml = $widget->getBodyHtml();
@@ -512,9 +515,10 @@ class DashboardController extends Controller
         }
 
         // Get the settings HTML + JS
-        $view->setNamespace('widget' . $widget->id . '-settings');
         $view->startJsBuffer();
-        $settingsHtml = $view->namespaceInputs((string)$widget->getSettingsHtml());
+        $settingsHtml = $view->namespaceInputs(function() use ($widget) {
+            return (string)$widget->getSettingsHtml();
+        }, "widget$widget->id-settings");
         $settingsJs = $view->clearJsBuffer(false);
 
         // Get the colspan (limited to the widget type's max allowed colspan)
@@ -523,8 +527,6 @@ class DashboardController extends Controller
         if (($maxColspan = $widget::maxColspan()) && $colspan > $maxColspan) {
             $colspan = $maxColspan;
         }
-
-        $view->setNamespace($namespace);
 
         return [
             'id' => $widget->id,

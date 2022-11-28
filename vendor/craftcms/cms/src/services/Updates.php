@@ -9,10 +9,9 @@ namespace craft\services;
 
 use Craft;
 use craft\base\PluginInterface;
-use craft\db\Table;
+use craft\errors\InvalidPluginException;
 use craft\errors\MigrateException;
 use craft\helpers\ArrayHelper;
-use craft\helpers\Db;
 use craft\helpers\FileHelper;
 use craft\models\Updates as UpdatesModel;
 use yii\base\Component;
@@ -21,7 +20,8 @@ use yii\base\InvalidArgumentException;
 
 /**
  * Updates service.
- * An instance of the Updates service is globally accessible in Craft via [[\craft\base\ApplicationTrait::getUpdates()|`Craft::$app->updates`]].
+ *
+ * An instance of the service is available via [[\craft\base\ApplicationTrait::getUpdates()|`Craft::$app->updates`]].
  *
  * @property bool $isCraftDbMigrationNeeded Whether Craft needs to run any database migrations
  * @property bool $isCraftSchemaVersionCompatible Whether the uploaded DB schema is equal to or greater than the installed schema
@@ -132,26 +132,19 @@ class Updates extends Component
     /**
      * @param PluginInterface $plugin
      * @return bool
+     * @deprecated in 3.7.13. Use [[\craft\services\Plugins::updatePluginVersionInfo()]] instead.
      */
     public function setNewPluginInfo(PluginInterface $plugin): bool
     {
-        $success = (bool)Db::update(Table::PLUGINS, [
-            'version' => $plugin->getVersion(),
-            'schemaVersion' => $plugin->schemaVersion,
-        ], [
-            'handle' => $plugin->id,
-        ]);
-
-        // Only update the schema version if it's changed from what's in the file,
-        // so we don't accidentally overwrite other pending changes
-        $projectConfig = Craft::$app->getProjectConfig();
-        $key = Plugins::CONFIG_PLUGINS_KEY . '.' . $plugin->handle . '.schemaVersion';
-
-        if ($projectConfig->get($key, true) !== $plugin->schemaVersion) {
-            Craft::$app->getProjectConfig()->set($key, $plugin->schemaVersion, "Update plugin schema version for “{$plugin->handle}”");
+        try {
+            Craft::$app->getPlugins()->updatePluginVersionInfo($plugin);
+        } catch (InvalidPluginException $e) {
+            Craft::warning("Couldn’t update plugin version info: {$e->getMessage()}", __METHOD__);
+            Craft::$app->getErrorHandler()->logException($e);
+            return false;
         }
 
-        return $success;
+        return true;
     }
 
     /**
@@ -249,13 +242,13 @@ class Updates extends Component
                 if ($handle === 'craft') {
                     Craft::$app->getMigrator()->up();
                     Craft::$app->getUpdates()->updateCraftVersionInfo();
-                } else if ($handle === 'content') {
+                } elseif ($handle === 'content') {
                     Craft::$app->getContentMigrator()->up();
                 } else {
                     $plugin = Craft::$app->getPlugins()->getPlugin($handle);
                     $name = $plugin->name;
                     $plugin->getMigrator()->up();
-                    Craft::$app->getUpdates()->setNewPluginInfo($plugin);
+                    Craft::$app->getPlugins()->updatePluginVersionInfo($plugin);
                 }
             }
 
@@ -374,6 +367,8 @@ class Updates extends Component
         if ($projectConfig->get(ProjectConfig::CONFIG_SCHEMA_VERSION_KEY, true) !== $info->schemaVersion) {
             Craft::$app->getProjectConfig()->set(ProjectConfig::CONFIG_SCHEMA_VERSION_KEY, $info->schemaVersion, 'Update Craft schema version');
         }
+
+        $this->_isCraftDbMigrationNeeded = null;
 
         return true;
     }

@@ -17,6 +17,7 @@ use Composer\Downloader\TransportException;
 use Composer\Config;
 use Composer\IO\IOInterface;
 use Composer\Json\JsonFile;
+use Composer\Pcre\Preg;
 use Composer\Util\ProcessExecutor;
 use Composer\Util\HttpDownloader;
 use Composer\Util\Filesystem;
@@ -33,7 +34,7 @@ abstract class VcsDriver implements VcsDriverInterface
     protected $url;
     /** @var string */
     protected $originUrl;
-    /** @var array */
+    /** @var array<string, mixed> */
     protected $repoConfig;
     /** @var IOInterface */
     protected $io;
@@ -43,15 +44,15 @@ abstract class VcsDriver implements VcsDriverInterface
     protected $process;
     /** @var HttpDownloader */
     protected $httpDownloader;
-    /** @var array */
+    /** @var array<string, mixed> */
     protected $infoCache = array();
-    /** @var Cache */
+    /** @var ?Cache */
     protected $cache;
 
     /**
      * Constructor.
      *
-     * @param array           $repoConfig     The repository configuration
+     * @param array{url: string}&array<string, mixed>           $repoConfig     The repository configuration
      * @param IOInterface     $io             The IO instance
      * @param Config          $config         The composer configuration
      * @param HttpDownloader  $httpDownloader Remote Filesystem, injectable for mocking
@@ -80,11 +81,11 @@ abstract class VcsDriver implements VcsDriverInterface
      */
     protected function shouldCache($identifier)
     {
-        return $this->cache && preg_match('{^[a-f0-9]{40}$}iD', $identifier);
+        return $this->cache && Preg::isMatch('{^[a-f0-9]{40}$}iD', $identifier);
     }
 
     /**
-     * {@inheritdoc}
+     * @inheritDoc
      */
     public function getComposerInformation($identifier)
     {
@@ -96,7 +97,7 @@ abstract class VcsDriver implements VcsDriverInterface
             $composer = $this->getBaseComposerInformation($identifier);
 
             if ($this->shouldCache($identifier)) {
-                $this->cache->write($identifier, json_encode($composer));
+                $this->cache->write($identifier, JsonFile::encode($composer, 0));
             }
 
             $this->infoCache[$identifier] = $composer;
@@ -105,6 +106,11 @@ abstract class VcsDriver implements VcsDriverInterface
         return $this->infoCache[$identifier];
     }
 
+    /**
+     * @param string $identifier
+     *
+     * @return array<string, mixed>|null
+     */
     protected function getBaseComposerInformation($identifier)
     {
         $composerFileContent = $this->getFileContent('composer.json', $identifier);
@@ -123,7 +129,7 @@ abstract class VcsDriver implements VcsDriverInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function hasComposerFile($identifier)
     {
@@ -157,6 +163,7 @@ abstract class VcsDriver implements VcsDriverInterface
      * @param string $url The URL of content
      *
      * @return Response
+     * @throws TransportException
      */
     protected function getContents($url)
     {
@@ -166,7 +173,7 @@ abstract class VcsDriver implements VcsDriverInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function cleanup()
     {

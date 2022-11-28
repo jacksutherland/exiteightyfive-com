@@ -7,6 +7,7 @@
  * @license https://craftcms.github.io/license/
  */
 
+use craft\helpers\App;
 use craft\helpers\ArrayHelper;
 use craft\services\Config;
 use yii\base\ErrorException;
@@ -104,7 +105,7 @@ $environment = $findConfig('CRAFT_ENVIRONMENT', 'env') ?: ($_SERVER['SERVER_NAME
 // Validate the paths
 // -----------------------------------------------------------------------------
 
-if (!defined('CRAFT_LICENSE_KEY')) {
+if (!defined('CRAFT_LICENSE_KEY') && !App::isEphemeral()) {
     // Validate permissions on the license key file path (default config/) and storage/
     if (defined('CRAFT_LICENSE_KEY_PATH')) {
         $licensePath = dirname(CRAFT_LICENSE_KEY_PATH);
@@ -151,10 +152,14 @@ if (!defined('CRAFT_EPHEMERAL') || CRAFT_EPHEMERAL === false) {
     $ensureFolderIsReadable($storagePath . DIRECTORY_SEPARATOR . 'logs', true);
 }
 
-// Log errors to storage/logs/phperrors.log
+// Log errors to storage/logs/phperrors.log or php://stderr
 if (!defined('CRAFT_LOG_PHP_ERRORS') || CRAFT_LOG_PHP_ERRORS) {
     ini_set('log_errors', 1);
     ini_set('error_log', $storagePath . DIRECTORY_SEPARATOR . 'logs' . DIRECTORY_SEPARATOR . 'phperrors.log');
+
+    if (defined('CRAFT_STREAM_LOG') && CRAFT_STREAM_LOG) {
+        ini_set('error_log', 'php://stderr');
+    }
 }
 
 error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
@@ -171,11 +176,7 @@ $generalConfig = $configService->getConfigFromFile('general');
 // Determine if Craft is running in Dev Mode
 // -----------------------------------------------------------------------------
 
-if ($appType === 'console') {
-    $devMode = true;
-} else {
-    $devMode = ArrayHelper::getValue($generalConfig, 'devMode', false);
-}
+$devMode = ArrayHelper::getValue($generalConfig, 'devMode', false);
 
 if ($devMode) {
     ini_set('display_errors', 1);

@@ -1,0 +1,14 @@
+columnSuffix: null
+contentColumnType: boolean
+fieldGroup: 435b0ef2-0c42-40bf-9055-6769daac4110 # Header
+handle: showInMenu
+instructions: ''
+name: 'Show In Menu'
+searchable: true
+settings:
+  default: true
+  offLabel: null
+  onLabel: null
+translationKeyFormat: null
+translationMethod: none
+type: craft\fields\Lightswitch

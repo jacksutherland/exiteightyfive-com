@@ -33,6 +33,7 @@ use craft\web\twig\nodevisitors\GetAttrAdjuster;
 use craft\web\twig\nodevisitors\Profiler;
 use craft\web\twig\tokenparsers\CacheTokenParser;
 use craft\web\twig\tokenparsers\DdTokenParser;
+use craft\web\twig\tokenparsers\DeprecatedTokenParser;
 use craft\web\twig\tokenparsers\ExitTokenParser;
 use craft\web\twig\tokenparsers\HeaderTokenParser;
 use craft\web\twig\tokenparsers\HookTokenParser;
@@ -54,6 +55,7 @@ use DateInterval;
 use DateTime;
 use DateTimeInterface;
 use DateTimeZone;
+use Traversable;
 use Twig\Environment as TwigEnvironment;
 use Twig\Error\RuntimeError;
 use Twig\Extension\AbstractExtension;
@@ -116,6 +118,7 @@ class Extension extends AbstractExtension implements GlobalsInterface
     {
         return [
             new CacheTokenParser(),
+            new DeprecatedTokenParser(),
             new DdTokenParser(),
             new ExitTokenParser(),
             new HeaderTokenParser(),
@@ -262,9 +265,11 @@ class Extension extends AbstractExtension implements GlobalsInterface
             new TwigFilter('prepend', [$this, 'prependFilter'], ['is_safe' => ['html']]),
             new TwigFilter('purify', [$this, 'purifyFilter'], ['is_safe' => ['html']]),
             new TwigFilter('push', [$this, 'pushFilter']),
+            new TwigFilter('removeClass', [$this, 'removeClassFilter'], ['is_safe' => ['html']]),
             new TwigFilter('replace', [$this, 'replaceFilter']),
             new TwigFilter('rss', [$this, 'rssFilter'], ['needs_environment' => true]),
             new TwigFilter('snake', [$this, 'snakeFilter']),
+            new TwigFilter('sort', [$this, 'sortFilter'], ['needs_environment' => true]),
             new TwigFilter('time', [$this, 'timeFilter'], ['needs_environment' => true]),
             new TwigFilter('timestamp', [$this, 'timestampFilter']),
             new TwigFilter('translate', [$this, 'translateFilter']),
@@ -276,6 +281,7 @@ class Extension extends AbstractExtension implements GlobalsInterface
             new TwigFilter('unshift', [$this, 'unshiftFilter']),
             new TwigFilter('values', 'array_values'),
             new TwigFilter('where', [ArrayHelper::class, 'where']),
+            new TwigFilter('widont', [$this, 'widontFilter'], ['is_safe' => ['html']]),
             new TwigFilter('without', [$this, 'withoutFilter']),
             new TwigFilter('withoutKey', [$this, 'withoutKeyFilter']),
         ];
@@ -287,14 +293,47 @@ class Extension extends AbstractExtension implements GlobalsInterface
     public function getTests()
     {
         return [
+            new TwigTest('array', function($obj): bool {
+                return is_array($obj);
+            }),
+            new TwigTest('boolean', function($obj): bool {
+                return is_bool($obj);
+            }),
+            new TwigTest('callable', function($obj): bool {
+                return is_callable($obj);
+            }),
+            new TwigTest('countable', function($obj): bool {
+                if (!function_exists('is_countable')) {
+                    return is_array($obj) || $obj instanceof \Countable;
+                }
+                return is_countable($obj);
+            }),
+            new TwigTest('float', function($obj): bool {
+                return is_float($obj);
+            }),
             new TwigTest('instance of', function($obj, $class) {
                 return $obj instanceof $class;
+            }),
+            new TwigTest('integer', function($obj): bool {
+                return is_int($obj);
             }),
             new TwigTest('missing', function($obj) {
                 return $obj instanceof MissingComponentInterface;
             }),
-            new TwigTest('boolean', function($obj): bool {
-                return is_bool($obj);
+            new TwigTest('numeric', function($obj): bool {
+                return is_numeric($obj);
+            }),
+            new TwigTest('object', function($obj): bool {
+                return is_object($obj);
+            }),
+            new TwigTest('resource', function($obj): bool {
+                return is_resource($obj);
+            }),
+            new TwigTest('scalar', function($obj): bool {
+                return is_scalar($obj);
+            }),
+            new TwigTest('string', function($obj): bool {
+                return is_string($obj);
             }),
         ];
     }
@@ -312,14 +351,14 @@ class Extension extends AbstractExtension implements GlobalsInterface
     public function translateFilter($message, $category = null, $params = null, $language = null): string
     {
         // The front end site doesn't need to specify the category
-        /* @noinspection CallableParameterUseCaseInTypeContextInspection */
+        /** @noinspection CallableParameterUseCaseInTypeContextInspection */
         if (is_array($category)) {
-            /* @noinspection CallableParameterUseCaseInTypeContextInspection */
+            /** @noinspection CallableParameterUseCaseInTypeContextInspection */
             $language = $params;
-            /* @noinspection CallableParameterUseCaseInTypeContextInspection */
+            /** @noinspection CallableParameterUseCaseInTypeContextInspection */
             $params = $category;
             $category = 'site';
-        } else if ($category === null) {
+        } elseif ($category === null) {
             $category = 'site';
         }
 
@@ -438,6 +477,26 @@ class Extension extends AbstractExtension implements GlobalsInterface
     {
         return StringHelper::toSnakeCase((string)$string);
     }
+
+    /**
+     * Sorts an array.
+     *
+     * @param TwigEnvironment $env
+     * @param array|Traversable $array
+     * @param string|callable|null $arrow
+     * @return array
+     * @throws RuntimeError
+     * @since 3.7.60
+     */
+    public function sortFilter(TwigEnvironment $env, $array, $arrow = null): array
+    {
+        if (is_string($arrow) && strtolower($arrow) === 'system') {
+            throw new RuntimeError('The sort filter doesn\'t support sorting by system().');
+        }
+
+        return twig_sort_filter($env, $array, $arrow);
+    }
+
 
     /**
      * Formats the value as a currency number.
@@ -579,6 +638,18 @@ class Extension extends AbstractExtension implements GlobalsInterface
         }
 
         return json_encode($value, $options, $depth);
+    }
+
+    /**
+     * Inserts a non-breaking space between the last two words of a string.
+     *
+     * @param string $string
+     * @return string
+     * @since 3.7.0
+     */
+    public function widontFilter(string $string): string
+    {
+        return Html::widont($string);
     }
 
     /**
@@ -734,6 +805,33 @@ class Extension extends AbstractExtension implements GlobalsInterface
         array_shift($args);
         array_unshift($array, ...$args);
         return $array;
+    }
+
+    /**
+     * Removes a class (or classes) from the given HTML tag.
+     *
+     * @param string $tag The HTML tag to modify
+     * @param string|string[] $class
+     * @return string The modified HTML tag
+     * @since 3.7.0
+     */
+    public function removeClassFilter(string $tag, $class): string
+    {
+        try {
+            $oldClasses = Html::parseTagAttributes($tag)['class'] ?? [];
+            $newClasses = array_filter($oldClasses, function(string $oldClass) use ($class) {
+                return is_string($class) ? $oldClass !== $class : !in_array($oldClass, $class, true);
+            });
+
+            $newTag = Html::modifyTagAttributes($tag, ['class' => false]);
+            if (!empty($newClasses)) {
+                $newTag = Html::modifyTagAttributes($newTag, ['class' => $newClasses]);
+            }
+            return $newTag;
+        } catch (InvalidArgumentException $e) {
+            Craft::warning($e->getMessage(), __METHOD__);
+            return $tag;
+        }
     }
 
     /**
@@ -970,7 +1068,6 @@ class Extension extends AbstractExtension implements GlobalsInterface
     public function groupFilter($arr, $arrow): array
     {
         if ($arr instanceof ElementQuery) {
-            Craft::$app->getDeprecator()->log('ElementQuery::getIterator()', 'Looping through element queries directly has been deprecated. Use the `all()` function to fetch the query results before looping over them.');
             $arr = $arr->all();
         }
 
@@ -1024,9 +1121,9 @@ class Extension extends AbstractExtension implements GlobalsInterface
     {
         if (is_string($haystack)) {
             $index = strpos($haystack, $needle);
-        } else if (is_array($haystack)) {
+        } elseif (is_array($haystack)) {
             $index = array_search($needle, $haystack, false);
-        } else if (is_object($haystack) && $haystack instanceof \IteratorAggregate) {
+        } elseif (is_object($haystack) && $haystack instanceof \IteratorAggregate) {
             $index = false;
 
             foreach ($haystack as $i => $item) {
@@ -1037,7 +1134,7 @@ class Extension extends AbstractExtension implements GlobalsInterface
             }
         }
 
-        /* @noinspection UnSafeIsSetOverArrayInspection - FP */
+        /** @noinspection UnSafeIsSetOverArrayInspection - FP */
         if (isset($index) && $index !== false) {
             return $index;
         }
@@ -1106,7 +1203,7 @@ class Extension extends AbstractExtension implements GlobalsInterface
      * When sorting by multiple keys with different sorting directions, use an array of sorting directions.
      * @param int|array $sortFlag the PHP sort flag. Valid values include
      * `SORT_REGULAR`, `SORT_NUMERIC`, `SORT_STRING`, `SORT_LOCALE_STRING`, `SORT_NATURAL` and `SORT_FLAG_CASE`.
-     * Please refer to [PHP manual](http://php.net/manual/en/function.sort.php)
+     * Please refer to [PHP manual](https://php.net/manual/en/function.sort.php)
      * for more details. When sorting by multiple keys with different sort flags, use an array of sort flags.
      * @return array the sorted array
      * @throws InvalidArgumentException if the $direction or $sortFlag parameters do not have
@@ -1136,11 +1233,13 @@ class Extension extends AbstractExtension implements GlobalsInterface
             new TwigFunction('cpUrl', [UrlHelper::class, 'cpUrl']),
             new TwigFunction('create', [Craft::class, 'createObject']),
             new TwigFunction('dataUrl', [$this, 'dataUrlFunction']),
+            new TwigFunction('date', [$this, 'dateFunction'], ['needs_environment' => true]),
             new TwigFunction('expression', [$this, 'expressionFunction']),
             new TwigFunction('floor', 'floor'),
             new TwigFunction('getenv', [App::class, 'env']),
             new TwigFunction('gql', [$this, 'gqlFunction']),
-            new TwigFunction('parseEnv', [Craft::class, 'parseEnv']),
+            new TwigFunction('parseEnv', [App::class, 'parseEnv']),
+            new TwigFunction('parseBooleanEnv', [App::class, 'parseBooleanEnv']),
             new TwigFunction('plugin', [$this, 'pluginFunction']),
             new TwigFunction('raw', [TemplateHelper::class, 'raw']),
             new TwigFunction('renderObjectTemplate', [$this, 'renderObjectTemplate']),
@@ -1204,6 +1303,27 @@ class Extension extends AbstractExtension implements GlobalsInterface
         }
 
         return Html::dataUrl(Craft::getAlias($file), $mimeType);
+    }
+
+    /**
+     * Converts an input to a [[\DateTime]] instance.
+     *
+     * @param TwigEnvironment $env
+     * @param \DateTimeInterface|string|array|null $date A date, or null to use the current time
+     * @param \DateTimeZone|string|false|null $timezone The target timezone, `null` to use the default, `false` to leave unchanged
+     * @return \DateTimeInterface
+     */
+    public function dateFunction(TwigEnvironment $env, $date = null, $timezone = null): DateTimeInterface
+    {
+        // Support for date/time arrays
+        if (is_array($date)) {
+            $date = DateTimeHelper::toDateTime($date, false, false);
+            if ($date === false) {
+                throw new InvalidArgumentException('Invalid date passed to date() function');
+            }
+        }
+
+        return twig_date_converter($env, $date, $timezone);
     }
 
     /**
@@ -1334,9 +1454,15 @@ class Extension extends AbstractExtension implements GlobalsInterface
                 Craft::$app->getErrorHandler()->logException($e);
                 return '';
             }
-        } else if (stripos($svg, '<svg') === false) {
+        } elseif (stripos($svg, '<svg') === false) {
             // No <svg> tag, so it's probably a file path
-            $svg = Craft::getAlias($svg);
+            try {
+                $svg = Craft::getAlias($svg);
+            } catch (InvalidArgumentException $e) {
+                Craft::error("Could not get the contents of $svg: {$e->getMessage()}", __METHOD__);
+                Craft::$app->getErrorHandler()->logException($e);
+                return '';
+            }
             if (!is_file($svg) || !FileHelper::isSvg($svg)) {
                 Craft::warning("Could not get the contents of {$svg}: The file doesn't exist", __METHOD__);
                 return '';
@@ -1412,7 +1538,25 @@ class Extension extends AbstractExtension implements GlobalsInterface
         $generalConfig = Craft::$app->getConfig()->getGeneral();
         $setPasswordRequestPath = $generalConfig->getSetPasswordRequestPath();
 
-        $globals = [
+        if ($isInstalled && !Craft::$app->getUpdates()->getIsCraftDbMigrationNeeded()) {
+            /** @noinspection PhpUnhandledExceptionInspection */
+            $currentSite = Craft::$app->getSites()->getCurrentSite();
+
+            $currentUser = Craft::$app->getUser()->getIdentity();
+            $siteName = Craft::t('site', $currentSite->getName());
+            $siteUrl = $currentSite->getBaseUrl();
+            $systemName = Craft::$app->getSystemName();
+        } else {
+            $currentSite = $currentUser = $siteName = $siteUrl = $systemName = null;
+        }
+
+        return [
+            'craft' => new CraftVariable(),
+            'currentSite' => $currentSite,
+            'currentUser' => $currentUser,
+            'siteName' => $siteName,
+            'siteUrl' => $siteUrl,
+            'systemName' => $systemName,
             'view' => $this->view,
 
             'devMode' => YII_DEBUG,
@@ -1434,49 +1578,8 @@ class Extension extends AbstractExtension implements GlobalsInterface
             'loginUrl' => UrlHelper::siteUrl($generalConfig->getLoginPath()),
             'logoutUrl' => UrlHelper::siteUrl($generalConfig->getLogoutPath()),
             'setPasswordUrl' => $setPasswordRequestPath !== null ? UrlHelper::siteUrl($setPasswordRequestPath) : null,
-            'now' => new DateTime(null, new \DateTimeZone(Craft::$app->getTimeZone())),
+            'now' => new DateTime('now', new \DateTimeZone(Craft::$app->getTimeZone())),
         ];
-
-        $globals['craft'] = new CraftVariable();
-
-        if ($isInstalled && !$request->getIsConsoleRequest() && !Craft::$app->getUpdates()->getIsCraftDbMigrationNeeded()) {
-            $globals['currentUser'] = Craft::$app->getUser()->getIdentity();
-        } else {
-            $globals['currentUser'] = null;
-        }
-
-        $templateMode = $this->view->getTemplateMode();
-
-        // CP-only variables
-        if ($templateMode === View::TEMPLATE_MODE_CP) {
-            $globals['CraftEdition'] = Craft::$app->getEdition();
-            $globals['CraftSolo'] = Craft::Solo;
-            $globals['CraftPro'] = Craft::Pro;
-        }
-
-        // Only set these things when Craft is installed and not being updated
-        if ($isInstalled && !Craft::$app->getUpdates()->getIsCraftDbMigrationNeeded()) {
-            $globals['systemName'] = Craft::$app->getSystemName();
-            /* @noinspection PhpUnhandledExceptionInspection */
-            $site = Craft::$app->getSites()->getCurrentSite();
-            $globals['currentSite'] = $site;
-            $globals['siteName'] = Craft::t('site', $site->getName());
-            $globals['siteUrl'] = $site->getBaseUrl();
-
-            // Global sets (site templates only)
-            if ($templateMode === View::TEMPLATE_MODE_SITE) {
-                foreach (Craft::$app->getGlobals()->getAllSets() as $globalSet) {
-                    $globals[$globalSet->handle] = $globalSet;
-                }
-            }
-        } else {
-            $globals['systemName'] = null;
-            $globals['currentSite'] = null;
-            $globals['siteName'] = null;
-            $globals['siteUrl'] = null;
-        }
-
-        return $globals;
     }
 
     // Deprecated Methods

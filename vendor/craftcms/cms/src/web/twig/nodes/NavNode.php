@@ -39,7 +39,7 @@ class NavNode extends ForNode
      * @param $lineno
      * @param $tag
      */
-    public function __construct(AssignNameExpression $keyTarget, AssignNameExpression $valueTarget, AbstractExpression $seq, Node $upperBody, Node $lowerBody = null, Node $indent = null, Node $outdent = null, $lineno, $tag = null)
+    public function __construct(AssignNameExpression $keyTarget, AssignNameExpression $valueTarget, AbstractExpression $seq, Node $upperBody, ?Node $lowerBody, ?Node $indent, ?Node $outdent, $lineno, $tag = null)
     {
         $this->navItemNode = new NavItem_Node($valueTarget, $indent, $outdent, $lowerBody, $lineno, $tag);
         $body = new Node([$this->navItemNode, $upperBody]);
@@ -88,7 +88,7 @@ class NavNode extends ForNode
             ->write("}\n")
             // Close out the last item
             ->write("\$context = \$_contextsByLevel[\$_firstItemLevel];\n")
-            ->subcompile($this->navItemNode->getNode('lower_body'), false)
+            ->subcompile($this->navItemNode->getNode('lower_body'))
             // Set the context back
             ->write("\$context = \$_tmpContext;\n")
             // Unset out variables

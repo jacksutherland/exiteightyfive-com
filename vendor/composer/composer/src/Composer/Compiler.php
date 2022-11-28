@@ -14,6 +14,7 @@ namespace Composer;
 
 use Composer\Json\JsonFile;
 use Composer\CaBundle\CaBundle;
+use Composer\Pcre\Preg;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Process\Process;
 use Seld\PharUtils\Timestamps;
@@ -27,14 +28,20 @@ use Seld\PharUtils\Linter;
  */
 class Compiler
 {
+    /** @var string */
     private $version;
+    /** @var string */
     private $branchAliasVersion = '';
+    /** @var \DateTime */
     private $versionDate;
 
     /**
      * Compiles composer into a single phar file
      *
-     * @param  string            $pharFile The full path to the file to create
+     * @param string $pharFile The full path to the file to create
+     *
+     * @return void
+     *
      * @throws \RuntimeException
      */
     public function compile($pharFile = 'composer.phar')
@@ -43,13 +50,25 @@ class Compiler
             unlink($pharFile);
         }
 
-        $process = new Process('git log --pretty="%H" -n1 HEAD', __DIR__);
+        // TODO in v2.3 always call with an array
+        if (method_exists('Symfony\Component\Process\Process', 'fromShellCommandline')) {
+            $process = new Process(array('git', 'log', '--pretty="%H"', '-n1', 'HEAD'), __DIR__);
+        } else {
+            // @phpstan-ignore-next-line
+            $process = new Process('git log --pretty="%H" -n1 HEAD', __DIR__);
+        }
         if ($process->run() != 0) {
             throw new \RuntimeException('Can\'t run git log. You must ensure to run compile from composer git repository clone and that git binary is available.');
         }
         $this->version = trim($process->getOutput());
 
-        $process = new Process('git log -n1 --pretty=%ci HEAD', __DIR__);
+        // TODO in v2.3 always call with an array
+        if (method_exists('Symfony\Component\Process\Process', 'fromShellCommandline')) {
+            $process = new Process(array('git', 'log', '-n1', '--pretty=%ci', 'HEAD'), __DIR__);
+        } else {
+            // @phpstan-ignore-next-line
+            $process = new Process('git log -n1 --pretty=%ci HEAD', __DIR__);
+        }
         if ($process->run() != 0) {
             throw new \RuntimeException('Can\'t run git log. You must ensure to run compile from composer git repository clone and that git binary is available.');
         }
@@ -57,21 +76,27 @@ class Compiler
         $this->versionDate = new \DateTime(trim($process->getOutput()));
         $this->versionDate->setTimezone(new \DateTimeZone('UTC'));
 
-        $process = new Process('git describe --tags --exact-match HEAD');
+        // TODO in v2.3 always call with an array
+        if (method_exists('Symfony\Component\Process\Process', 'fromShellCommandline')) {
+            $process = new Process(array('git', 'describe', '--tags', '--exact-match', 'HEAD'), __DIR__);
+        } else {
+            // @phpstan-ignore-next-line
+            $process = new Process('git describe --tags --exact-match HEAD');
+        }
         if ($process->run() == 0) {
             $this->version = trim($process->getOutput());
         } else {
-            // get branch-alias defined in composer.json for dev-master (if any)
+            // get branch-alias defined in composer.json for dev-main (if any)
             $localConfig = __DIR__.'/../../composer.json';
             $file = new JsonFile($localConfig);
             $localConfig = $file->read();
-            if (isset($localConfig['extra']['branch-alias']['dev-master'])) {
-                $this->branchAliasVersion = $localConfig['extra']['branch-alias']['dev-master'];
+            if (isset($localConfig['extra']['branch-alias']['dev-main'])) {
+                $this->branchAliasVersion = $localConfig['extra']['branch-alias']['dev-main'];
             }
         }
 
         $phar = new \Phar($pharFile, 0, 'composer.phar');
-        $phar->setSignatureAlgorithm(\Phar::SHA1);
+        $phar->setSignatureAlgorithm(\Phar::SHA512);
 
         $phar->startBuffering();
 
@@ -86,14 +111,16 @@ class Compiler
             ->name('*.php')
             ->notName('Compiler.php')
             ->notName('ClassLoader.php')
+            ->notName('InstalledVersions.php')
             ->in(__DIR__.'/..')
             ->sort($finderSort)
         ;
         foreach ($finder as $file) {
             $this->addFile($phar, $file);
         }
-        // Add ClassLoader separately to make sure it retains the docblocks as it will get copied into projects
+        // Add runtime utilities separately to make sure they retains the docblocks as these will get copied into projects
         $this->addFile($phar, new \SplFileInfo(__DIR__ . '/Autoload/ClassLoader.php'), false);
+        $this->addFile($phar, new \SplFileInfo(__DIR__ . '/InstalledVersions.php'), false);
 
         // Add Composer resources
         $finder = new Finder();
@@ -135,11 +162,11 @@ class Compiler
         foreach ($finder as $file) {
             if (in_array(realpath($file), $extraFiles, true)) {
                 unset($extraFiles[array_search(realpath($file), $extraFiles, true)]);
-            } elseif (!preg_match('{(/LICENSE|\.php)$}', $file)) {
+            } elseif (!Preg::isMatch('{([/\\\\]LICENSE|\.php)$}', $file)) {
                 $unexpectedFiles[] = (string) $file;
             }
 
-            if (preg_match('{\.php[\d.]*$}', $file)) {
+            if (Preg::isMatch('{\.php[\d.]*$}', $file)) {
                 $this->addFile($phar, $file);
             } else {
                 $this->addFile($phar, $file, false);
@@ -171,7 +198,7 @@ class Compiler
         // re-sign the phar with reproducible timestamp / signature
         $util = new Timestamps($pharFile);
         $util->updateTimestamps($this->versionDate);
-        $util->save($pharFile, \Phar::SHA1);
+        $util->save($pharFile, \Phar::SHA512);
 
         Linter::lint($pharFile);
     }
@@ -191,7 +218,12 @@ class Compiler
         return strtr($relativePath, '\\', '/');
     }
 
-    private function addFile($phar, $file, $strip = true)
+    /**
+     * @param bool $strip
+     *
+     * @return void
+     */
+    private function addFile(\Phar $phar, \SplFileInfo $file, $strip = true)
     {
         $path = $this->getRelativeFilePath($file);
         $content = file_get_contents($file);
@@ -210,16 +242,19 @@ class Compiler
                     '@release_date@' => $this->versionDate->format('Y-m-d H:i:s'),
                 )
             );
-            $content = preg_replace('{SOURCE_VERSION = \'[^\']+\';}', 'SOURCE_VERSION = \'\';', $content);
+            $content = Preg::replace('{SOURCE_VERSION = \'[^\']+\';}', 'SOURCE_VERSION = \'\';', $content);
         }
 
         $phar->addFromString($path, $content);
     }
 
-    private function addComposerBin($phar)
+    /**
+     * @return void
+     */
+    private function addComposerBin(\Phar $phar)
     {
         $content = file_get_contents(__DIR__.'/../../bin/composer');
-        $content = preg_replace('{^#!/usr/bin/env php\s*}', '', $content);
+        $content = Preg::replace('{^#!/usr/bin/env php\s*}', '', $content);
         $phar->addFromString('bin/composer', $content);
     }
 
@@ -243,11 +278,11 @@ class Compiler
                 $output .= str_repeat("\n", substr_count($token[1], "\n"));
             } elseif (T_WHITESPACE === $token[0]) {
                 // reduce wide spaces
-                $whitespace = preg_replace('{[ \t]+}', ' ', $token[1]);
+                $whitespace = Preg::replace('{[ \t]+}', ' ', $token[1]);
                 // normalize newlines to \n
-                $whitespace = preg_replace('{(?:\r\n|\r|\n)}', "\n", $whitespace);
+                $whitespace = Preg::replace('{(?:\r\n|\r|\n)}', "\n", $whitespace);
                 // trim leading spaces
-                $whitespace = preg_replace('{\n +}', "\n", $whitespace);
+                $whitespace = Preg::replace('{\n +}', "\n", $whitespace);
                 $output .= $whitespace;
             } else {
                 $output .= $token[1];
@@ -257,6 +292,9 @@ class Compiler
         return $output;
     }
 
+    /**
+     * @return string
+     */
     private function getStub()
     {
         $stub = <<<'EOF'
@@ -282,13 +320,18 @@ if (extension_loaded('apc') && filter_var(ini_get('apc.enable_cli'), FILTER_VALI
     }
 }
 
+if (!class_exists('Phar')) {
+    echo 'PHP\'s phar extension is missing. Composer requires it to run. Enable the extension or recompile php without --disable-phar then try again.' . PHP_EOL;
+    exit(1);
+}
+
 Phar::mapPhar('composer.phar');
 
 EOF;
 
         // add warning once the phar is older than 60 days
-        if (preg_match('{^[a-f0-9]+$}', $this->version)) {
-            $warningTime = $this->versionDate->format('U') + 60 * 86400;
+        if (Preg::isMatch('{^[a-f0-9]+$}', $this->version)) {
+            $warningTime = ((int) $this->versionDate->format('U')) + 60 * 86400;
             $stub .= "define('COMPOSER_DEV_WARNING_TIME', $warningTime);\n";
         }
 

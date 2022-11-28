@@ -45,6 +45,11 @@ abstract class ElementArguments extends Arguments
                 'type' => Type::boolean(),
                 'description' => 'Determines whether only elements with unique IDs should be returned by the query.',
             ],
+            'preferSites' => [
+                'name' => 'preferSites',
+                'type' => Type::listOf(QueryArgument::getType()),
+                'description' => 'Determines which site should be selected when querying multi-site elements.',
+            ],
             'enabledForSite' => [
                 'name' => 'enabledForSite',
                 'type' => Type::boolean(),
@@ -145,6 +150,11 @@ abstract class ElementArguments extends Arguments
                 'type' => Type::string(),
                 'description' => 'Sets the field the returned elements should be ordered by.',
             ],
+            'siteSettingsId' => [
+                'name' => 'siteSettingsId',
+                'type' => Type::listOf(QueryArgument::getType()),
+                'description' => 'Narrows the query results based on the unique identifier for an element-site relation.',
+            ],
         ]);
     }
 
@@ -199,7 +209,7 @@ abstract class ElementArguments extends Arguments
             'draftOf' => [
                 'name' => 'draftOf',
                 'type' => QueryArgument::getType(),
-                'description' => 'The source element ID that drafts should be returned for. Set to `false` to fetch unpublished drafts.',
+                'description' => 'Narrows the query results to only drafts of a given element.  Set to `false` to fetch unpublished drafts.',
             ],
             'draftId' => [
                 'name' => 'draftId',
@@ -210,6 +220,11 @@ abstract class ElementArguments extends Arguments
                 'name' => 'draftCreator',
                 'type' => Type::int(),
                 'description' => 'The drafts’ creator ID',
+            ],
+            'provisionalDrafts' => [
+                'name' => 'provisionalDrafts',
+                'type' => Type::boolean(),
+                'description' => 'Whether provisional drafts should be returned.',
             ],
         ];
     }

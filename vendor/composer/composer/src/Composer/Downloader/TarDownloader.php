@@ -22,12 +22,14 @@ use Composer\Package\PackageInterface;
 class TarDownloader extends ArchiveDownloader
 {
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     protected function extract(PackageInterface $package, $file, $path)
     {
         // Can throw an UnexpectedValueException
         $archive = new \PharData($file);
         $archive->extractTo($path, null, true);
+
+        return \React\Promise\resolve();
     }
 }

@@ -43,7 +43,8 @@ use yii\di\Instance;
 
 /**
  * Asset Transforms service.
- * An instance of the Asset Transforms service is globally accessible in Craft via [[\craft\base\ApplicationTrait::getAssetTransforms()|`Craft::$app->assetTransforms`]].
+ *
+ * An instance of the service is available via [[\craft\base\ApplicationTrait::getAssetTransforms()|`Craft::$app->assetTransforms`]].
  *
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
@@ -100,7 +101,7 @@ class AssetTransforms extends Component
     public $db = 'db';
 
     /**
-     * @var MemoizableArray|null
+     * @var MemoizableArray<AssetTransform>|null
      * @see _transforms()
      */
     private $_transforms;
@@ -144,7 +145,7 @@ class AssetTransforms extends Component
     /**
      * Returns a memoizable array of all named asset transforms.
      *
-     * @return MemoizableArray
+     * @return MemoizableArray<AssetTransform>
      */
     private function _transforms(): MemoizableArray
     {
@@ -230,7 +231,7 @@ class AssetTransforms extends Component
 
         if ($isNewTransform) {
             $transform->uid = StringHelper::UUID();
-        } else if (!$transform->uid) {
+        } elseif (!$transform->uid) {
             $transform->uid = Db::uidById(Table::ASSETTRANSFORMS, $transform->id, $this->db);
         }
 
@@ -451,7 +452,7 @@ class AssetTransforms extends Component
         $transformsByFingerprint = [];
         $indexCondition = ['or'];
 
-        /* @var AssetTransform|null $refTransform */
+        /** @var AssetTransform|null $refTransform */
         $refTransform = null;
 
         foreach ($transforms as $transform) {
@@ -460,6 +461,7 @@ class AssetTransforms extends Component
                 [$sizeValue, $sizeUnit] = AssetsHelper::parseSrcsetSize($transform);
             } catch (InvalidArgumentException $e) {
                 // All good.
+                $sizeValue = $sizeUnit = null;
             }
 
             if (isset($sizeValue, $sizeUnit)) {
@@ -467,19 +469,26 @@ class AssetTransforms extends Component
                     throw new InvalidArgumentException("Can’t eager-load transform “{$transform}” without a prior transform that specifies the base width");
                 }
 
-                $transform = [];
+                $transform = new AssetTransform($refTransform->toArray([
+                    'format',
+                    'interlace',
+                    'mode',
+                    'position',
+                    'quality',
+                ]));
+
                 if ($sizeUnit === 'w') {
-                    $transform['width'] = (int)$sizeValue;
+                    $transform->width = (int)$sizeValue;
                 } else {
-                    $transform['width'] = (int)ceil($refTransform->width * $sizeValue);
+                    $transform->width = (int)ceil($refTransform->width * $sizeValue);
                 }
 
                 // Only set the height if the reference transform has a height set on it
-                if ($refTransform && $refTransform->height) {
+                if ($refTransform->height) {
                     if ($sizeUnit === 'w') {
-                        $transform['height'] = (int)ceil($refTransform->height * $transform['width'] / $refTransform->width);
+                        $transform->height = (int)ceil($refTransform->height * $transform->width / $refTransform->width);
                     } else {
-                        $transform['height'] = (int)ceil($refTransform->height * $sizeValue);
+                        $transform->height = (int)ceil($refTransform->height * $sizeValue);
                     }
                 }
             }
@@ -664,7 +673,6 @@ class AssetTransforms extends Component
         // Make sure we're not in the middle of working on this transform from a separate request
         if ($index->inProgress) {
             for ($safety = 0; $safety < 100; $safety++) {
-
                 if ($index->error) {
                     throw new AssetTransformException(Craft::t('app',
                         'Failed to generate transform with id of {id}.',
@@ -675,7 +683,7 @@ class AssetTransforms extends Component
                 sleep(1);
                 App::maxPowerCaptain();
 
-                /* @noinspection CallableParameterUseCaseInTypeContextInspection */
+                /** @noinspection CallableParameterUseCaseInTypeContextInspection */
                 $index = $this->getTransformIndexModelById($index->id);
 
                 // Is it being worked on right now?
@@ -721,9 +729,7 @@ class AssetTransforms extends Component
                 $this->storeTransformIndexData($index);
                 Craft::$app->getErrorHandler()->logException($e);
 
-                throw new AssetTransformException(Craft::t('app',
-                    'Failed to generate transform with id of {id}.',
-                    ['id' => $index->id]));
+                throw new AssetTransformException(Craft::t('app', 'Failed to generate transform with id of {id}.', ['id' => $index->id]), 0, $e);
             }
         }
 
@@ -801,7 +807,7 @@ class AssetTransforms extends Component
 
         // If we have a match, copy the file.
         if ($matchFound) {
-            /* @var array $matchFound */
+            /** @var array $matchFound */
             $from = $asset->folderPath . $this->getTransformSubpath($asset, new AssetTransformIndex($matchFound));
             $to = $asset->folderPath . $this->getTransformSubpath($asset, $index);
 
@@ -836,10 +842,35 @@ class AssetTransforms extends Component
         }
 
         if (is_array($transform)) {
+            if (array_key_exists('transform', $transform)) {
+                $baseTransform = $this->normalizeTransform(ArrayHelper::remove($transform, 'transform'));
+                return $this->extendTransform($baseTransform, $transform);
+            }
+
+            if (!empty($transform['width']) && !is_numeric($transform['width'])) {
+                Craft::warning("Invalid transform width: {$transform['width']}", __METHOD__);
+                $transform['width'] = null;
+            }
+
+            if (!empty($transform['height']) && !is_numeric($transform['height'])) {
+                Craft::warning("Invalid transform height: {$transform['height']}", __METHOD__);
+                $transform['height'] = null;
+            }
+
             return new AssetTransform($transform);
         }
 
         if (is_object($transform)) {
+            if ($transform->width && !is_numeric($transform->width)) {
+                Craft::warning("Invalid transform width: $transform->width", __METHOD__);
+                $transform->width = null;
+            }
+
+            if ($transform->height && !is_numeric($transform->height)) {
+                Craft::warning("Invalid transform height: $transform->height", __METHOD__);
+                $transform->height = null;
+            }
+
             return new AssetTransform(ArrayHelper::toArray($transform, [
                 'id',
                 'name',
@@ -1060,8 +1091,10 @@ class AssetTransforms extends Component
         try {
             if (!$volume instanceof LocalVolumeInterface) {
                 if (!is_file($imageSourcePath) || filesize($imageSourcePath) === 0) {
-                    // Delete it just in case it's a 0-byter
-                    FileHelper::unlink($imageSourcePath);
+                    if (is_file($imageSourcePath)) {
+                        // Delete since it's a 0-byter
+                        FileHelper::unlink($imageSourcePath);
+                    }
 
                     $prefix = pathinfo($asset->filename, PATHINFO_FILENAME) . '.delimiter.';
                     $extension = $asset->getExtension();
@@ -1085,7 +1118,7 @@ class AssetTransforms extends Component
                     $volume->saveFileLocally($asset->getPath(), $tempFilePath);
 
                     if (!is_file($tempFilePath) || filesize($tempFilePath) === 0) {
-                        if (!FileHelper::unlink($tempFilePath)) {
+                        if (is_file($tempFilePath) && !FileHelper::unlink($tempFilePath)) {
                             Craft::warning("Unable to delete the file \"$tempFilePath\".", __METHOD__);
                         }
                         throw new VolumeException(Craft::t('app', 'Tried to download the source file for image “{file}”, but it was 0 bytes long.',
@@ -1148,7 +1181,9 @@ class AssetTransforms extends Component
     {
         $this->_sourcesToBeDeleted = array_unique($this->_sourcesToBeDeleted);
         foreach ($this->_sourcesToBeDeleted as $source) {
-            FileHelper::unlink($source);
+            if (file_exists($source)) {
+                FileHelper::unlink($source);
+            }
         }
     }
 
@@ -1306,8 +1341,8 @@ class AssetTransforms extends Component
 
         $file = Craft::$app->getPath()->getAssetSourcesPath() . DIRECTORY_SEPARATOR . $asset->id . '.' . pathinfo($asset->filename, PATHINFO_EXTENSION);
 
-        if (!FileHelper::unlink($file)) {
-            Craft::warning("Unable to delete the file \"$file\".", __METHOD__);
+        if (file_exists($file)) {
+            FileHelper::unlink($file);
         }
     }
 
@@ -1526,6 +1561,10 @@ class AssetTransforms extends Component
             throw new AssetTransformException("The `webp` format is not supported on this server!");
         }
 
+        if ($index->format === 'avif' && !$images->getSupportsAvif()) {
+            throw new AssetTransformException("The `avif` format is not supported on this server!");
+        }
+
         $volume = $asset->getVolume();
         $transformPath = $asset->folderPath . $this->getTransformSubpath($asset, $index);
 
@@ -1550,7 +1589,8 @@ class AssetTransforms extends Component
         $quality = $transform->quality ?: Craft::$app->getConfig()->getGeneral()->defaultImageQuality;
 
         if (strtolower($asset->getExtension()) === 'svg' && $index->detectedFormat !== 'svg') {
-            $image = $images->loadImage($imageSource, true, max($transform->width, $transform->height));
+            $size = max($transform->width, $transform->height) ?? 1000;
+            $image = $images->loadImage($imageSource, true, $size);
         } else {
             $image = $images->loadImage($imageSource);
         }
@@ -1572,7 +1612,7 @@ class AssetTransforms extends Component
             default:
                 if ($asset->getHasFocalPoint()) {
                     $position = $asset->getFocalPoint();
-                } else if (!preg_match('/(top|center|bottom)-(left|center|right)/', $transform->position)) {
+                } elseif (!preg_match('/(top|center|bottom)-(left|center|right)/', $transform->position)) {
                     $position = 'center-center';
                 } else {
                     $position = $transform->position;

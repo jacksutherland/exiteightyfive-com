@@ -8,8 +8,8 @@
 namespace craft\gql\types\generators;
 
 use Craft;
-use craft\base\Field;
 use craft\elements\GlobalSet as GlobalSetElement;
+use craft\gql\base\Generator;
 use craft\gql\base\GeneratorInterface;
 use craft\gql\base\ObjectType;
 use craft\gql\base\SingleGeneratorInterface;
@@ -17,7 +17,6 @@ use craft\gql\GqlEntityRegistry;
 use craft\gql\interfaces\elements\GlobalSet as GlobalSetInterface;
 use craft\gql\TypeManager;
 use craft\gql\types\elements\GlobalSet;
-use craft\helpers\Gql;
 use craft\helpers\Gql as GqlHelper;
 
 /**
@@ -26,7 +25,7 @@ use craft\helpers\Gql as GqlHelper;
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.3.0
  */
-class GlobalSetType implements GeneratorInterface, SingleGeneratorInterface
+class GlobalSetType extends Generator implements GeneratorInterface, SingleGeneratorInterface
 {
     /**
      * @inheritdoc
@@ -56,7 +55,7 @@ class GlobalSetType implements GeneratorInterface, SingleGeneratorInterface
      */
     public static function getName($context = null): string
     {
-        /* @var GlobalSetElement $context */
+        /** @var GlobalSetElement $context */
         return $context->handle . '_GlobalSet';
     }
 
@@ -65,17 +64,10 @@ class GlobalSetType implements GeneratorInterface, SingleGeneratorInterface
      */
     public static function generateType($context): ObjectType
     {
-        /* @var GlobalSetElement $globalSet */
+        /** @var GlobalSetElement $globalSet */
         $typeName = self::getName($context);
-        $contentFields = $context->getFields();
-        $contentFieldGqlTypes = [];
 
-        /* @var Field $contentField */
-        foreach ($contentFields as $contentField) {
-            if (!$contentField instanceof GqlSchemaAwareFieldInterface || $contentField->getExistsForCurrentGqlSchema()) {
-                $contentFieldGqlTypes[$contentField->handle] = $contentField->getContentGqlType();
-            }
-        }
+        $contentFieldGqlTypes = self::getContentFields($context);
 
         $globalSetFields = TypeManager::prepareFieldDefinitions(array_merge(GlobalSetInterface::getFieldDefinitions(), $contentFieldGqlTypes), $typeName);
 
@@ -86,5 +78,4 @@ class GlobalSetType implements GeneratorInterface, SingleGeneratorInterface
             },
         ]));
     }
-
 }

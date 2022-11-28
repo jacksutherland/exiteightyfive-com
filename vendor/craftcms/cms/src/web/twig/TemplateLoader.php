@@ -19,7 +19,7 @@ use Twig\Source;
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
  */
-/* @noinspection PhpDeprecationInspection */
+/** @noinspection PhpDeprecationInspection */
 
 class TemplateLoader implements LoaderInterface, ExistsLoaderInterface
 {
@@ -73,7 +73,7 @@ class TemplateLoader implements LoaderInterface, ExistsLoaderInterface
     }
 
     /**
-     * Returns whether the cached template is still up-to-date with the latest template.
+     * Returns whether the cached template is still up to date with the latest template.
      *
      * @param string $name The template name
      * @param int $time The last modification time of the cached template

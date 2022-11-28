@@ -87,7 +87,26 @@ class TagGroup extends Model
         $rules[] = [['name', 'handle'], UniqueValidator::class, 'targetClass' => TagGroupRecord::class];
         $rules[] = [['name', 'handle'], 'required'];
         $rules[] = [['name', 'handle'], 'string', 'max' => 255];
+        $rules[] = [['fieldLayout'], 'validateFieldLayout'];
         return $rules;
+    }
+
+    /**
+     * Validates the field layout.
+     *
+     * @return void
+     * @since 3.7.0
+     */
+    public function validateFieldLayout(): void
+    {
+        $fieldLayout = $this->getFieldLayout();
+        $fieldLayout->reservedFieldHandles = [
+            'group',
+        ];
+
+        if (!$fieldLayout->validate()) {
+            $this->addModelErrors($fieldLayout, 'fieldLayout');
+        }
     }
 
     /**
@@ -101,7 +120,7 @@ class TagGroup extends Model
     }
 
     /**
-     * Returns the field layout config for this tag group.
+     * Returns the tag group’s config.
      *
      * @return array
      * @since 3.5.0

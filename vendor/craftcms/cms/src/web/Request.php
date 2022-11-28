@@ -11,6 +11,7 @@ use Craft;
 use craft\base\RequestTrait;
 use craft\config\GeneralConfig;
 use craft\errors\SiteNotFoundException;
+use craft\helpers\App;
 use craft\helpers\ArrayHelper;
 use craft\helpers\Session as SessionHelper;
 use craft\helpers\StringHelper;
@@ -24,7 +25,7 @@ use yii\web\Cookie;
 use yii\web\CookieCollection;
 use yii\web\NotFoundHttpException;
 
-/* @noinspection ClassOverridesFieldOfSuperClassInspection */
+/** @noinspection ClassOverridesFieldOfSuperClassInspection */
 
 /**
  * @inheritdoc
@@ -244,7 +245,7 @@ class Request extends \yii\web\Request
         } catch (SiteNotFoundException $e) {
             // Fail silently if Craft isn't installed yet or is in the middle of updating
             if (Craft::$app->getIsInstalled() && !Craft::$app->getUpdates()->getIsCraftDbMigrationNeeded()) {
-                /* @noinspection PhpUnhandledExceptionInspection */
+                /** @noinspection PhpUnhandledExceptionInspection */
                 throw $e;
             }
         }
@@ -316,7 +317,7 @@ class Request extends \yii\web\Request
         // Is this query string-based pagination?
         if (strpos($pageTrigger, '?') === 0) {
             $this->_pageNum = (int)$this->getQueryParam(trim($pageTrigger, '?='), '1');
-        } else if ($this->_path !== '') {
+        } elseif ($this->_path !== '') {
             // Match against the entire path string as opposed to just the last segment so that we can support
             // "/page/2"-style pagination URLs
             $pageTrigger = preg_quote($pageTrigger, '/');
@@ -628,8 +629,20 @@ class Request extends \yii\web\Request
      */
     public function getIsActionRequest(): bool
     {
-        $this->_checkRequestType();
+        $this->checkIfActionRequest();
         return $this->_isActionRequest;
+    }
+
+    /**
+     * Overrides whether this request should be treated as an action request.
+     *
+     * @param bool $isActionRequest
+     * @see checkIfActionRequest()
+     * @since 3.7.8
+     */
+    public function setIsActionRequest(bool $isActionRequest): void
+    {
+        $this->_isActionRequest = $isActionRequest;
     }
 
     /**
@@ -640,7 +653,7 @@ class Request extends \yii\web\Request
      */
     public function getIsLoginRequest(): bool
     {
-        $this->_checkRequestType();
+        $this->checkIfActionRequest();
         return $this->_isLoginRequest;
     }
 
@@ -652,7 +665,7 @@ class Request extends \yii\web\Request
      */
     public function getIsSingleActionRequest(): bool
     {
-        $this->_checkRequestType();
+        $this->checkIfActionRequest();
         return $this->_isSingleActionRequest;
     }
 
@@ -663,9 +676,8 @@ class Request extends \yii\web\Request
      */
     public function getActionSegments()
     {
-        $this->_checkRequestType();
-
-        return $this->_actionSegments;
+        $this->checkIfActionRequest();
+        return $this->_isActionRequest ? $this->_actionSegments : null;
     }
 
     /**
@@ -1101,7 +1113,7 @@ class Request extends \yii\web\Request
     /**
      * @inheritdoc
      * @param int $filterOptions bitwise disjunction of flags that should be
-     * passed to [filter_var()](http://php.net/manual/en/function.filter-var.php)
+     * passed to [filter_var()](https://php.net/manual/en/function.filter-var.php)
      * when validating the IP address. Options include `FILTER_FLAG_IPV4`,
      * `FILTER_FLAG_IPV6`, `FILTER_FLAG_NO_PRIV_RANGE`, and `FILTER_FLAG_NO_RES_RANGE`.
      */
@@ -1127,7 +1139,7 @@ class Request extends \yii\web\Request
     /**
      * @inheritdoc
      * @param int $filterOptions bitwise disjunction of flags that should be
-     * passed to [filter_var()](http://php.net/manual/en/function.filter-var.php)
+     * passed to [filter_var()](https://php.net/manual/en/function.filter-var.php)
      * when validating the IP address. Options include `FILTER_FLAG_IPV4`,
      * `FILTER_FLAG_IPV6`, `FILTER_FLAG_NO_PRIV_RANGE`, and `FILTER_FLAG_NO_RES_RANGE`.
      */
@@ -1207,7 +1219,7 @@ class Request extends \yii\web\Request
             $security = Craft::$app->getSecurity();
             foreach ($_COOKIE as $name => $value) {
                 // Ignore if this is a hashed cookie
-                if (is_string($value) && $security->validateData($value, $this->cookieValidationKey !== false)) {
+                if (is_string($value) && $security->validateData($value, $this->cookieValidationKey) !== false) {
                     continue;
                 }
                 $cookies[$name] = Craft::createObject([
@@ -1316,7 +1328,7 @@ class Request extends \yii\web\Request
 
         [$route, $params] = $result;
 
-        /* @noinspection AdditionOperationOnArraysInspection */
+        /** @noinspection AdditionOperationOnArraysInspection */
         return [$route, $params + $this->getQueryParams()];
     }
 
@@ -1347,12 +1359,8 @@ class Request extends \yii\web\Request
 
         // Authenticated users
         if (Craft::$app->get('user', false) && ($currentUser = Craft::$app->getUser()->getIdentity())) {
-            // We mix the password into the token so that it will become invalid when the user changes their password.
-            // The salt on the blowfish hash will be different even if they change their password to the same thing.
-            // Normally using the session ID would be a better choice, but PHP's bananas session handling makes that difficult.
-            $passwordHash = $currentUser->password;
             $userId = $currentUser->id;
-            $hashable = implode('|', [$nonce, $userId, $passwordHash]);
+            $hashable = implode('|', [$nonce, $userId]);
             $token = $nonce . '|' . Craft::$app->getSecurity()->hashData($hashable, $this->cookieValidationKey);
         } else {
             // Unauthenticated users.
@@ -1400,9 +1408,8 @@ class Request extends \yii\web\Request
         [$nonce,] = $splitToken;
 
         // Check that this token is for the current user
-        $passwordHash = $currentUser->password;
         $userId = $currentUser->id;
-        $hashable = implode('|', [$nonce, $userId, $passwordHash]);
+        $hashable = implode('|', [$nonce, $userId]);
         $expectedToken = $nonce . '|' . Craft::$app->getSecurity()->hashData($hashable, $this->cookieValidationKey);
 
         return Craft::$app->getSecurity()->compareString($expectedToken, $token);
@@ -1517,9 +1524,8 @@ class Request extends \yii\web\Request
             $hostName &&
             $parsed['host'] !== $hostName &&
             (
-                !function_exists('idn_to_ascii') ||
+                !App::supportsIdn() ||
                 !defined('IDNA_NONTRANSITIONAL_TO_ASCII') ||
-                !defined('INTL_IDNA_VARIANT_UTS46') ||
                 idn_to_ascii($parsed['host'], IDNA_NONTRANSITIONAL_TO_ASCII, INTL_IDNA_VARIANT_UTS46) !== $hostName
             )
         ) {
@@ -1575,37 +1581,53 @@ class Request extends \yii\web\Request
 
     /**
      * Checks to see if this is an action request.
+     *
+     * @param bool $force Whether to recheck even if we already know
+     * @param bool $checkToken Whether to check if there’s a token on the request and use that.
+     * @param bool $checkSpecialPaths Whether to check for special URIs that should route to controller actions
+     * @return void
+     * @since 3.7.0
      */
-    private function _checkRequestType()
+    public function checkIfActionRequest(bool $force = false, bool $checkToken = true, bool $checkSpecialPaths = true): void
     {
         if ($this->_checkedRequestType) {
-            return;
+            if (!$force) {
+                return;
+            }
+
+            // Reset
+            $this->_isActionRequest = false;
+            $this->_actionSegments = null;
+            $this->_isSingleActionRequest = false;
+            $this->_isLoginRequest = false;
         }
 
         // If there's a token on the request, then that should take precedence over everything else
-        if ($this->getToken() === null) {
+        if (!$checkToken || $this->getToken() === null) {
             $firstSegment = $this->getSegment(1);
 
             // Is this an action request?
-            $checkSpecialPaths = false;
             $loginPath = $logoutPath = $setPasswordPath = $verifyEmailPath = $updatePath = null;
-            if ($this->_isCpRequest) {
-                $checkSpecialPaths = true;
-                $loginPath = self::CP_PATH_LOGIN;
-                $logoutPath = self::CP_PATH_LOGOUT;
-                $setPasswordPath = self::CP_PATH_SET_PASSWORD;
-                $verifyEmailPath = self::CP_PATH_VERIFY_EMAIL;
-                $updatePath = self::CP_PATH_UPDATE;
-            } else if (!$this->generalConfig->headlessMode) {
-                $checkSpecialPaths = true;
-                if (is_string($loginPath = $this->generalConfig->getLoginPath())) {
-                    $loginPath = trim($loginPath, '/');
+
+            if ($checkSpecialPaths) {
+                if ($this->_isCpRequest) {
+                    $loginPath = self::CP_PATH_LOGIN;
+                    $logoutPath = self::CP_PATH_LOGOUT;
+                    $setPasswordPath = self::CP_PATH_SET_PASSWORD;
+                    $verifyEmailPath = self::CP_PATH_VERIFY_EMAIL;
+                    $updatePath = self::CP_PATH_UPDATE;
+                } elseif (!$this->generalConfig->headlessMode) {
+                    if (is_string($loginPath = $this->generalConfig->getLoginPath())) {
+                        $loginPath = trim($loginPath, '/');
+                    }
+                    if (is_string($logoutPath = $this->generalConfig->getLogoutPath())) {
+                        $logoutPath = trim($logoutPath, '/');
+                    }
+                    $setPasswordPath = trim($this->generalConfig->getSetPasswordPath(), '/');
+                    $verifyEmailPath = trim($this->generalConfig->getVerifyEmailPath(), '/');
+                } else {
+                    $checkSpecialPaths = false;
                 }
-                if (is_string($logoutPath = $this->generalConfig->getLogoutPath())) {
-                    $logoutPath = trim($logoutPath, '/');
-                }
-                $setPasswordPath = trim($this->generalConfig->getSetPasswordPath(), '/');
-                $verifyEmailPath = trim($this->generalConfig->getVerifyEmailPath(), '/');
             }
 
             $hasTriggerMatch = ($firstSegment === $this->generalConfig->actionTrigger && count($this->getSegments()) > 1);
@@ -1637,7 +1659,7 @@ class Request extends \yii\web\Request
                 if ($hasTriggerMatch) {
                     $this->_actionSegments = array_slice($this->getSegments(), 1);
                     $this->_isSingleActionRequest = true;
-                } else if ($hasActionParam) {
+                } elseif ($hasActionParam) {
                     $this->_actionSegments = array_values(array_filter(explode('/', $actionParam)));
                     $this->_isSingleActionRequest = empty($this->_path);
                 } else {
@@ -1707,7 +1729,7 @@ class Request extends \yii\web\Request
      * @param array $params
      * @return mixed
      */
-    private function _getParam(string $name = null, $defaultValue, array $params)
+    private function _getParam(?string $name, $defaultValue, array $params)
     {
         // Do they just want the whole array?
         if ($name === null) {

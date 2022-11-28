@@ -12,9 +12,11 @@ use craft\base\BlockElementInterface;
 use craft\base\Element;
 use craft\base\ElementInterface;
 use craft\base\Field;
+use craft\base\FieldInterface;
 use craft\db\Query;
 use craft\db\Table;
 use craft\errors\OperationAbortedException;
+use craft\fieldlayoutelements\CustomField;
 use yii\base\Exception;
 
 /**
@@ -209,14 +211,19 @@ class ElementHelper
     {
         $variables = [];
 
-        // If the URI format contains {id} / {sourceId} but the element doesn't have one yet, preserve the tag
+        // If the URI format contains {id}/{canonicalId}/{sourceId} but the element doesn't have one yet, preserve the tag
         if (!$element->id) {
             $element->tempId = 'id-' . StringHelper::randomString(10);
             if (strpos($uriFormat, '{id') !== false) {
                 $variables['id'] = $element->tempId;
             }
-            if (!$element->getSourceId() && strpos($uriFormat, '{sourceId') !== false) {
-                $variables['sourceId'] = $element->tempId;
+            if (!$element->getCanonicalId()) {
+                if (strpos($uriFormat, '{canonicalId') !== false) {
+                    $variables['canonicalId'] = $element->tempId;
+                }
+                if (strpos($uriFormat, '{sourceId') !== false) {
+                    $variables['sourceId'] = $element->tempId;
+                }
             }
         }
 
@@ -258,7 +265,7 @@ class ElementHelper
             ]);
         }
 
-        if (($sourceId = $element->getSourceId()) !== null) {
+        if (($sourceId = $element->getCanonicalId()) !== null) {
             $query->andWhere([
                 'not', [
                     'elements.id' => $sourceId,
@@ -293,23 +300,30 @@ class ElementHelper
     public static function supportedSitesForElement(ElementInterface $element, $withUnpropagatedSites = false): array
     {
         $sites = [];
-        $siteUidMap = ArrayHelper::map(Craft::$app->getSites()->getAllSites(), 'id', 'uid');
+        $siteUidMap = ArrayHelper::map(Craft::$app->getSites()->getAllSites(true), 'id', 'uid');
 
         foreach ($element->getSupportedSites() as $site) {
             if (!is_array($site)) {
                 $site = [
-                    'siteId' => $site,
+                    'siteId' => (int)$site,
                 ];
-            } else if (!isset($site['siteId'])) {
-                throw new Exception('Missing "siteId" key in ' . get_class($element) . '::getSupportedSites()');
+            } else {
+                if (!isset($site['siteId'])) {
+                    throw new Exception('Missing "siteId" key in ' . get_class($element) . '::getSupportedSites()');
+                }
+                $site['siteId'] = (int)$site['siteId'];
+            }
+
+            if (!isset($siteUidMap[$site['siteId']])) {
+                continue;
             }
 
             $site['siteUid'] = $siteUidMap[$site['siteId']];
 
-            $site = array_merge([
+            $site += [
                 'propagate' => true,
                 'enabledByDefault' => true,
-            ], $site);
+            ];
 
             if ($withUnpropagatedSites || $site['propagate']) {
                 $sites[] = $site;
@@ -317,6 +331,26 @@ class ElementHelper
         }
 
         return $sites;
+    }
+
+    /**
+     * Returns whether changes should be tracked for the given element.
+     *
+     * @param ElementInterface $element
+     * @return bool
+     * @since 3.7.4
+     */
+    public static function shouldTrackChanges(ElementInterface $element): bool
+    {
+        // todo: remove the tableExists condition after the next breakpoint
+        return (
+            $element->id &&
+            $element->siteSettingsId &&
+            $element->duplicateOf === null &&
+            $element::trackChanges() &&
+            !$element->mergingCanonicalChanges &&
+            Craft::$app->getDb()->tableExists(Table::CHANGEDATTRIBUTES)
+        );
     }
 
     /**
@@ -383,6 +417,30 @@ class ElementHelper
     }
 
     /**
+     * Returns whether the given element (or its root element if a block element) is a draft.
+     *
+     * @param ElementInterface $element
+     * @return bool
+     * @since 3.7.0
+     */
+    public static function isDraft(ElementInterface $element): bool
+    {
+        return static::rootElement($element)->getIsDraft();
+    }
+
+    /**
+     * Returns whether the given element (or its root element if a block element) is a revision.
+     *
+     * @param ElementInterface $element
+     * @return bool
+     * @since 3.7.0
+     */
+    public static function isRevision(ElementInterface $element): bool
+    {
+        return static::rootElement($element)->getIsRevision();
+    }
+
+    /**
      * Returns whether the given element (or its root element if a block element) is a draft or revision.
      *
      * @param ElementInterface $element
@@ -396,29 +454,69 @@ class ElementHelper
     }
 
     /**
-     * Returns the element, or if it’s a draft/revision, the source element.
+     * Returns whether the given element (or its root element if a block element) is a canonical element.
+     *
+     * @param ElementInterface $element
+     * @return bool
+     * @since 3.7.17
+     */
+    public static function isCanonical(ElementInterface $element): bool
+    {
+        $root = static::rootElement($element);
+        return $root->getIsCanonical();
+    }
+
+    /**
+     * Returns whether the given element (or its root element if a block element) is a derivative of another element.
+     *
+     * @param ElementInterface $element
+     * @return bool
+     * @since 3.7.17
+     */
+    public static function isDerivative(ElementInterface $element): bool
+    {
+        $root = static::rootElement($element);
+        return $root->getIsDerivative();
+    }
+
+    /**
+     * Returns whether the given derivative element is outdated compared to its canonical element.
+     *
+     * @param ElementInterface $element
+     * @return bool
+     * @since 3.7.12
+     */
+    public static function isOutdated(ElementInterface $element): bool
+    {
+        if ($element->getIsCanonical()) {
+            return false;
+        }
+
+        $canonical = $element->getCanonical();
+
+        if ($element->dateCreated > $canonical->dateUpdated) {
+            return false;
+        }
+
+        if (!$element->dateLastMerged) {
+            return true;
+        }
+
+        return $element->dateLastMerged < $canonical->dateUpdated;
+    }
+
+    /**
+     * Returns the canonical version of an element.
      *
      * @param ElementInterface $element The source/draft/revision element
      * @param bool $anySite Whether the source element can be retrieved in any site
-     * @return ElementInterface|null
+     * @return ElementInterface
      * @since 3.3.0
+     * @deprecated in 3.7.0. Use [[ElementInterface::getCanonical()]] instead.
      */
-    public static function sourceElement(ElementInterface $element, bool $anySite = false)
+    public static function sourceElement(ElementInterface $element, bool $anySite = false): ElementInterface
     {
-        $sourceId = $element->getSourceId();
-        if ($sourceId === $element->id) {
-            return $element;
-        }
-
-        return $element::find()
-            ->id($sourceId)
-            ->siteId($anySite ? '*' : $element->siteId)
-            ->preferSites([$element->siteId])
-            ->structureId($element->structureId)
-            ->unique()
-            ->anyStatus()
-            ->ignorePlaceholders()
-            ->one();
+        return $element->getCanonical($anySite);
     }
 
     /**
@@ -429,7 +527,7 @@ class ElementHelper
      */
     public static function setNextPrevOnElements(array $elements)
     {
-        /* @var ElementInterface $lastElement */
+        /** @var ElementInterface $lastElement */
         $lastElement = null;
 
         foreach ($elements as $i => $element) {
@@ -449,6 +547,19 @@ class ElementHelper
     }
 
     /**
+     * Returns the root level source key for a given source key/path
+     *
+     * @param string $sourceKey
+     * @return string
+     * @since 3.7.25.1
+     */
+    public static function rootSourceKey(string $sourceKey): string
+    {
+        $pos = strpos($sourceKey, '/');
+        return $pos !== false ? substr($sourceKey, 0, $pos) : $sourceKey;
+    }
+
+    /**
      * Returns an element type's source definition based on a given source key/path and context.
      *
      * @param string $elementType The element type class
@@ -458,7 +569,7 @@ class ElementHelper
      */
     public static function findSource(string $elementType, string $sourceKey, ?string $context = null)
     {
-        /* @var string|ElementInterface $elementType */
+        /** @var string|ElementInterface $elementType */
         $path = explode('/', $sourceKey);
         $sources = $elementType::sources($context);
 
@@ -543,5 +654,65 @@ class ElementHelper
                 }
                 return Craft::$app->getView()->renderObjectTemplate($translationKeyFormat, $element);
         }
+    }
+
+    /**
+     * Returns the content column name for a given field.
+     *
+     * @param FieldInterface $field
+     * @param string|null $columnKey
+     * @return string|null
+     * @since 3.7.0
+     */
+    public static function fieldColumnFromField(FieldInterface $field, ?string $columnKey = null): ?string
+    {
+        if ($field::hasContentColumn()) {
+            return static::fieldColumn($field->columnPrefix, $field->handle, $field->columnSuffix, $columnKey);
+        }
+
+        return null;
+    }
+
+    /**
+     * Returns the content column name based on the given field attributes.
+     *
+     * @param string|null $columnPrefix
+     * @param string $handle
+     * @param string|null $columnSuffix
+     * @param string|null $columnKey
+     * @return string
+     * @since 3.7.0
+     */
+    public static function fieldColumn(?string $columnPrefix, string $handle, ?string $columnSuffix, ?string $columnKey = null): string
+    {
+        return ($columnPrefix ?? Craft::$app->getContent()->fieldColumnPrefix) .
+            $handle .
+            ($columnKey ? "_$columnKey" : '') .
+            ($columnSuffix ? "_$columnSuffix" : '');
+    }
+
+    /**
+     * Returns whether the attribute on the given element is empty.
+     *
+     * @param ElementInterface $element
+     * @param string $attribute
+     * @return bool
+     * @since 3.7.56
+     */
+    public static function isAttributeEmpty(ElementInterface $element, string $attribute): bool
+    {
+        // See if we're setting a custom field
+        $fieldLayout = $element->getFieldLayout();
+        if ($fieldLayout) {
+            foreach ($fieldLayout->getTabs() as $tab) {
+                foreach ($tab->elements as $layoutElement) {
+                    if ($layoutElement instanceof CustomField && $layoutElement->attribute() === $attribute) {
+                        return $layoutElement->getField()->isValueEmpty($element->getFieldValue($attribute), $element);
+                    }
+                }
+            }
+        }
+
+        return empty($element->$attribute);
     }
 }

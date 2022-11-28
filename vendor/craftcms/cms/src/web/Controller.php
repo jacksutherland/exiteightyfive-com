@@ -9,18 +9,13 @@ namespace craft\web;
 
 use Craft;
 use craft\helpers\FileHelper;
-use craft\helpers\Json;
 use craft\helpers\StringHelper;
-use craft\helpers\UrlHelper;
 use craft\web\assets\iframeresizer\ContentWindowAsset;
-use GuzzleHttp\Exception\ClientException;
 use yii\base\Action;
 use yii\base\InvalidArgumentException;
 use yii\base\InvalidConfigException;
-use yii\base\UserException;
 use yii\web\BadRequestHttpException;
 use yii\web\ForbiddenHttpException;
-use yii\web\HttpException;
 use yii\web\JsonResponseFormatter;
 use yii\web\Response as YiiResponse;
 use yii\web\UnauthorizedHttpException;
@@ -71,7 +66,7 @@ abstract class Controller extends \yii\web\Controller
         // Normalize $allowAnonymous
         if (is_bool($this->allowAnonymous)) {
             $this->allowAnonymous = (int)$this->allowAnonymous;
-        } else if (is_array($this->allowAnonymous)) {
+        } elseif (is_array($this->allowAnonymous)) {
             $normalized = [];
             foreach ($this->allowAnonymous as $k => $v) {
                 if (
@@ -87,7 +82,7 @@ abstract class Controller extends \yii\web\Controller
                 }
             }
             $this->allowAnonymous = $normalized;
-        } else if (!is_int($this->allowAnonymous)) {
+        } elseif (!is_int($this->allowAnonymous)) {
             throw new InvalidConfigException('Invalid $allowAnonymous value');
         }
 
@@ -154,7 +149,7 @@ abstract class Controller extends \yii\web\Controller
             if ($this->request->getIsCpRequest()) {
                 $this->requireLogin();
                 $this->requirePermission('accessCp');
-            } else if (Craft::$app->getUser()->getIsGuest()) {
+            } elseif (Craft::$app->getUser()->getIsGuest()) {
                 if ($isLive) {
                     throw new ForbiddenHttpException();
                 } else {
@@ -182,57 +177,6 @@ abstract class Controller extends \yii\web\Controller
     }
 
     /**
-     * @inheritdoc
-     */
-    public function runAction($id, $params = [])
-    {
-        try {
-            return parent::runAction($id, $params);
-        } catch (\Throwable $e) {
-            if ($this->request->getAcceptsJson()) {
-                Craft::$app->getErrorHandler()->logException($e);
-                if (!YII_DEBUG && !$e instanceof UserException) {
-                    $message = Craft::t('app', 'A server error occurred.');
-                } else {
-                    $message = $e->getMessage();
-                }
-                if ($e instanceof ClientException) {
-                    $statusCode = $e->getCode();
-                    if (($response = $e->getResponse()) !== null) {
-                        $body = Json::decodeIfJson((string)$response->getBody());
-                        if (isset($body['message'])) {
-                            $message = $body['message'];
-                        }
-                    }
-                } else if ($e instanceof HttpException) {
-                    $statusCode = $e->statusCode;
-                } else {
-                    $statusCode = 500;
-                }
-
-                if (YII_DEBUG) {
-                    $response = $this->asJson([
-                        'error' => $message,
-                        'exception' => get_class($e),
-                        'file' => $e->getFile(),
-                        'line' => $e->getLine(),
-                        'trace' => array_map(function($step) {
-                            unset($step['args']);
-                            return $step;
-                        }, $e->getTrace()),
-                    ]);
-                } else {
-                    $response = $this->asErrorJson($message);
-                }
-
-                return $response
-                    ->setStatusCode($statusCode);
-            }
-            throw $e;
-        }
-    }
-
-    /**
      * Renders a template.
      *
      * @param string $template The name of the template to load
@@ -244,9 +188,13 @@ abstract class Controller extends \yii\web\Controller
     public function renderTemplate(string $template, array $variables = [], string $templateMode = null): YiiResponse
     {
         $view = $this->getView();
+        $generalConfig = Craft::$app->getConfig()->getGeneral();
 
-        // If this is a preview request, register the iframe resizer script
-        if ($this->request->getIsPreview()) {
+        // If this is a preview request and `useIframeResizer` is enabled, register the iframe resizer script
+        if (
+            $this->request->getQueryParam('x-craft-live-preview') !== null &&
+            $generalConfig->useIframeResizer
+        ) {
             $view->registerAssetBundle(ContentWindowAsset::class);
         }
 
@@ -256,9 +204,14 @@ abstract class Controller extends \yii\web\Controller
         // Render and return the template
         $this->response->data = $view->renderPageTemplate($template, $variables, $templateMode);
 
+        $headers = $this->response->getHeaders();
+
+        if ($generalConfig->sendContentLengthHeader) {
+            $headers->setDefault('content-length', strlen($this->response->data));
+        }
+
         // Set the MIME type for the request based on the matched template's file extension (unless the
         // Content-Type header was already set, perhaps by the template via the {% header %} tag)
-        $headers = $this->response->getHeaders();
         if (!$headers->has('content-type')) {
             $templateFile = StringHelper::removeRight(strtolower($view->resolveTemplate($template)), '.twig');
             $mimeType = FileHelper::getMimeTypeByExtension($templateFile) ?? 'text/html';
@@ -471,14 +424,14 @@ abstract class Controller extends \yii\web\Controller
             } else {
                 $url = $this->request->getPathInfo();
             }
-        } else if ($object) {
+        } elseif ($object) {
             $url = $this->getView()->renderObjectTemplate($url, $object);
         }
 
         return $this->redirect($url);
     }
 
-    /* @noinspection ArrayTypeOfParameterByDefaultValueInspection */
+    /** @noinspection ArrayTypeOfParameterByDefaultValueInspection */
     /**
      * Sets the response format of the given data as JSONP.
      *
@@ -495,7 +448,7 @@ abstract class Controller extends \yii\web\Controller
         return $this->response;
     }
 
-    /* @noinspection ArrayTypeOfParameterByDefaultValueInspection */
+    /** @noinspection ArrayTypeOfParameterByDefaultValueInspection */
     /**
      * Sets the response format of the given data as RAW.
      *
@@ -528,10 +481,6 @@ abstract class Controller extends \yii\web\Controller
      */
     public function redirect($url, $statusCode = 302): YiiResponse
     {
-        if (is_string($url)) {
-            $url = UrlHelper::url($url);
-        }
-
         if ($url !== null) {
             return $this->response->redirect($url, $statusCode);
         }

@@ -14,6 +14,7 @@ use craft\db\Query;
 use craft\models\Site;
 use craft\search\SearchQuery;
 use IteratorAggregate;
+use ReturnTypeWillChange;
 use yii\base\Arrayable;
 use yii\db\Connection;
 use yii\db\QueryInterface;
@@ -29,6 +30,12 @@ use yii\db\QueryInterface;
 interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, Countable, IteratorAggregate
 {
     /**
+     * @inheritdoc
+     */
+    #[ReturnTypeWillChange]
+    public function count($q = '*', $db = null);
+    
+    /**
      * Causes the query results to be returned in reverse order.
      *
      * ---
@@ -36,8 +43,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch {elements} in reverse #}
      * {% set {elements-var} = {twig-method}
-     *     .inReverse()
-     *     .all() %}
+     *   .inReverse()
+     *   .all() %}
      * ```
      *
      * ```php
@@ -60,8 +67,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch {elements} as arrays #}
      * {% set {elements-var} = {twig-method}
-     *     .asArray()
-     *     .all() %}
+     *   .asArray()
+     *   .all() %}
      * ```
      *
      * ```php
@@ -93,10 +100,10 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      *
      * ```twig
      * {# Fetch a draft {element} #}
-     * {% set {elements-var} = {twig-function}
-     *     .drafts()
-     *     .id(123)
-     *     .one() %}
+     * {% set {elements-var} = {twig-method}
+     *   .drafts()
+     *   .id(123)
+     *   .one() %}
      * ```
      *
      * ```php
@@ -127,8 +134,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch a draft #}
      * {% set {elements-var} = {twig-method}
-     *     .draftId(10)
-     *     .all() %}
+     *   .draftId(10)
+     *   .all() %}
      * ```
      *
      * ```php
@@ -161,8 +168,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch drafts of the {element} #}
      * {% set {elements-var} = {twig-method}
-     *     .draftOf({myElement})
-     *     .all() %}
+     *   .draftOf({myElement})
+     *   .all() %}
      * ```
      *
      * ```php
@@ -193,8 +200,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch drafts by the current user #}
      * {% set {elements-var} = {twig-method}
-     *     .draftCreator(currentUser)
-     *     .all() %}
+     *   .draftCreator(currentUser)
+     *   .all() %}
      * ```
      *
      * ```php
@@ -211,16 +218,43 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
     public function draftCreator($value);
 
     /**
+     * Narrows the query results to only provisional drafts.
+     *
+     * ---
+     *
+     * ```twig
+     * {# Fetch provisional drafts created by the current user #}
+     * {% set {elements-var} = {twig-method}
+     *   .provisionalDrafts()
+     *   .draftCreator(currentUser)
+     *   .all() %}
+     * ```
+     *
+     * ```php
+     * // Fetch provisional drafts created by the current user
+     * ${elements-var} = {php-method}
+     *     ->provisionalDrafts()
+     *     ->draftCreator(Craft::$app->user->identity)
+     *     ->all();
+     * ```
+     *
+     * @param bool|null $value The property value
+     * @return static self reference
+     * @since 3.7.0
+     */
+    public function provisionalDrafts(?bool $value = true);
+
+    /**
      * Narrows the query results to only unpublished drafts which have been saved after initial creation.
      *
      * ---
      *
      * ```twig
      * {# Fetch saved, unpublished draft {elements} #}
-     * {% set {elements-var} = {twig-function}
-     *     .draftOf(false)
-     *     .savedDraftsOnly()
-     *     .all() %}
+     * {% set {elements-var} = {twig-method}
+     *   .draftOf(false)
+     *   .savedDraftsOnly()
+     *   .all() %}
      * ```
      *
      * ```php
@@ -244,10 +278,10 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      *
      * ```twig
      * {# Fetch a revision {element} #}
-     * {% set {elements-var} = {twig-function}
-     *     .revisions()
-     *     .id(123)
-     *     .one() %}
+     * {% set {elements-var} = {twig-method}
+     *   .revisions()
+     *   .id(123)
+     *   .one() %}
      * ```
      *
      * ```php
@@ -278,8 +312,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch a revision #}
      * {% set {elements-var} = {twig-method}
-     *     .revisionId(10)
-     *     .all() %}
+     *   .revisionId(10)
+     *   .all() %}
      * ```
      *
      * ```php
@@ -310,8 +344,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch revisions of the {element} #}
      * {% set {elements-var} = {twig-method}
-     *     .revisionOf({myElement})
-     *     .all() %}
+     *   .revisionOf({myElement})
+     *   .all() %}
      * ```
      *
      * ```php
@@ -342,8 +376,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch revisions by the current user #}
      * {% set {elements-var} = {twig-method}
-     *     .revisionCreator(currentUser)
-     *     .all() %}
+     *   .revisionCreator(currentUser)
+     *   .all() %}
      * ```
      *
      * ```php
@@ -376,8 +410,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch the {element} by its ID #}
      * {% set {element-var} = {twig-method}
-     *     .id(1)
-     *     .one() %}
+     *   .id(1)
+     *   .one() %}
      * ```
      *
      * ```php
@@ -406,8 +440,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch the {element} by its UID #}
      * {% set {element-var} = {twig-method}
-     *     .uid('xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx')
-     *     .one() %}
+     *   .uid('xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx')
+     *   .one() %}
      * ```
      *
      * ```php
@@ -423,16 +457,54 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
     public function uid($value);
 
     /**
+     * Narrows the query results based on the {elements}’ IDs in the `elements_sites` table.
+     *
+     * Possible values include:
+     *
+     * | Value | Fetches {elements}…
+     * | - | -
+     * | `1` | with an `elements_sites` ID of 1.
+     * | `'not 1'` | not with an `elements_sites` ID of 1.
+     * | `[1, 2]` | with an `elements_sites` ID of 1 or 2.
+     * | `['not', 1, 2]` | not with an `elements_sites` ID of 1 or 2.
+     *
+     * ---
+     *
+     * ```twig
+     * {# Fetch the {element} by its ID in the elements_sites table #}
+     * {% set {element-var} = {twig-method}
+     *   .siteSettingsId(1)
+     *   .one() %}
+     * ```
+     *
+     * ```php
+     * // Fetch the {element} by its ID in the elements_sites table
+     * ${element-var} = {php-method}
+     *     ->siteSettingsId(1)
+     *     ->one();
+     * ```
+     *
+     * @param int|int[]|null $value The property value
+     * @return static self reference
+     * @since 3.7.0
+     */
+    public function siteSettingsId($value);
+
+    /**
      * Causes the query results to be returned in the order specified by [[id()]].
+     *
+     * ::: tip
+     * If no IDs were passed to [[id()]], setting this to `true` will result in an empty result set.
+     * :::
      *
      * ---
      *
      * ```twig
      * {# Fetch {elements} in a specific order #}
      * {% set {elements-var} = {twig-method}
-     *     .id([1, 2, 3, 4, 5])
-     *     .fixedOrder()
-     *     .all() %}
+     *   .id([1, 2, 3, 4, 5])
+     *   .fixedOrder()
+     *   .all() %}
      * ```
      *
      * ```php
@@ -457,14 +529,15 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * | - | -
      * | `'enabled'`  _(default)_ | that are enabled.
      * | `'disabled'` | that are disabled.
+     * | `['not', 'disabled']` | that are not disabled.
      *
      * ---
      *
      * ```twig
      * {# Fetch disabled {elements} #}
      * {% set {elements-var} = {twig-method}
-     *     .status('disabled')
-     *     .all() %}
+     *   .status('disabled')
+     *   .all() %}
      * ```
      *
      * ```php
@@ -495,8 +568,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch trashed {elements} #}
      * {% set {elements-var} = {twig-method}
-     *     .trashed()
-     *     .all() %}
+     *   .trashed()
+     *   .all() %}
      * ```
      *
      * ```php
@@ -531,8 +604,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * {% set end = date('first day of this month')|atom %}
      *
      * {% set {elements-var} = {twig-method}
-     *     .dateCreated(['and', ">= #{start}", "< #{end}"])
-     *     .all() %}
+     *   .dateCreated(['and', ">= #{start}", "< #{end}"])
+     *   .all() %}
      * ```
      *
      * ```php
@@ -568,8 +641,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * {% set lastWeek = date('1 week ago')|atom %}
      *
      * {% set {elements-var} = {twig-method}
-     *     .dateUpdated(">= #{lastWeek}")
-     *     .all() %}
+     *   .dateUpdated(">= #{lastWeek}")
+     *   .all() %}
      * ```
      *
      * ```php
@@ -611,8 +684,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch {elements} from the Foo site #}
      * {% set {elements-var} = {twig-method}
-     *     .site('foo')
-     *     .all() %}
+     *   .site('foo')
+     *   .all() %}
      * ```
      *
      * ```php
@@ -646,8 +719,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch {elements} from the site with an ID of 1 #}
      * {% set {elements-var} = {twig-method}
-     *     .siteId(1)
-     *     .all() %}
+     *   .siteId(1)
+     *   .all() %}
      * ```
      *
      * ```php
@@ -673,9 +746,9 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch unique {elements} across all sites #}
      * {% set {elements-var} = {twig-method}
-     *     .site('*')
-     *     .unique()
-     *     .all() %}
+     *   .site('*')
+     *   .unique()
+     *   .all() %}
      * ```
      *
      * ```php
@@ -696,8 +769,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * If [[unique()]] is set, this determines which site should be selected when querying multi-site elements.
      *
      * For example, if element “Foo” exists in Site A and Site B, and element “Bar” exists in Site B and Site C,
-     * and this is set to `['c', 'b', 'a']`, then Foo will be returned for Site C, and Bar will be returned
-     * for Site B.
+     * and this is set to `['c', 'b', 'a']`, then Foo will be returned for Site B, and Bar will be returned
+     * for Site C.
      *
      * If this isn’t set, then preference goes to the current site.
      *
@@ -706,10 +779,10 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch unique {elements} from Site A, or Site B if they don’t exist in Site A #}
      * {% set {elements-var} = {twig-method}
-     *     .site('*')
-     *     .unique()
-     *     .preferSites(['a', 'b'])
-     *     .all() %}
+     *   .site('*')
+     *   .unique()
+     *   .preferSites(['a', 'b'])
+     *   .all() %}
      * ```
      *
      * ```php
@@ -742,8 +815,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch all {elements}, including ones disabled for this site #}
      * {% set {elements-var} = {twig-method}
-     *     .enabledForSite(false)
-     *     .all() %}
+     *   .enabledForSite(false)
+     *   .all() %}
      * ```
      *
      * ```php
@@ -769,8 +842,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch all {elements} that are related to myCategory #}
      * {% set {elements-var} = {twig-method}
-     *     .relatedTo(myCategory)
-     *     .all() %}
+     *   .relatedTo(myCategory)
+     *   .all() %}
      * ```
      *
      * ```php
@@ -795,9 +868,9 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch all {elements} that are related to myCategoryA and myCategoryB #}
      * {% set {elements-var} = {twig-method}
-     *     .relatedTo(myCategoryA)
-     *     .andRelatedTo(myCategoryBy)
-     *     .all() %}
+     *   .relatedTo(myCategoryA)
+     *   .andRelatedTo(myCategoryB)
+     *   .all() %}
      * ```
      *
      * ```php
@@ -834,8 +907,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch {elements} with a title that contains "Foo" #}
      * {% set {elements-var} = {twig-method}
-     *     .title('*Foo*')
-     *     .all() %}
+     *   .title('*Foo*')
+     *   .all() %}
      * ```
      *
      * ```php
@@ -844,6 +917,11 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      *     ->title('*Foo*')
      *     ->all();
      * ```
+     *
+     * ::: warning
+     * String values with commas will be treated as arrays, unless they’ve been escaped with the
+     * [`literal`](https://craftcms.com/docs/3.x/dev/filters.html#literal) filter.
+     * :::
      *
      * @param string|string[]|null $value The property value
      * @return static self reference
@@ -873,8 +951,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      *
      * {# Fetch the {element} with that slug #}
      * {% set {element-var} = {twig-method}
-     *     .slug(requestedSlug|literal)
-     *     .one() %}
+     *   .slug(requestedSlug|literal)
+     *   .one() %}
      * ```
      *
      * ```php
@@ -915,8 +993,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      *
      * {# Fetch the {element} with that URI #}
      * {% set {element-var} = {twig-method}
-     *     .uri(requestedUri|literal)
-     *     .one() %}
+     *   .uri(requestedUri|literal)
+     *   .one() %}
      * ```
      *
      * ```php
@@ -947,8 +1025,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      *
      * {# Fetch all {elements} that match the search query #}
      * {% set {elements-var} = {twig-method}
-     *     .search(searchQuery)
-     *     .all() %}
+     *   .search(searchQuery)
+     *   .all() %}
      * ```
      *
      * ```php
@@ -984,8 +1062,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch {elements} eager-loaded with the "Related" field’s relations #}
      * {% set {elements-var} = {twig-method}
-     *     .with(['related'])
-     *     .all() %}
+     *   .with(['related'])
+     *   .all() %}
      * ```
      *
      * ```php
@@ -1043,8 +1121,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch {elements} positioned at level 3 or above #}
      * {% set {elements-var} = {twig-method}
-     *     .level('>= 3')
-     *     .all() %}
+     *   .level('>= 3')
+     *   .all() %}
      * ```
      *
      * ```php
@@ -1060,7 +1138,7 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
     public function level($value = null);
 
     /**
-     * Narrows the query results based on whether the {elements} have any descendants.
+     * Narrows the query results based on whether the {elements} have any descendants in their structure.
      *
      * (This has the opposite effect of calling [[leaves()]].)
      *
@@ -1069,8 +1147,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch {elements} that have descendants #}
      * {% set {elements-var} = {twig-method}
-     *     .hasDescendants()
-     *     .all() %}
+     *   .hasDescendants()
+     *   .all() %}
      * ```
      *
      * ```php
@@ -1096,8 +1174,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch {elements} that have no descendants #}
      * {% set {elements-var} = {twig-method}
-     *     .leaves()
-     *     .all() %}
+     *   .leaves()
+     *   .all() %}
      * ```
      *
      * ```php
@@ -1113,7 +1191,7 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
     public function leaves(bool $value = true);
 
     /**
-     * Narrows the query results to only {elements} that are ancestors of another {element}.
+     * Narrows the query results to only {elements} that are ancestors of another {element} in its structure.
      *
      * Possible values include:
      *
@@ -1127,8 +1205,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch {elements} above this one #}
      * {% set {elements-var} = {twig-method}
-     *     .ancestorOf({myElement})
-     *     .all() %}
+     *   .ancestorOf({myElement})
+     *   .all() %}
      * ```
      *
      * ```php
@@ -1157,9 +1235,9 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch {elements} above this one #}
      * {% set {elements-var} = {twig-method}
-     *     .ancestorOf({myElement})
-     *     .ancestorDist(3)
-     *     .all() %}
+     *   .ancestorOf({myElement})
+     *   .ancestorDist(3)
+     *   .all() %}
      * ```
      *
      * ```php
@@ -1176,7 +1254,7 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
     public function ancestorDist(int $value = null);
 
     /**
-     * Narrows the query results to only {elements} that are descendants of another {element}.
+     * Narrows the query results to only {elements} that are descendants of another {element} in its structure.
      *
      * Possible values include:
      *
@@ -1190,8 +1268,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch {elements} below this one #}
      * {% set {elements-var} = {twig-method}
-     *     .descendantOf({myElement})
-     *     .all() %}
+     *   .descendantOf({myElement})
+     *   .all() %}
      * ```
      *
      * ```php
@@ -1220,9 +1298,9 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch {elements} below this one #}
      * {% set {elements-var} = {twig-method}
-     *     .descendantOf({myElement})
-     *     .descendantDist(3)
-     *     .all() %}
+     *   .descendantOf({myElement})
+     *   .descendantDist(3)
+     *   .all() %}
      * ```
      *
      * ```php
@@ -1239,7 +1317,7 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
     public function descendantDist(int $value = null);
 
     /**
-     * Narrows the query results to only {elements} that are siblings of another {element}.
+     * Narrows the query results to only {elements} that are siblings of another {element} in its structure.
      *
      * Possible values include:
      *
@@ -1253,8 +1331,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch {elements} beside this one #}
      * {% set {elements-var} = {twig-method}
-     *     .siblingOf({myElement})
-     *     .all() %}
+     *   .siblingOf({myElement})
+     *   .all() %}
      * ```
      *
      * ```php
@@ -1270,7 +1348,7 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
     public function siblingOf($value);
 
     /**
-     * Narrows the query results to only the {element} that comes immediately before another {element}.
+     * Narrows the query results to only the {element} that comes immediately before another {element} in its structure.
      *
      * Possible values include:
      *
@@ -1284,8 +1362,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch the previous {element} #}
      * {% set {element-var} = {twig-method}
-     *     .prevSiblingOf({myElement})
-     *     .one() %}
+     *   .prevSiblingOf({myElement})
+     *   .one() %}
      * ```
      *
      * ```php
@@ -1301,7 +1379,7 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
     public function prevSiblingOf($value);
 
     /**
-     * Narrows the query results to only the {element} that comes immediately after another {element}.
+     * Narrows the query results to only the {element} that comes immediately after another {element} in its structure.
      *
      * Possible values include:
      *
@@ -1315,8 +1393,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch the next {element} #}
      * {% set {element-var} = {twig-method}
-     *     .nextSiblingOf({myElement})
-     *     .one() %}
+     *   .nextSiblingOf({myElement})
+     *   .one() %}
      * ```
      *
      * ```php
@@ -1332,7 +1410,7 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
     public function nextSiblingOf($value);
 
     /**
-     * Narrows the query results to only {elements} that are positioned before another {element}.
+     * Narrows the query results to only {elements} that are positioned before another {element} in its structure.
      *
      * Possible values include:
      *
@@ -1346,8 +1424,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch {elements} before this one #}
      * {% set {elements-var} = {twig-method}
-     *     .positionedBefore({myElement})
-     *     .all() %}
+     *   .positionedBefore({myElement})
+     *   .all() %}
      * ```
      *
      * ```php
@@ -1363,7 +1441,7 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
     public function positionedBefore($value);
 
     /**
-     * Narrows the query results to only {elements} that are positioned after another {element}.
+     * Narrows the query results to only {elements} that are positioned after another {element} in its structure.
      *
      * Possible values include:
      *
@@ -1377,8 +1455,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch {elements} after this one #}
      * {% set {elements-var} = {twig-method}
-     *     .positionedAfter({myElement})
-     *     .all() %}
+     *   .positionedAfter({myElement})
+     *   .all() %}
      * ```
      *
      * ```php
@@ -1401,8 +1479,8 @@ interface ElementQueryInterface extends QueryInterface, ArrayAccess, Arrayable, 
      * ```twig
      * {# Fetch all {elements}, regardless of status #}
      * {% set {elements-var} = {twig-method}
-     *     .anyStatus()
-     *     .all() %}
+     *   .anyStatus()
+     *   .all() %}
      * ```
      *
      * ```php

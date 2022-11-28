@@ -23,7 +23,8 @@ use Composer\Repository\PlatformRepository;
 abstract class BasePackage implements PackageInterface
 {
     /**
-     * @phpstan-var array<string, array{description: string, method: Link::TYPE_*}>
+     * @phpstan-var array<non-empty-string, array{description: string, method: Link::TYPE_*}>
+     * @internal
      */
     public static $supportedLinkTypes = array(
         'require' => array('description' => 'requires', 'method' => Link::TYPE_REQUIRE),
@@ -39,6 +40,7 @@ abstract class BasePackage implements PackageInterface
     const STABILITY_ALPHA = 15;
     const STABILITY_DEV = 20;
 
+    /** @var array<string, self::STABILITY_*> */
     public static $stabilities = array(
         'stable' => self::STABILITY_STABLE,
         'RC' => self::STABILITY_RC,
@@ -50,16 +52,16 @@ abstract class BasePackage implements PackageInterface
     /**
      * READ-ONLY: The package id, public for fast access in dependency solver
      * @var int
+     * @internal
+     * @readonly
      */
     public $id;
     /** @var string */
     protected $name;
     /** @var string */
     protected $prettyName;
-    /** @var RepositoryInterface */
-    protected $repository;
-    /** @var array */
-    protected $transportOptions = array();
+    /** @var ?RepositoryInterface */
+    protected $repository = null;
 
     /**
      * All descendants' constructors should call this parent constructor
@@ -74,7 +76,7 @@ abstract class BasePackage implements PackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function getName()
     {
@@ -82,7 +84,7 @@ abstract class BasePackage implements PackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function getPrettyName()
     {
@@ -90,7 +92,7 @@ abstract class BasePackage implements PackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function getNames($provides = true)
     {
@@ -112,7 +114,7 @@ abstract class BasePackage implements PackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function setId($id)
     {
@@ -120,7 +122,7 @@ abstract class BasePackage implements PackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function getId()
     {
@@ -128,7 +130,7 @@ abstract class BasePackage implements PackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function setRepository(RepositoryInterface $repository)
     {
@@ -139,29 +141,11 @@ abstract class BasePackage implements PackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function getRepository()
     {
         return $this->repository;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public function getTransportOptions()
-    {
-        return $this->transportOptions;
-    }
-
-    /**
-     * Configures the list of options to download package dist files
-     *
-     * @param array $options
-     */
-    public function setTransportOptions(array $options)
-    {
-        $this->transportOptions = $options;
     }
 
     /**
@@ -184,6 +168,9 @@ abstract class BasePackage implements PackageInterface
         return $this->getName().'-'.$this->getVersion();
     }
 
+    /**
+     * @return bool
+     */
     public function equals(PackageInterface $package)
     {
         $self = $this;
@@ -213,7 +200,7 @@ abstract class BasePackage implements PackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function getFullPrettyVersion($truncate = true, $displayMode = PackageInterface::DISPLAY_SOURCE_REF_IF_DEV)
     {
@@ -235,6 +222,10 @@ abstract class BasePackage implements PackageInterface
                 throw new \UnexpectedValueException('Display mode '.$displayMode.' is not supported');
         }
 
+        if (null === $reference) {
+            return $this->getPrettyVersion();
+        }
+
         // if source reference is a sha1 hash -- truncate
         if ($truncate && \strlen($reference) === 40 && $this->getSourceType() !== 'svn') {
             return $this->getPrettyVersion() . ' ' . substr($reference, 0, 7);
@@ -243,6 +234,11 @@ abstract class BasePackage implements PackageInterface
         return $this->getPrettyVersion() . ' ' . $reference;
     }
 
+    /**
+     * @return int
+     *
+     * @phpstan-return self::STABILITY_*
+     */
     public function getStabilityPriority()
     {
         return self::$stabilities[$this->getStability()];
@@ -258,13 +254,32 @@ abstract class BasePackage implements PackageInterface
      * Build a regexp from a package name, expanding * globs as required
      *
      * @param  string $allowPattern
-     * @param  string $wrap         Wrap the cleaned string by the given string
-     * @return string
+     * @param  non-empty-string $wrap         Wrap the cleaned string by the given string
+     * @return non-empty-string
      */
     public static function packageNameToRegexp($allowPattern, $wrap = '{^%s$}i')
     {
         $cleanedAllowPattern = str_replace('\\*', '.*', preg_quote($allowPattern));
 
         return sprintf($wrap, $cleanedAllowPattern);
+    }
+
+    /**
+     * Build a regexp from package names, expanding * globs as required
+     *
+     * @param string[] $packageNames
+     * @param non-empty-string $wrap
+     * @return non-empty-string
+     */
+    public static function packageNamesToRegexp(array $packageNames, $wrap = '{^(?:%s)$}iD')
+    {
+        $packageNames = array_map(
+            function ($packageName) {
+                return BasePackage::packageNameToRegexp($packageName, '%s');
+            },
+            $packageNames
+        );
+
+        return sprintf($wrap, implode('|', $packageNames));
     }
 }

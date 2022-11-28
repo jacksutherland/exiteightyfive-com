@@ -18,15 +18,16 @@ use craft\helpers\StringHelper;
 use craft\models\EntryType;
 use craft\models\Section;
 use craft\models\UserGroup;
+use DateTime;
 use yii\base\InvalidConfigException;
 use yii\db\Connection;
 
 /**
  * EntryQuery represents a SELECT SQL statement for entries in a way that is independent of DBMS.
  *
- * @property string|string[]|Section $section The handle(s) of the section(s) that resulting entries must belong to.
- * @property string|string[]|EntryType $type The handle(s) of the entry type(s) that resulting entries must have.
- * @property string|string[]|UserGroup $authorGroup The handle(s) of the user group(s) that resulting entries’ authors must belong to.
+ * @property-write string|string[]|EntryType|null $type The entry type(s) that resulting entries must have
+ * @property-write string|string[]|Section|null $section The section(s) that resulting entries must belong to
+ * @property-write string|string[]|UserGroup|null $authorGroup The user group(s) that resulting entries’ authors must belong to
  * @method Entry[]|array all($db = null)
  * @method Entry|array|null one($db = null)
  * @method Entry|array|null nth(int $n, Connection $db = null)
@@ -70,8 +71,8 @@ class EntryQuery extends ElementQuery
      * ```twig
      * {# fetch entries in the News section #}
      * {% set entries = craft.entries()
-     *     .section('news')
-     *     .all() %}
+     *   .section('news')
+     *   .all() %}
      * ```
      * @used-by section()
      * @used-by sectionId()
@@ -91,9 +92,9 @@ class EntryQuery extends ElementQuery
      * ```twig{4}
      * {# fetch entries in the News section #}
      * {% set entries = craft.entries()
-     *     .section('news')
-     *     .type('article')
-     *     .all() %}
+     *   .section('news')
+     *   .type('article')
+     *   .all() %}
      * ```
      * @used-by EntryQuery::type()
      * @used-by typeId()
@@ -118,8 +119,8 @@ class EntryQuery extends ElementQuery
      * ```twig
      * {# fetch entries authored by people in the Authors group #}
      * {% set entries = craft.entries()
-     *     .authorGroup('authors')
-     *     .all() %}
+     *   .authorGroup('authors')
+     *   .all() %}
      * ```
      * @used-by authorGroup()
      * @used-by authorGroupId()
@@ -138,8 +139,8 @@ class EntryQuery extends ElementQuery
      * ```twig
      * {# fetch entries written in 2018 #}
      * {% set entries = craft.entries()
-     *     .postDate(['and', '>= 2018-01-01', '< 2019-01-01'])
-     *     .all() %}
+     *   .postDate(['and', '>= 2018-01-01', '< 2019-01-01'])
+     *   .all() %}
      * ```
      * @used-by postDate()
      */
@@ -157,8 +158,8 @@ class EntryQuery extends ElementQuery
      * ```twig
      * {# fetch entries written before 4/4/2018 #}
      * {% set entries = craft.entries()
-     *     .before('2018-04-04')
-     *     .all() %}
+     *   .before('2018-04-04')
+     *   .all() %}
      * ```
      * @used-by before()
      */
@@ -176,8 +177,8 @@ class EntryQuery extends ElementQuery
      * ```twig
      * {# fetch entries written in the last 7 days #}
      * {% set entries = craft.entries()
-     *     .after(now|date_modify('-7 days'))
-     *     .all() %}
+     *   .after(now|date_modify('-7 days'))
+     *   .all() %}
      * ```
      * @used-by after()
      */
@@ -272,8 +273,8 @@ class EntryQuery extends ElementQuery
      * ```twig
      * {# Fetch entries in the Foo section #}
      * {% set {elements-var} = {twig-method}
-     *     .section('foo')
-     *     .all() %}
+     *   .section('foo')
+     *   .all() %}
      * ```
      *
      * ```php
@@ -283,7 +284,7 @@ class EntryQuery extends ElementQuery
      *     ->all();
      * ```
      *
-     * @param string|string[]|Section|null $value The property value
+     * @param string|string[]|Section|Section[]|null $value The property value
      * @return static self reference
      * @uses $sectionId
      */
@@ -295,20 +296,26 @@ class EntryQuery extends ElementQuery
         }
 
         if ($value instanceof Section) {
+            // Special case for a single section, since we also want to capture the structure ID
             $this->sectionId = [$value->id];
             if ($value->structureId) {
                 $this->structureId = $value->structureId;
             } else {
                 $this->withStructure = false;
             }
-        } else if ($value !== null) {
+        } elseif (Db::normalizeParam($value, function($item) {
+            if (is_string($item)) {
+                $item = Craft::$app->getSections()->getSectionByHandle($item);
+            }
+            return $item instanceof Section ? $item->id : null;
+        })) {
+            $this->sectionId = $value;
+        } else {
             $this->sectionId = (new Query())
                 ->select(['id'])
                 ->from([Table::SECTIONS])
                 ->where(Db::parseParam('handle', $value))
                 ->column();
-        } else {
-            $this->sectionId = null;
         }
 
         return $this;
@@ -331,8 +338,8 @@ class EntryQuery extends ElementQuery
      * ```twig
      * {# Fetch entries in the section with an ID of 1 #}
      * {% set {elements-var} = {twig-method}
-     *     .sectionId(1)
-     *     .all() %}
+     *   .sectionId(1)
+     *   .all() %}
      * ```
      *
      * ```php
@@ -370,9 +377,9 @@ class EntryQuery extends ElementQuery
      * ```twig
      * {# Fetch entries in the Foo section with a Bar entry type #}
      * {% set {elements-var} = {twig-method}
-     *     .section('foo')
-     *     .type('bar')
-     *     .all() %}
+     *   .section('foo')
+     *   .type('bar')
+     *   .all() %}
      * ```
      *
      * ```php
@@ -383,22 +390,25 @@ class EntryQuery extends ElementQuery
      *     ->all();
      * ```
      *
-     * @param string|string[]|EntryType|null $value The property value
+     * @param string|string[]|EntryType|EntryType[]|null $value The property value
      * @return static self reference
      * @uses $typeId
      */
     public function type($value)
     {
-        if ($value instanceof EntryType) {
-            $this->typeId = [$value->id];
-        } else if ($value !== null) {
+        if (Db::normalizeParam($value, function($item) {
+            if (is_string($item)) {
+                $item = Craft::$app->getSections()->getEntryTypesByHandle($item);
+            }
+            return $item instanceof EntryType ? $item->id : null;
+        })) {
+            $this->typeId = $value;
+        } else {
             $this->typeId = (new Query())
                 ->select(['id'])
                 ->from([Table::ENTRYTYPES])
                 ->where(Db::parseParam('handle', $value))
                 ->column();
-        } else {
-            $this->typeId = null;
         }
 
         return $this;
@@ -421,8 +431,8 @@ class EntryQuery extends ElementQuery
      * ```twig
      * {# Fetch entries of the entry type with an ID of 1 #}
      * {% set {elements-var} = {twig-method}
-     *     .typeId(1)
-     *     .all() %}
+     *   .typeId(1)
+     *   .all() %}
      * ```
      *
      * ```php
@@ -459,8 +469,8 @@ class EntryQuery extends ElementQuery
      * ```twig
      * {# Fetch entries with an author with an ID of 1 #}
      * {% set {elements-var} = {twig-method}
-     *     .authorId(1)
-     *     .all() %}
+     *   .authorId(1)
+     *   .all() %}
      * ```
      *
      * ```php
@@ -498,8 +508,8 @@ class EntryQuery extends ElementQuery
      * ```twig
      * {# Fetch entries with an author in the Foo user group #}
      * {% set {elements-var} = {twig-method}
-     *     .authorGroup('foo')
-     *     .all() %}
+     *   .authorGroup('foo')
+     *   .all() %}
      * ```
      *
      * ```php
@@ -517,7 +527,7 @@ class EntryQuery extends ElementQuery
     {
         if ($value instanceof UserGroup) {
             $this->authorGroupId = $value->id;
-        } else if ($value !== null) {
+        } elseif ($value !== null) {
             $this->authorGroupId = (new Query())
                 ->select(['id'])
                 ->from([Table::USERGROUPS])
@@ -547,8 +557,8 @@ class EntryQuery extends ElementQuery
      * ```twig
      * {# Fetch entries with an author in a group with an ID of 1 #}
      * {% set {elements-var} = {twig-method}
-     *     .authorGroupId(1)
-     *     .all() %}
+     *   .authorGroupId(1)
+     *   .all() %}
      * ```
      *
      * ```php
@@ -587,8 +597,8 @@ class EntryQuery extends ElementQuery
      * {% set end = date('first day of this month')|atom %}
      *
      * {% set {elements-var} = {twig-method}
-     *     .postDate(['and', ">= #{start}", "< #{end}"])
-     *     .all() %}
+     *   .postDate(['and', ">= #{start}", "< #{end}"])
+     *   .all() %}
      * ```
      *
      * ```php
@@ -628,8 +638,8 @@ class EntryQuery extends ElementQuery
      * {% set firstDayOfMonth = date('first day of this month') %}
      *
      * {% set {elements-var} = {twig-method}
-     *     .before(firstDayOfMonth)
-     *     .all() %}
+     *   .before(firstDayOfMonth)
+     *   .all() %}
      * ```
      *
      * ```php
@@ -668,8 +678,8 @@ class EntryQuery extends ElementQuery
      * {% set firstDayOfMonth = date('first day of this month') %}
      *
      * {% set {elements-var} = {twig-method}
-     *     .after(firstDayOfMonth)
-     *     .all() %}
+     *   .after(firstDayOfMonth)
+     *   .all() %}
      * ```
      *
      * ```php
@@ -711,8 +721,8 @@ class EntryQuery extends ElementQuery
      * {% set nextMonth = date('first day of next month')|atom %}
      *
      * {% set {elements-var} = {twig-method}
-     *     .expiryDate("< #{nextMonth}")
-     *     .all() %}
+     *   .expiryDate("< #{nextMonth}")
+     *   .all() %}
      * ```
      *
      * ```php
@@ -746,14 +756,15 @@ class EntryQuery extends ElementQuery
      * | `'expired'` | that are expired (enabled with an Expiry Date in the past).
      * | `'disabled'` | that are disabled.
      * | `['live', 'pending']` | that are live or pending.
+     * | `['not', 'live', 'pending']` | that are not live or pending.
      *
      * ---
      *
      * ```twig
      * {# Fetch disabled entries #}
      * {% set {elements-var} = {twig-method}
-     *     .status('disabled')
-     *     .all() %}
+     *   .status('disabled')
+     *   .all() %}
      * ```
      *
      * ```php
@@ -834,7 +845,12 @@ class EntryQuery extends ElementQuery
      */
     protected function statusCondition(string $status)
     {
-        $currentTimeDb = Db::prepareDateForDb(new \DateTime());
+        // Always consider “now” to be the current time @ 59 seconds into the minute.
+        // This makes entry queries more cacheable, since they only change once every minute (https://github.com/craftcms/cms/issues/5389),
+        // while not excluding any entries that may have just been published in the past minute (https://github.com/craftcms/cms/issues/7853).
+        $now = new DateTime();
+        $now->setTime((int)$now->format('H'), (int)$now->format('i'), 59);
+        $currentTimeDb = Db::prepareDateForDb($now);
 
         switch ($status) {
             case Entry::STATUS_LIVE:
@@ -918,9 +934,9 @@ class EntryQuery extends ElementQuery
     {
         if (empty($this->typeId)) {
             $this->typeId = is_array($this->typeId) ? [] : null;
-        } else if (is_numeric($this->typeId)) {
+        } elseif (is_numeric($this->typeId)) {
             $this->typeId = [$this->typeId];
-        } else if (!is_array($this->typeId) || !ArrayHelper::isNumeric($this->typeId)) {
+        } elseif (!is_array($this->typeId) || !ArrayHelper::isNumeric($this->typeId)) {
             $this->typeId = (new Query())
                 ->select(['id'])
                 ->from([Table::ENTRYTYPES])
@@ -938,14 +954,17 @@ class EntryQuery extends ElementQuery
             $this->subQuery->andWhere(['entries.sectionId' => $this->sectionId]);
 
             // Should we set the structureId param?
-            if ($this->structureId === null && count($this->sectionId) === 1) {
-                $structureId = (new Query())
-                    ->select(['structureId'])
-                    ->from([Table::SECTIONS])
-                    ->where(Db::parseParam('id', $this->sectionId))
-                    ->andWhere(['type' => Section::TYPE_STRUCTURE])
-                    ->scalar();
-                $this->structureId = (int)$structureId ?: false;
+            if (
+                $this->withStructure !== false &&
+                $this->structureId === null &&
+                count($this->sectionId) === 1
+            ) {
+                $section = Craft::$app->getSections()->getSectionById(reset($this->sectionId));
+                if ($section && $section->type === Section::TYPE_STRUCTURE) {
+                    $this->structureId = $section->structureId;
+                } else {
+                    $this->withStructure = false;
+                }
             }
         }
     }
@@ -957,9 +976,9 @@ class EntryQuery extends ElementQuery
     {
         if (empty($this->sectionId)) {
             $this->sectionId = is_array($this->sectionId) ? [] : null;
-        } else if (is_numeric($this->sectionId)) {
+        } elseif (is_numeric($this->sectionId)) {
             $this->sectionId = [$this->sectionId];
-        } else if (!is_array($this->sectionId) || !ArrayHelper::isNumeric($this->sectionId)) {
+        } elseif (!is_array($this->sectionId) || !ArrayHelper::isNumeric($this->sectionId)) {
             $this->sectionId = (new Query())
                 ->select(['id'])
                 ->from([Table::SECTIONS])
@@ -1021,7 +1040,7 @@ class EntryQuery extends ElementQuery
             foreach ($this->typeId as $typeId) {
                 $tags[] = "entryType:$typeId";
             }
-        } else if ($this->sectionId) {
+        } elseif ($this->sectionId) {
             foreach ($this->sectionId as $sectionId) {
                 $tags[] = "section:$sectionId";
             }

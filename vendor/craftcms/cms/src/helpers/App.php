@@ -36,11 +36,14 @@ use craft\web\Response as WebResponse;
 use craft\web\Session;
 use craft\web\User as WebUser;
 use craft\web\View;
+use yii\base\Event;
 use yii\base\InvalidArgumentException;
+use yii\base\InvalidValueException;
 use yii\helpers\Inflector;
 use yii\i18n\PhpMessageSource;
 use yii\log\Dispatcher as YiiDispatcher;
 use yii\log\Logger;
+use yii\log\Target;
 use yii\mutex\FileMutex;
 use yii\web\JsonParser;
 
@@ -58,6 +61,12 @@ class App
     private static $_iconv;
 
     /**
+     * @var string[]
+     * @see isPathAllowed()
+     */
+    private static $_basePaths;
+
+    /**
      * Returns an environment variable, checking for it in `$_SERVER` and calling `getenv()` as a fallback.
      *
      * @param string $name The environment variable name
@@ -70,10 +79,87 @@ class App
     }
 
     /**
-     * Returns whether Craft is running within [Nitro](https://getnitro.sh).
+     * Checks if a string references an environment variable (`$VARIABLE_NAME`)
+     * and/or an alias (`@aliasName`), and returns the referenced value.
+     *
+     * If the string references an environment variable with a value of `true`
+     * or `false`, a boolean value will be returned.
+     *
+     * ---
+     *
+     * ```php
+     * $value1 = App::parseEnv('$SMTP_PASSWORD');
+     * $value2 = App::parseEnv('@webroot');
+     * ```
+     *
+     * @param string|null $str
+     * @return string|bool|null The parsed value, or the original value if it didn’t
+     * reference an environment variable and/or alias.
+     * @since 3.7.29
+     */
+    public static function parseEnv(string $str = null)
+    {
+        if ($str === null) {
+            return null;
+        }
+
+        if (preg_match('/^\$(\w+)$/', $str, $matches)) {
+            $value = App::env($matches[1]);
+            if ($value !== false) {
+                switch (strtolower($value)) {
+                    case 'true':
+                        return true;
+                    case 'false':
+                        return false;
+                }
+                $str = $value;
+            }
+        }
+
+        if (StringHelper::startsWith($str, '@')) {
+            $str = Craft::getAlias($str, false) ?: $str;
+        }
+
+        return $str;
+    }
+
+    /**
+     * Checks if a string references an environment variable (`$VARIABLE_NAME`) and returns the referenced
+     * boolean value, or `null` if a boolean value can’t be determined.
+     *
+     * ---
+     *
+     * ```php
+     * $status = App::parseBooleanEnv('$SYSTEM_STATUS') ?? false;
+     * ```
+     *
+     * @param mixed $value
+     * @return bool|null
+     * @since 3.7.29
+     */
+    public static function parseBooleanEnv($value): ?bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if ($value === 0 || $value === 1) {
+            return (bool)$value;
+        }
+
+        if (!is_string($value)) {
+            return null;
+        }
+
+        return filter_var(static::parseEnv($value), FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+    }
+
+    /**
+     * Returns whether Craft is running within [Nitro](https://getnitro.sh) v1.
      *
      * @return bool
      * @since 3.4.19
+     * @deprecated in 3.7.9.
      */
     public static function isNitro(): bool
     {
@@ -237,15 +323,102 @@ class App
         switch ($unit) {
             case 'g':
                 $value *= 1024;
-            // no break (cumulative multiplier)
+            // no break
             case 'm':
                 $value *= 1024;
-            // no break (cumulative multiplier)
+            // no break
             case 'k':
                 $value *= 1024;
         }
 
         return $value;
+    }
+
+    /**
+     * Retrieves a file path PHP config setting and normalizes it to an array of paths.
+     *
+     * @param string $var The PHP config setting to retrieve
+     * @return string[] The normalized paths
+     * @since 3.7.34
+     */
+    public static function phpConfigValueAsPaths(string $var): array
+    {
+        return static::normalizePhpPaths(ini_get($var));
+    }
+
+    /**
+     * Normalizes a PHP path setting to an array of paths
+     *
+     * @param string $value The PHP path setting value
+     * @return string[] The normalized paths
+     * @since 3.7.34
+     */
+    public static function normalizePhpPaths(string $value): array
+    {
+        // semicolons are used to separate paths on Windows; everything else uses colons
+        $value = str_replace(';', ':', trim($value));
+
+        if ($value === '') {
+            return [];
+        }
+
+        $paths = [];
+
+        foreach (explode(':', $value) as $path) {
+            $path = trim($path);
+
+            // Parse ${ENV_VAR}s
+            try {
+                $path = preg_replace_callback('/\$\{(.*?)\}/', function($match) {
+                    $env = App::env($match[1]);
+                    if ($env === false) {
+                        throw new InvalidValueException();
+                    }
+                    return $env;
+                }, $path);
+            } catch (InvalidValueException $e) {
+                // References an env var that doesn’t exist
+                continue;
+            }
+
+            // '.' => working dir
+            if ($path === '.' || StringHelper::startsWith($path, './') || StringHelper::startsWith($path, '.\\')) {
+                $path = getcwd() . substr($path, 1);
+            }
+
+            // Normalize
+            $paths[] = FileHelper::normalizePath($path);
+        }
+
+        return $paths;
+    }
+
+    /**
+     * Returns whether the given path is within PHP’s `open_basedir` setting.
+     *
+     * @param string $path
+     * @return bool
+     * @since 3.7.34
+     */
+    public static function isPathAllowed(string $path): bool
+    {
+        if (!isset(self::$_basePaths)) {
+            self::$_basePaths = static::phpConfigValueAsPaths('open_basedir');
+        }
+
+        if (!self::$_basePaths) {
+            return true;
+        }
+
+        $path = FileHelper::normalizePath($path);
+
+        foreach (self::$_basePaths as $basePath) {
+            if (strpos($path, $basePath) === 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -301,6 +474,17 @@ class App
     }
 
     /**
+     * Returns whether the server supports IDNA ASCII strings.
+     *
+     * @return bool
+     * @since 3.7.9
+     */
+    public static function supportsIdn(): bool
+    {
+        return function_exists('idn_to_ascii') && defined('INTL_IDNA_VARIANT_UTS46');
+    }
+
+    /**
      * Returns a humanized class name.
      *
      * @param string $class
@@ -327,8 +511,10 @@ class App
             @ini_set('memory_limit', $maxMemoryLimit ?: '1536M');
         }
 
-        // Try to disable the max execution time
-        @set_time_limit(0);
+        // Try to reset time limit
+        if (!function_exists('set_time_limit') || !@set_time_limit(0)) {
+            Craft::warning('set_time_limit() is not available', __METHOD__);
+        }
     }
 
     /**
@@ -463,7 +649,7 @@ class App
             ];
         }
 
-        return [
+        $config = [
             'class' => Connection::class,
             'driverName' => $driver,
             'dsn' => $dbConfig->dsn,
@@ -480,6 +666,16 @@ class App
             'attributes' => $dbConfig->attributes,
             'enableSchemaCache' => !YII_DEBUG,
         ];
+
+        if ($driver === Connection::DRIVER_PGSQL && $dbConfig->setSchemaOnConnect && $dbConfig->schema) {
+            $config['on afterOpen'] = function(Event $event) use ($dbConfig) {
+                /** @var Connection $db */
+                $db = $event->sender;
+                $db->createCommand("SET search_path TO $dbConfig->schema;")->execute();
+            };
+        }
+
+        return $config;
     }
 
     /**
@@ -498,7 +694,7 @@ class App
      * Returns the `mailer` component config.
      *
      * @param MailSettings|null $settings The system mail settings
-     * @return array
+     * @return array{class: class-string<Mailer>}
      * @since 3.0.18
      */
     public static function mailerConfig(?MailSettings $settings = null): array
@@ -518,28 +714,25 @@ class App
             'class' => Mailer::class,
             'messageClass' => Message::class,
             'from' => [
-                Craft::parseEnv($settings->fromEmail) => Craft::parseEnv($settings->fromName),
+                App::parseEnv($settings->fromEmail) => App::parseEnv($settings->fromName),
             ],
-            'replyTo' => Craft::parseEnv($settings->replyToEmail),
-            'template' => Craft::parseEnv($settings->template),
+            'replyTo' => App::parseEnv($settings->replyToEmail),
+            'template' => App::parseEnv($settings->template),
             'transport' => $adapter->defineTransport(),
         ];
     }
 
     /**
-     * Returns a file-based `mutex` component config.
+     * Returns a file-based mutex driver config.
      *
      * ::: tip
-     * If you were calling this to override the [[\yii\mutex\FileMutex::$isWindows]] property, note that you
-     * can safely remove your custom `mutex` component config for Craft 3.5.0 and later. Craft now uses a
-     * database-based mutex component by default (see [[dbMutexConfig()]]), which doesn’t care which type of
-     * file system is used.
+     * If you were calling this to override the [[\yii\mutex\FileMutex::$isWindows]] property, note that
+     * overriding the `mutex` component may no longer be necessary, as Craft no longer uses a mutex
+     * when Dev Mode is enabled.
      * :::
      *
      * @return array
      * @since 3.0.18
-     * @deprecated in 3.5.0.
-     *
      */
     public static function mutexConfig(): array
     {
@@ -553,10 +746,11 @@ class App
     }
 
     /**
-     * Returns the `mutex` component config.
+     * Returns a database-based mutex driver config.
      *
      * @return array
      * @since 3.5.18
+     * @deprecated in 3.7.30. Database-based mutex locking is no longer recommended.
      */
     public static function dbMutexConfig(): array
     {
@@ -592,11 +786,15 @@ class App
     /**
      * Returns the default log targets.
      *
-     * @return array
+     * @return Target[]
      * @since 3.6.14
      */
     public static function defaultLogTargets(): array
     {
+        // Warning - Don't do anything that could cause something to get logged from here!
+        // If the dispatcher is configured with flushInterval => 1, it could cause a PHP error if any log
+        // targets haven’t been instantiated yet.
+
         $targets = [];
 
         $isConsoleRequest = Craft::$app->getRequest()->getIsConsoleRequest();
@@ -620,39 +818,27 @@ class App
                 $fileTargetConfig['logFile'] = '@storage/logs/web.log';
             }
 
-            // Only log errors and warnings, unless Craft is running in Dev Mode or it's being installed/updated
-            // (Explicitly check GeneralConfig::$devMode here, because YII_DEBUG is always `1` for console requests.)
-            $devModeLogging = (
-                !Craft::$app->getConfig()->getGeneral()->devMode &&
-                Craft::$app->getIsInstalled() &&
-                !Craft::$app->getUpdates()->getIsCraftDbMigrationNeeded()
-            );
-
-            if ($devModeLogging) {
+            if (!YII_DEBUG) {
                 $fileTargetConfig['levels'] = Logger::LEVEL_ERROR | Logger::LEVEL_WARNING;
             }
 
-            $targets[Dispatcher::TARGET_FILE] = $fileTargetConfig;
+            $targets[Dispatcher::TARGET_FILE] = Craft::createObject($fileTargetConfig);
 
-            if (defined('CRAFT_STREAM_LOG') && CRAFT_STREAM_LOG === true) {
-                $streamErrLogTarget = [
+            if (!$isConsoleRequest && defined('CRAFT_STREAM_LOG') && CRAFT_STREAM_LOG === true) {
+                $targets[Dispatcher::TARGET_STDERR] = Craft::createObject([
                     'class' => StreamLogTarget::class,
                     'url' => 'php://stderr',
                     'levels' => Logger::LEVEL_ERROR | Logger::LEVEL_WARNING,
                     'includeUserIp' => $generalConfig->storeUserIps,
-                ];
+                ]);
 
-                $targets[Dispatcher::TARGET_STDERR] = $streamErrLogTarget;
-
-                if ($devModeLogging) {
-                    $streamOutLogTarget = [
+                if (YII_DEBUG) {
+                    $targets[Dispatcher::TARGET_STDOUT] = Craft::createObject([
                         'class' => StreamLogTarget::class,
                         'url' => 'php://stdout',
                         'levels' => ~Logger::LEVEL_ERROR & ~Logger::LEVEL_WARNING,
                         'includeUserIp' => $generalConfig->storeUserIps,
-                    ];
-
-                    $targets[Dispatcher::TARGET_STDOUT] = $streamOutLogTarget;
+                    ]);
                 }
             }
         }
@@ -668,6 +854,7 @@ class App
         return [
             'class' => ProjectConfigService::class,
             'readOnly' => Craft::$app->getIsInstalled() && !Craft::$app->getConfig()->getGeneral()->allowAdminChanges,
+            'writeYamlAutomatically' => !self::isEphemeral(),
         ];
     }
 
@@ -829,8 +1016,10 @@ class App
 
         if (Craft::$app->getRequest()->getIsCpRequest() && !Craft::$app->getResponse()->isSent) {
             // Is someone logged in?
-            $id = SessionHelper::get(Craft::$app->getUser()->idParam);
-            if ($id) {
+            if (
+                Craft::$app->getIsInstalled() &&
+                ($id = SessionHelper::get(Craft::$app->getUser()->idParam))
+            ) {
                 // If they have a preferred locale, use it
                 $usersService = Craft::$app->getUsers();
                 if (

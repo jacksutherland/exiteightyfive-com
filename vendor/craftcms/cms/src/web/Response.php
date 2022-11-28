@@ -8,6 +8,7 @@
 namespace craft\web;
 
 use Craft;
+use craft\helpers\UrlHelper;
 use yii\web\Cookie;
 use yii\web\CookieCollection;
 use yii\web\HttpException;
@@ -146,7 +147,7 @@ class Response extends \yii\web\Response
             return;
         }
         foreach ($this->getRawCookies() as $cookie) {
-            /* @var Cookie $cookie */
+            /** @var Cookie $cookie */
             if (PHP_VERSION_ID >= 70300) {
                 setcookie($cookie->name, $cookie->value, [
                     'expires' => $cookie->expire,
@@ -165,6 +166,18 @@ class Response extends \yii\web\Response
                 setcookie($cookie->name, $cookie->value, $cookie->expire, $cookie->path, $cookie->domain, $cookie->secure, $cookie->httpOnly);
             }
         }
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function redirect($url, $statusCode = 302, $checkAjax = true)
+    {
+        if (is_string($url)) {
+            $url = UrlHelper::url($url);
+        }
+
+        return parent::redirect($url, $statusCode, $checkAjax);
     }
 
     /**
@@ -201,7 +214,7 @@ class Response extends \yii\web\Response
     /**
      * Attempts to closes the connection with the HTTP client, without ending PHP script execution.
      *
-     * This method relies on [flush()](http://php.net/manual/en/function.flush.php), which may not actually work if
+     * This method relies on [flush()](https://php.net/manual/en/function.flush.php), which may not actually work if
      * mod_deflate or mod_gzip is installed, or if this is a Win32 server.
      *
      * @see http://stackoverflow.com/a/141026

@@ -40,6 +40,12 @@ trait ElementTrait
     public $revisionId;
 
     /**
+     * @var bool Whether this is a provisional draft.
+     * @since 3.7.0
+     */
+    public $isProvisionalDraft = false;
+
+    /**
      * @var string|null The element’s UID
      */
     public $uid;
@@ -106,6 +112,12 @@ trait ElementTrait
     public $dateUpdated;
 
     /**
+     * @var DateTime|null The date that the canonical element was last merged into this one
+     * @since 3.7.0
+     */
+    public $dateLastMerged;
+
+    /**
      * @var DateTime|null The date that the element was trashed
      * @since 3.2.0
      */
@@ -165,6 +177,12 @@ trait ElementTrait
     public $newSiteIds = [];
 
     /**
+     * @var bool Whether the element is being saved to the current site for the first time.
+     * @since 3.7.15
+     */
+    public $isNewForSite = false;
+
+    /**
      * @var bool Whether the element is being resaved by a ResaveElement job or a `resave` console command.
      * @since 3.1.22
      */
@@ -174,6 +192,27 @@ trait ElementTrait
      * @var ElementInterface|null The element that this element is being duplicated by.
      */
     public $duplicateOf;
+
+    /**
+     * @var bool Whether the element is being saved for the first time in a normal state (not as a draft or revision).
+     * @since 3.7.5
+     */
+    public $firstSave = false;
+
+    /**
+     * @var bool Whether recent changes to the canonical element are being merged into this element.
+     * @since 3.7.0
+     */
+    public $mergingCanonicalChanges = false;
+
+    /**
+     * @var bool Whether the element is being updated from a derivative element, such as a draft or revision.
+     *
+     * If this is true, the derivative element can be accessed via [[duplicateOf]].
+     *
+     * @since 3.7.0
+     */
+    public $updatingFromDerivative = false;
 
     /**
      * @var bool Whether the element is currently being previewed.

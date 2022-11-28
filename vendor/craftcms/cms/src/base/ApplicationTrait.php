@@ -12,18 +12,19 @@ use craft\console\Application as ConsoleApplication;
 use craft\console\Request as ConsoleRequest;
 use craft\db\Connection;
 use craft\db\MigrationManager;
+use craft\db\mysql\Schema;
 use craft\db\Query;
 use craft\db\Table;
 use craft\elements\Asset;
 use craft\elements\Category;
 use craft\elements\Entry;
+use craft\elements\Tag;
 use craft\errors\DbConnectException;
 use craft\errors\SiteNotFoundException;
 use craft\errors\WrongEditionException;
 use craft\events\DefineFieldLayoutFieldsEvent;
 use craft\events\DeleteSiteEvent;
 use craft\events\EditionChangeEvent;
-use craft\events\FieldEvent;
 use craft\fieldlayoutelements\AssetTitleField;
 use craft\fieldlayoutelements\EntryTitleField;
 use craft\fieldlayoutelements\TitleField;
@@ -60,6 +61,7 @@ use yii\base\Event;
 use yii\base\Exception;
 use yii\base\InvalidConfigException;
 use yii\caching\Cache;
+use yii\db\ColumnSchemaBuilder;
 use yii\db\Exception as DbException;
 use yii\db\Expression;
 use yii\mutex\Mutex;
@@ -76,6 +78,7 @@ use yii\web\ServerErrorHttpException;
  * @property-read \craft\i18n\Locale $formattingLocale The Locale object that should be used to define the formatter
  * @property-read \craft\i18n\Locale $locale The Locale object for the target language
  * @property-read \craft\mail\Mailer $mailer The mailer component
+ * @property-read \craft\services\Announcements $announcements The announcements service
  * @property-read \craft\services\Api $api The API service
  * @property-read \craft\services\AssetIndexer $assetIndexer The asset indexer service
  * @property-read \craft\services\Assets $assets The assets service
@@ -118,6 +121,7 @@ use yii\web\ServerErrorHttpException;
  * @property-read \craft\services\Users $users The users service
  * @property-read \craft\services\Utilities $utilities The utilities service
  * @property-read \craft\services\Volumes $volumes The volumes service
+ * @property-read \craft\services\Webpack $webpack The webpack service
  * @property-read \yii\mutex\Mutex $mutex The application’s mutex service
  * @property-read AssetManager $assetManager The asset manager component
  * @property-read bool $canTestEditions Whether Craft is running on a domain that is eligible to test out the editions
@@ -232,7 +236,7 @@ trait ApplicationTrait
      */
     public function updateTargetLanguage(bool $useUserLanguage = null)
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         // Defend against an infinite updateTargetLanguage() loop
         if ($this->_gettingLanguage === true) {
             // We tried to get the language, but something went wrong. Use fallback to prevent infinite loop.
@@ -245,9 +249,7 @@ trait ApplicationTrait
         $this->_gettingLanguage = true;
 
         if ($useUserLanguage === null) {
-            /* @var WebRequest|ConsoleRequest $request */
-            $request = $this->getRequest();
-            $useUserLanguage = $request->getIsConsoleRequest() || $request->getIsCpRequest();
+            $useUserLanguage = $this->getRequest()->getIsCpRequest();
         }
 
         $this->language = $this->getTargetLanguage($useUserLanguage);
@@ -262,34 +264,48 @@ trait ApplicationTrait
      */
     public function getTargetLanguage(bool $useUserLanguage = true): string
     {
-        /* @var WebApplication|ConsoleApplication $this */
-        // Use the browser language if Craft isn't installed or is updating
-        if (!$this->getIsInstalled() || $this->getUpdates()->getIsCraftDbMigrationNeeded()) {
+        /** @var WebApplication|ConsoleApplication $this */
+        // Use the fallback language for console requests, or if Craft isn't installed or is updating
+        if (
+            $this instanceof ConsoleApplication ||
+            !$this->getIsInstalled() ||
+            $this->getUpdates()->getIsCraftDbMigrationNeeded()
+        ) {
             return $this->_getFallbackLanguage();
         }
 
         if ($useUserLanguage) {
-            return $this->_getUserLanguage();
+            // If the user is logged in *and* has a primary language set, use that
+            // (don't actually try to fetch the user, as plugins haven't been loaded yet)
+            $id = Session::get($this->getUser()->idParam);
+            if (
+                $id &&
+                ($language = $this->getUsers()->getUserPreference($id, 'language')) !== null &&
+                Craft::$app->getI18n()->validateAppLocaleId($language)
+            ) {
+                return $language;
+            }
+
+            // Fall back on the default CP language, if there is one, otherwise the browser language
+            return Craft::$app->getConfig()->getGeneral()->defaultCpLanguage ?? $this->_getFallbackLanguage();
         }
 
-        /* @noinspection PhpUnhandledExceptionInspection */
+        /** @noinspection PhpUnhandledExceptionInspection */
         return $this->getSites()->getCurrentSite()->language;
     }
 
     /**
      * Returns whether Craft is installed.
      *
-     * @param bool $refresh
+     * @param bool $strict Whether to ignore the cached value and explicitly check from the default schema.
      * @return bool
      */
-    public function getIsInstalled(bool $refresh = false): bool
+    public function getIsInstalled(bool $strict = false): bool
     {
-        if ($refresh) {
+        if ($strict) {
             $this->_isInstalled = null;
             $this->_info = null;
-        }
-
-        if ($this->_isInstalled !== null) {
+        } elseif ($this->_isInstalled !== null) {
             return $this->_isInstalled;
         }
 
@@ -298,21 +314,31 @@ trait ApplicationTrait
         }
 
         try {
+            if ($strict) {
+                $db = Craft::$app->getDb();
+                if ($db->getIsPgsql()) {
+                    // Look for the `info` row, explicitly in the default schema.
+                    return $this->_isInstalled = (new Query())
+                        ->from([sprintf('%s.%s', $db->getSchema()->defaultSchema, Table::INFO)])
+                        ->where(['id' => 1])
+                        ->exists();
+                }
+            }
+
             $info = $this->getInfo(true);
-        } catch (DbException $e) {
+            return $this->_isInstalled = !empty($info->id);
+        } catch (DbException | ServerErrorHttpException $e) {
             // yii2-redis awkwardly throws yii\db\Exception's rather than their own exception class.
-            if (strpos($e->getMessage(), 'Redis') !== false) {
+            if ($e instanceof DbException && strpos($e->getMessage(), 'Redis') !== false) {
                 throw $e;
             }
 
             Craft::error('There was a problem fetching the info row: ' . $e->getMessage(), __METHOD__);
-            /* @var ErrorHandler $errorHandler */
+            /** @var ErrorHandler $errorHandler */
             $errorHandler = $this->getErrorHandler();
             $errorHandler->logException($e);
             return $this->_isInstalled = false;
         }
-
-        return $this->_isInstalled = !empty($info->id);
     }
 
     /**
@@ -322,7 +348,7 @@ trait ApplicationTrait
      */
     public function setIsInstalled($value = true)
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         $this->_isInstalled = $value;
     }
 
@@ -357,7 +383,7 @@ trait ApplicationTrait
      */
     public function getIsMultiSite(bool $refresh = false, bool $withTrashed = false): bool
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         if ($withTrashed) {
             if (!$refresh && $this->_isMultiSiteWithTrashed !== null) {
                 return $this->_isMultiSiteWithTrashed;
@@ -367,7 +393,7 @@ trait ApplicationTrait
             // (https://stackoverflow.com/a/14916838/1688568)
             return $this->_isMultiSiteWithTrashed = (new Query())
                     ->from([
-                        'x' => (new Query)
+                        'x' => (new Query())
                             ->select([new Expression('1')])
                             ->from([Table::SITES])
                             ->limit(2),
@@ -378,7 +404,7 @@ trait ApplicationTrait
         if (!$refresh && $this->_isMultiSite !== null) {
             return $this->_isMultiSite;
         }
-        return $this->_isMultiSite = (count($this->getSites()->getAllSites()) > 1);
+        return $this->_isMultiSite = (count($this->getSites()->getAllSites(true)) > 1);
     }
 
     /**
@@ -388,7 +414,7 @@ trait ApplicationTrait
      */
     public function getEdition(): int
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         if ($this->_edition === null) {
             $handle = $this->getProjectConfig()->get('system.edition') ?? 'solo';
             $this->_edition = App::editionIdByHandle($handle);
@@ -403,7 +429,7 @@ trait ApplicationTrait
      */
     public function getEditionName(): string
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return App::editionName($this->getEdition());
     }
 
@@ -414,7 +440,7 @@ trait ApplicationTrait
      */
     public function getLicensedEdition()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         $licensedEdition = $this->getCache()->get('licensedEdition');
 
         if ($licensedEdition !== false) {
@@ -431,7 +457,7 @@ trait ApplicationTrait
      */
     public function getLicensedEditionName()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         $licensedEdition = $this->getLicensedEdition();
 
         if ($licensedEdition !== null) {
@@ -448,7 +474,7 @@ trait ApplicationTrait
      */
     public function getHasWrongEdition(): bool
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         $licensedEdition = $this->getLicensedEdition();
 
         return ($licensedEdition !== null && $licensedEdition !== $this->getEdition() && !$this->getCanTestEditions());
@@ -462,13 +488,13 @@ trait ApplicationTrait
      */
     public function setEdition(int $edition): bool
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         $oldEdition = $this->getEdition();
         $this->getProjectConfig()->set('system.edition', App::editionHandle($edition), "Craft CMS edition change");
         $this->_edition = $edition;
 
         // Fire an 'afterEditionChange' event
-        /* @var WebRequest|ConsoleRequest $request */
+        /** @var WebRequest|ConsoleRequest $request */
         $request = $this->getRequest();
         if (!$request->getIsConsoleRequest() && $this->hasEventHandlers(WebApplication::EVENT_AFTER_EDITION_CHANGE)) {
             $this->trigger(WebApplication::EVENT_AFTER_EDITION_CHANGE, new EditionChangeEvent([
@@ -489,7 +515,7 @@ trait ApplicationTrait
      */
     public function requireEdition(int $edition, bool $orBetter = true)
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         if ($this->getIsInstalled() && !$this->getProjectConfig()->getIsApplyingYamlChanges()) {
             $installedEdition = $this->getEdition();
 
@@ -507,7 +533,7 @@ trait ApplicationTrait
      */
     public function getCanUpgradeEdition(): bool
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         // Only admin accounts can upgrade Craft
         if (
             $this->getUser()->getIsAdmin() &&
@@ -533,13 +559,13 @@ trait ApplicationTrait
      */
     public function getCanTestEditions(): bool
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         $request = $this->getRequest();
         if ($request->getIsConsoleRequest()) {
             return false;
         }
 
-        /* @var Cache $cache */
+        /** @var Cache $cache */
         $cache = $this->getCache();
         return $cache->get('editionTestableDomain@' . $request->getHostName());
     }
@@ -551,7 +577,7 @@ trait ApplicationTrait
      */
     public function getSystemUid()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->getInfo()->uid;
     }
 
@@ -563,12 +589,12 @@ trait ApplicationTrait
      */
     public function getIsLive(): bool
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         if (is_bool($live = $this->getConfig()->getGeneral()->isSystemLive)) {
             return $live;
         }
 
-        return (bool)$this->getProjectConfig()->get('system.live');
+        return App::parseBooleanEnv($this->getProjectConfig()->get('system.live')) ?? false;
     }
 
     /**
@@ -579,7 +605,7 @@ trait ApplicationTrait
      */
     public function getIsSystemOn(): bool
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->getIsLive();
     }
 
@@ -592,7 +618,7 @@ trait ApplicationTrait
      */
     public function getIsInMaintenanceMode(): bool
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return (bool)$this->getInfo()->maintenance;
     }
 
@@ -605,7 +631,7 @@ trait ApplicationTrait
      */
     public function enableMaintenanceMode(): bool
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->_setMaintenanceMode(true);
     }
 
@@ -618,7 +644,7 @@ trait ApplicationTrait
      */
     public function disableMaintenanceMode(): bool
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->_setMaintenanceMode(false);
     }
 
@@ -632,7 +658,7 @@ trait ApplicationTrait
      */
     public function getInfo(bool $throwException = false): Info
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         if ($this->_info !== null) {
             return $this->_info;
         }
@@ -642,12 +668,7 @@ trait ApplicationTrait
                 ->from([Table::INFO])
                 ->where(['id' => 1])
                 ->one();
-        } catch (DbException $e) {
-            if ($throwException) {
-                throw $e;
-            }
-            return $this->_info = new Info();
-        } catch (DbConnectException $e) {
+        } catch (DbException | DbConnectException $e) {
             if ($throwException) {
                 throw $e;
             }
@@ -729,10 +750,10 @@ trait ApplicationTrait
      */
     public function saveInfo(Info $info, array $attributeNames = null): bool
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
 
         if ($attributeNames === null) {
-            $attributeNames = ['version', 'schemaVersion', 'maintenance', 'fieldVersion'];
+            $attributeNames = ['version', 'schemaVersion', 'maintenance', 'configVersion', 'fieldVersion'];
         }
 
         if (!$info->validate($attributeNames)) {
@@ -786,7 +807,7 @@ trait ApplicationTrait
     public function getSystemName(): string
     {
         if (($name = Craft::$app->getProjectConfig()->get('system.name')) !== null) {
-            return Craft::parseEnv($name);
+            return App::parseEnv($name);
         }
 
         try {
@@ -816,19 +837,12 @@ trait ApplicationTrait
      */
     public function getIsDbConnectionValid(): bool
     {
-        /* @var WebApplication|ConsoleApplication $this */
-        $e = null;
+        /** @var WebApplication|ConsoleApplication $this */
         try {
             $this->getDb()->open();
-        } catch (DbConnectException $e) {
-            // throw it later
-        } catch (InvalidConfigException $e) {
-            // throw it later
-        }
-
-        if ($e !== null) {
+        } catch (DbConnectException | InvalidConfigException $e) {
             Craft::error('There was a problem connecting to the database: ' . $e->getMessage(), __METHOD__);
-            /* @var ErrorHandler $errorHandler */
+            /** @var ErrorHandler $errorHandler */
             $errorHandler = $this->getErrorHandler();
             $errorHandler->logException($e);
             return false;
@@ -841,13 +855,25 @@ trait ApplicationTrait
     // -------------------------------------------------------------------------
 
     /**
+     * Returns the announcements service.
+     *
+     * @return \craft\services\Announcements The announcements service
+     * @since 3.7.0
+     */
+    public function getAnnouncements()
+    {
+        /** @var WebApplication|ConsoleApplication $this */
+        return $this->get('announcements');
+    }
+
+    /**
      * Returns the API service.
      *
      * @return \craft\services\Api The API service
      */
     public function getApi()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('api');
     }
 
@@ -858,7 +884,7 @@ trait ApplicationTrait
      */
     public function getAssets()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('assets');
     }
 
@@ -869,7 +895,7 @@ trait ApplicationTrait
      */
     public function getAssetIndexer()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('assetIndexer');
     }
 
@@ -880,7 +906,7 @@ trait ApplicationTrait
      */
     public function getAssetTransforms()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('assetTransforms');
     }
 
@@ -891,7 +917,7 @@ trait ApplicationTrait
      */
     public function getCategories()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('categories');
     }
 
@@ -902,7 +928,7 @@ trait ApplicationTrait
      */
     public function getComposer()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('composer');
     }
 
@@ -913,7 +939,7 @@ trait ApplicationTrait
      */
     public function getConfig()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('config');
     }
 
@@ -924,7 +950,7 @@ trait ApplicationTrait
      */
     public function getContent()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('content');
     }
 
@@ -935,7 +961,7 @@ trait ApplicationTrait
      */
     public function getContentMigrator(): MigrationManager
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('contentMigrator');
     }
 
@@ -946,7 +972,7 @@ trait ApplicationTrait
      */
     public function getDashboard()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('dashboard');
     }
 
@@ -957,7 +983,7 @@ trait ApplicationTrait
      */
     public function getDeprecator()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('deprecator');
     }
 
@@ -969,7 +995,7 @@ trait ApplicationTrait
      */
     public function getDrafts()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('drafts');
     }
 
@@ -980,7 +1006,7 @@ trait ApplicationTrait
      */
     public function getElementIndexes()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('elementIndexes');
     }
 
@@ -991,7 +1017,7 @@ trait ApplicationTrait
      */
     public function getElements()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('elements');
     }
 
@@ -1002,7 +1028,7 @@ trait ApplicationTrait
      */
     public function getSystemMessages()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('systemMessages');
     }
 
@@ -1013,7 +1039,7 @@ trait ApplicationTrait
      */
     public function getEntries()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('entries');
     }
 
@@ -1025,7 +1051,7 @@ trait ApplicationTrait
      */
     public function getEntryRevisions()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('entryRevisions');
     }
 
@@ -1037,7 +1063,7 @@ trait ApplicationTrait
      */
     public function getFeeds()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('feeds');
     }
 
@@ -1048,7 +1074,7 @@ trait ApplicationTrait
      */
     public function getFields()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('fields');
     }
 
@@ -1080,7 +1106,7 @@ trait ApplicationTrait
      */
     public function getGlobals()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('globals');
     }
 
@@ -1092,7 +1118,7 @@ trait ApplicationTrait
      */
     public function getGql()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('gql');
     }
 
@@ -1103,7 +1129,7 @@ trait ApplicationTrait
      */
     public function getImages()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('images');
     }
 
@@ -1114,7 +1140,7 @@ trait ApplicationTrait
      */
     public function getLocale(): Locale
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('locale');
     }
 
@@ -1125,7 +1151,7 @@ trait ApplicationTrait
      */
     public function getMailer()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('mailer');
     }
 
@@ -1136,7 +1162,7 @@ trait ApplicationTrait
      */
     public function getMatrix()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('matrix');
     }
 
@@ -1147,7 +1173,7 @@ trait ApplicationTrait
      */
     public function getMigrator(): MigrationManager
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('migrator');
     }
 
@@ -1158,7 +1184,7 @@ trait ApplicationTrait
      */
     public function getMutex(): Mutex
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('mutex');
     }
 
@@ -1169,7 +1195,7 @@ trait ApplicationTrait
      */
     public function getPath()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('path');
     }
 
@@ -1180,7 +1206,7 @@ trait ApplicationTrait
      */
     public function getPlugins()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('plugins');
     }
 
@@ -1191,7 +1217,7 @@ trait ApplicationTrait
      */
     public function getPluginStore()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('pluginStore');
     }
 
@@ -1202,7 +1228,7 @@ trait ApplicationTrait
      */
     public function getQueue()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('queue');
     }
 
@@ -1213,7 +1239,7 @@ trait ApplicationTrait
      */
     public function getRelations()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('relations');
     }
 
@@ -1225,7 +1251,7 @@ trait ApplicationTrait
      */
     public function getRevisions()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('revisions');
     }
 
@@ -1236,7 +1262,7 @@ trait ApplicationTrait
      */
     public function getRoutes()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('routes');
     }
 
@@ -1247,7 +1273,7 @@ trait ApplicationTrait
      */
     public function getSearch()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('search');
     }
 
@@ -1258,7 +1284,7 @@ trait ApplicationTrait
      */
     public function getSections()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('sections');
     }
 
@@ -1269,7 +1295,7 @@ trait ApplicationTrait
      */
     public function getSites()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('sites');
     }
 
@@ -1280,7 +1306,7 @@ trait ApplicationTrait
      */
     public function getStructures()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('structures');
     }
 
@@ -1291,7 +1317,7 @@ trait ApplicationTrait
      */
     public function getProjectConfig()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('projectConfig');
     }
 
@@ -1302,7 +1328,7 @@ trait ApplicationTrait
      */
     public function getSystemSettings()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('systemSettings');
     }
 
@@ -1313,7 +1339,7 @@ trait ApplicationTrait
      */
     public function getTags()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('tags');
     }
 
@@ -1324,7 +1350,7 @@ trait ApplicationTrait
      */
     public function getTemplateCaches()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('templateCaches');
     }
 
@@ -1335,7 +1361,7 @@ trait ApplicationTrait
      */
     public function getTokens()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('tokens');
     }
 
@@ -1346,7 +1372,7 @@ trait ApplicationTrait
      */
     public function getUpdates()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('updates');
     }
 
@@ -1357,7 +1383,7 @@ trait ApplicationTrait
      */
     public function getUserGroups()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('userGroups');
     }
 
@@ -1368,7 +1394,7 @@ trait ApplicationTrait
      */
     public function getUserPermissions()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('userPermissions');
     }
 
@@ -1379,7 +1405,7 @@ trait ApplicationTrait
      */
     public function getUsers()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('users');
     }
 
@@ -1390,7 +1416,7 @@ trait ApplicationTrait
      */
     public function getUtilities()
     {
-        /* @var \craft\web\Application|\craft\console\Application $this */
+        /** @var \craft\web\Application|\craft\console\Application $this */
         return $this->get('utilities');
     }
 
@@ -1401,8 +1427,20 @@ trait ApplicationTrait
      */
     public function getVolumes()
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         return $this->get('volumes');
+    }
+
+    /**
+     * Returns the webpack service.
+     *
+     * @return \craft\services\Webpack The volumes service
+     * @since 3.7.22
+     */
+    public function getWebpack()
+    {
+        /** @var WebApplication|ConsoleApplication $this */
+        return $this->get('webpack');
     }
 
     /**
@@ -1410,6 +1448,12 @@ trait ApplicationTrait
      */
     private function _preInit()
     {
+        // Add support for MySQL-specific column types
+        ColumnSchemaBuilder::$typeCategoryMap[Schema::TYPE_TINYTEXT] = ColumnSchemaBuilder::CATEGORY_STRING;
+        ColumnSchemaBuilder::$typeCategoryMap[Schema::TYPE_MEDIUMTEXT] = ColumnSchemaBuilder::CATEGORY_STRING;
+        ColumnSchemaBuilder::$typeCategoryMap[Schema::TYPE_LONGTEXT] = ColumnSchemaBuilder::CATEGORY_STRING;
+        ColumnSchemaBuilder::$typeCategoryMap[Schema::TYPE_ENUM] = ColumnSchemaBuilder::CATEGORY_STRING;
+
         // Load the request before anything else, so everything else can safely check Craft::$app->has('request', true)
         // to avoid possible recursive fatal errors in the request initialization
         $request = $this->getRequest();
@@ -1448,7 +1492,7 @@ trait ApplicationTrait
             $this->trigger(WebApplication::EVENT_INIT);
         }
 
-        if (!$this->getUpdates()->getIsCraftDbMigrationNeeded()) {
+        if ($this->getIsInstalled() && !$this->getUpdates()->getIsCraftDbMigrationNeeded()) {
             // Possibly run garbage collection
             $this->getGc()->run();
         }
@@ -1459,15 +1503,11 @@ trait ApplicationTrait
      */
     private function _setTimeZone()
     {
-        /* @var WebApplication|ConsoleApplication $this */
-        $timezone = $this->getConfig()->getGeneral()->timezone;
+        /** @var WebApplication|ConsoleApplication $this */
+        $timeZone = $this->getConfig()->getGeneral()->timezone ?? $this->getProjectConfig()->get('system.timeZone');
 
-        if (!$timezone) {
-            $timezone = $this->getProjectConfig()->get('system.timeZone');
-        }
-
-        if ($timezone) {
-            $this->setTimeZone($timezone);
+        if ($timeZone) {
+            $this->setTimeZone(App::parseEnv($timeZone));
         }
     }
 
@@ -1479,38 +1519,13 @@ trait ApplicationTrait
      */
     private function _setMaintenanceMode(bool $value): bool
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         $info = $this->getInfo();
         if ((bool)$info->maintenance === $value) {
             return true;
         }
         $info->maintenance = $value;
         return $this->saveInfo($info);
-    }
-
-    /**
-     * Tries to find a language match with the user's preferred language.
-     *
-     * @return string
-     */
-    private function _getUserLanguage(): string
-    {
-        /* @var WebApplication|ConsoleApplication $this */
-        // If the user is logged in *and* has a primary language set, use that
-        if ($this instanceof WebApplication) {
-            // Don't actually try to fetch the user, as plugins haven't been loaded yet.
-            $id = Session::get($this->getUser()->idParam);
-            if (
-                $id &&
-                ($language = $this->getUsers()->getUserPreference($id, 'language')) !== null &&
-                Craft::$app->getI18n()->validateAppLocaleId($language)
-            ) {
-                return $language;
-            }
-        }
-
-        // Fall back on the default CP language, if there is one, otherwise the browser language
-        return Craft::$app->getConfig()->getGeneral()->defaultCpLanguage ?? $this->_getFallbackLanguage();
     }
 
     /**
@@ -1522,7 +1537,7 @@ trait ApplicationTrait
      */
     private function _getFallbackLanguage(): string
     {
-        /* @var WebApplication|ConsoleApplication $this */
+        /** @var WebApplication|ConsoleApplication $this */
         // See if we have the CP translated in one of the user's browsers preferred language(s)
         if ($this instanceof WebApplication) {
             $languages = $this->getI18n()->getAppLocaleIds();
@@ -1539,15 +1554,16 @@ trait ApplicationTrait
     private function _registerFieldLayoutListener()
     {
         Event::on(FieldLayout::class, FieldLayout::EVENT_DEFINE_STANDARD_FIELDS, function(DefineFieldLayoutFieldsEvent $event) {
-            /* @var FieldLayout $fieldLayout */
+            /** @var FieldLayout $fieldLayout */
             $fieldLayout = $event->sender;
 
             switch ($fieldLayout->type) {
+                case Category::class:
+                case Tag::class:
+                    $event->fields[] = TitleField::class;
+                    break;
                 case Asset::class:
                     $event->fields[] = AssetTitleField::class;
-                    break;
-                case Category::class:
-                    $event->fields[] = TitleField::class;
                     break;
                 case Entry::class:
                     $event->fields[] = EntryTitleField::class;
@@ -1630,21 +1646,13 @@ trait ApplicationTrait
             ->onAdd(Gql::CONFIG_GQL_PUBLIC_TOKEN_KEY, $this->_proxy('gql', 'handleChangedPublicToken'))
             ->onUpdate(Gql::CONFIG_GQL_PUBLIC_TOKEN_KEY, $this->_proxy('gql', 'handleChangedPublicToken'));
 
-        // Prune deleted fields from their layouts
-        Event::on(Fields::class, Fields::EVENT_AFTER_DELETE_FIELD, function(FieldEvent $event) {
-            $this->getVolumes()->pruneDeletedField($event);
-            $this->getTags()->pruneDeletedField($event);
-            $this->getCategories()->pruneDeletedField($event);
-            $this->getUsers()->pruneDeletedField($event);
-            $this->getGlobals()->pruneDeletedField($event);
-            $this->getSections()->pruneDeletedField($event);
-        });
-
         // Prune deleted sites from site settings
         Event::on(Sites::class, Sites::EVENT_AFTER_DELETE_SITE, function(DeleteSiteEvent $event) {
-            $this->getRoutes()->handleDeletedSite($event);
-            $this->getCategories()->pruneDeletedSite($event);
-            $this->getSections()->pruneDeletedSite($event);
+            if (!Craft::$app->getProjectConfig()->getIsApplyingYamlChanges()) {
+                $this->getRoutes()->handleDeletedSite($event);
+                $this->getCategories()->pruneDeletedSite($event);
+                $this->getSections()->pruneDeletedSite($event);
+            }
         });
     }
 

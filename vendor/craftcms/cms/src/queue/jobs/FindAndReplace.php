@@ -12,6 +12,7 @@ use craft\base\FieldInterface;
 use craft\db\Table;
 use craft\fields\Matrix;
 use craft\helpers\Db;
+use craft\helpers\ElementHelper;
 use craft\queue\BaseJob;
 use yii\base\Exception;
 
@@ -92,22 +93,16 @@ class FindAndReplace extends BaseJob
 
         $columnType = $field->getContentColumnType();
 
-        if (!preg_match('/^\w+/', $columnType, $matches)) {
-            return;
-        }
-
-        $columnType = strtolower($matches[0]);
-
-        if (in_array($columnType, [
-            'tinytext',
-            'mediumtext',
-            'longtext',
-            'text',
-            'varchar',
-            'string',
-            'char',
-        ], true)) {
-            $this->_textColumns[] = [$table, $fieldColumnPrefix . $field->handle];
+        if (is_array($columnType)) {
+            foreach (array_keys($columnType) as $i => $key) {
+                if (Db::isTextualColumnType($columnType[$key])) {
+                    $column = ElementHelper::fieldColumn($fieldColumnPrefix, $field->handle, $field->columnSuffix, $i !== 0 ? $key : null);
+                    $this->_textColumns[] = [$table, $column];
+                }
+            }
+        } elseif (Db::isTextualColumnType($columnType)) {
+            $column = ElementHelper::fieldColumn($fieldColumnPrefix, $field->handle, $field->columnSuffix);
+            $this->_textColumns[] = [$table, $column];
         }
     }
 

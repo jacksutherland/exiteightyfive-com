@@ -49,7 +49,6 @@ use yii\base\InvalidArgumentException;
  */
 class ElementQueryConditionBuilder extends Component
 {
-
     /**
      * @event RegisterGqlEagerLoadableFields The event that is triggered when registering additional eager-loading nodes.
      *
@@ -188,16 +187,13 @@ class ElementQueryConditionBuilder extends Component
      */
     private function _extractArgumentValue(Node $argumentNode)
     {
-
         // Deal with a raw object value.
         if ($argumentNode->kind === 'ObjectValue') {
             /** @var ObjectValueNode $argumentNode */
             $extractedValue = [];
-
             foreach ($argumentNode->fields as $fieldNode) {
                 $extractedValue[$fieldNode->name->value] = $this->_extractArgumentValue($fieldNode);
             }
-
             return $extractedValue;
         }
 
@@ -207,29 +203,26 @@ class ElementQueryConditionBuilder extends Component
 
             switch ($argumentNodeValue->kind) {
                 case 'Variable':
-                    $extractedValue = $this->_resolveInfo->variableValues[$argumentNodeValue->name->value];
-                    break;
+                    return $this->_resolveInfo->variableValues[$argumentNodeValue->name->value];
                 case 'ListValue':
                     $extractedValue = [];
-
                     foreach ($argumentNodeValue->values as $value) {
                         $extractedValue[] = $this->_extractArgumentValue($value);
                     }
-                    break;
+                    return $extractedValue;
                 case 'ObjectValue':
+                    $extractedValue = [];
                     foreach ($argumentNodeValue->fields as $fieldNode) {
                         $extractedValue[$fieldNode->name->value] = $this->_extractArgumentValue($fieldNode);
                     }
-                    break;
+                    return $extractedValue;
                 default:
-                    $extractedValue = $argumentNodeValue->value;
+                    return $argumentNodeValue->value;
             }
-        } else {
-            $value = $argumentNode->value ?? null;
-            $extractedValue = $argumentNode->kind === 'IntValue' ? (int)$value : $value;
         }
 
-        return $extractedValue;
+        $value = $argumentNode->value ?? null;
+        return $argumentNode->kind === 'IntValue' ? (int)$value : $value;
     }
 
     /**
@@ -296,9 +289,13 @@ class ElementQueryConditionBuilder extends Component
                 'author' => [EntryField::class, 'canBeAliased' => false],
                 'uploader' => [AssetField::class, 'canBeAliased' => false],
                 'parent' => [BaseRelationField::class, 'canBeAliased' => false],
+                'ancestors' => [BaseRelationField::class, 'canBeAliased' => false],
                 'children' => [BaseRelationField::class, 'canBeAliased' => false],
+                'descendants' => [BaseRelationField::class, 'canBeAliased' => false],
                 'currentRevision' => [BaseRelationField::class, 'canBeAliased' => false],
                 'draftCreator' => [BaseRelationField::class, 'canBeAliased' => false],
+                'drafts' => [BaseRelationField::class, 'canBeAliased' => false],
+                'revisions' => [BaseRelationField::class, 'canBeAliased' => false],
                 'revisionCreator' => [BaseRelationField::class, 'canBeAliased' => false],
                 self::LOCALIZED_NODENAME => [CategoryField::class, EntryField::class],
             ];
@@ -452,7 +449,7 @@ class ElementQueryConditionBuilder extends Component
 
                     // If this a custom Craft content field
                     if ($craftContentField) {
-                        /* @var EagerLoadingFieldInterface $craftContentField */
+                        /** @var EagerLoadingFieldInterface $craftContentField */
                         $additionalArguments = $craftContentField->getEagerLoadingGqlConditions();
 
                         // Load additional requirements enforced by schema, enforcing permissions to see content
@@ -487,7 +484,7 @@ class ElementQueryConditionBuilder extends Component
                         }
 
                         // For relational fields, prepare the arguments.
-                        if ($craftContentField instanceof BaseRelationField) {
+                        if ($craftContentField instanceof EagerLoadingFieldInterface) {
                             $arguments = $this->_argumentManager->prepareArguments($arguments);
                         }
                     }
@@ -508,14 +505,14 @@ class ElementQueryConditionBuilder extends Component
 
                     // Add this to the eager loading list.
                     if (!$transformableAssetProperty) {
-                        /* @var InlineFragmentNode|FragmentDefinitionNode $wrappingFragment */
+                        /** @var InlineFragmentNode|FragmentDefinitionNode $wrappingFragment */
                         if ($wrappingFragment) {
                             // TODO: In Craft 4, get rid of all closures
                             $plan->when = function(Element $element) use ($wrappingFragment) {
                                 return $element->getGqlTypeName() === $wrappingFragment->typeCondition->name->value;
                             };
                         }
-                        $plan->criteria = array_merge_recursive($plan->criteria, $arguments);
+                        $plan->criteria = array_merge_recursive($plan->criteria, $this->_argumentManager->prepareArguments($arguments));
                     }
 
                     // If it has any more selections, build the plans recursively
@@ -535,7 +532,7 @@ class ElementQueryConditionBuilder extends Component
                     }
                 }
                 // If not, see if it's a fragment
-            } else if ($subNode instanceof InlineFragmentNode || $subNode instanceof FragmentSpreadNode) {
+            } elseif ($subNode instanceof InlineFragmentNode || $subNode instanceof FragmentSpreadNode) {
                 $plan = new EagerLoadPlan();
 
                 // For named fragments, replace the node with the actual fragment.
@@ -576,7 +573,7 @@ class ElementQueryConditionBuilder extends Component
             if (isset($plan)) {
                 if (!empty($plan->handle)) {
                     $plans[] = $plan;
-                } else if (!empty($plan->nested)) {
+                } elseif (!empty($plan->nested)) {
                     // Unpack plans generated by parsing fragments.
                     foreach ($plan->nested as $nestedPlan) {
                         $plans[] = $nestedPlan;

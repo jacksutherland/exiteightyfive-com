@@ -39,7 +39,7 @@ class UrlManager extends \yii\web\UrlManager
      * use craft\web\UrlManager;
      * use yii\base\Event;
      * Event::on(UrlManager::class, UrlManager::EVENT_REGISTER_CP_URL_RULES, function(RegisterUrlRulesEvent $e) {
-     *     $e->rules['foo'] => 'bar/baz';
+     *     $e->rules['foo'] = 'bar/baz';
      * });
      * ```
      */
@@ -60,7 +60,7 @@ class UrlManager extends \yii\web\UrlManager
      * use craft\web\UrlManager;
      * use yii\base\Event;
      * Event::on(UrlManager::class, UrlManager::EVENT_REGISTER_SITE_URL_RULES, function(RegisterUrlRulesEvent $e) {
-     *     $e->rules['foo'] => 'bar/baz';
+     *     $e->rules['foo'] = 'bar/baz';
      * });
      * ```
      */
@@ -105,7 +105,7 @@ class UrlManager extends \yii\web\UrlManager
      */
     public function parseRequest($request)
     {
-        /* @var Request $request */
+        /** @var Request $request */
         // Just in case...
         if ($request->getIsConsoleRequest()) {
             return false;
@@ -310,7 +310,7 @@ class UrlManager extends \yii\web\UrlManager
         // Load the config file rules
         if ($request->getIsCpRequest()) {
             $baseCpRoutesPath = Craft::$app->getBasePath() . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'cproutes';
-            /* @var array $rules */
+            /** @var array $rules */
             $rules = require $baseCpRoutesPath . DIRECTORY_SEPARATOR . 'common.php';
 
             if (Craft::$app->getEdition() === Craft::Pro) {
@@ -421,7 +421,7 @@ class UrlManager extends \yii\web\UrlManager
     private function _getMatchedUrlRoute(Request $request)
     {
         // Code adapted from \yii\web\UrlManager::parseRequest()
-        /* @var $rule YiiUrlRule */
+        /** @var YiiUrlRule $rule */
         foreach ($this->rules as $rule) {
             $route = $rule->parseRequest($this, $request);
 
@@ -472,7 +472,7 @@ class UrlManager extends \yii\web\UrlManager
         return [
             'redirect',
             [
-                'url' => $redirectUri,
+                'url' => Craft::$app->getSecurity()->hashData($redirectUri),
                 'statusCode' => 302,
             ],
         ];

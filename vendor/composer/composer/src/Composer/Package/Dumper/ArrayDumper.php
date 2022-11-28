@@ -23,6 +23,9 @@ use Composer\Package\RootPackageInterface;
  */
 class ArrayDumper
 {
+    /**
+     * @return array<string, mixed>
+     */
     public function dump(PackageInterface $package)
     {
         $keys = array(
@@ -70,13 +73,6 @@ class ArrayDumper
             }
         }
 
-        if ($package->getArchiveName()) {
-            $data['archive']['name'] = $package->getArchiveName();
-        }
-        if ($package->getArchiveExcludes()) {
-            $data['archive']['exclude'] = $package->getArchiveExcludes();
-        }
-
         foreach (BasePackage::$supportedLinkTypes as $type => $opts) {
             if ($links = $package->{'get'.ucfirst($opts['method'])}()) {
                 foreach ($links as $link) {
@@ -102,6 +98,13 @@ class ArrayDumper
         $data = $this->dumpValues($package, $keys, $data);
 
         if ($package instanceof CompletePackageInterface) {
+            if ($package->getArchiveName()) {
+                $data['archive']['name'] = $package->getArchiveName();
+            }
+            if ($package->getArchiveExcludes()) {
+                $data['archive']['exclude'] = $package->getArchiveExcludes();
+            }
+
             $keys = array(
                 'scripts',
                 'license',
@@ -139,6 +142,12 @@ class ArrayDumper
         return $data;
     }
 
+    /**
+     * @param array<int|string, string> $keys
+     * @param array<string, mixed>      $data
+     *
+     * @return array<string, mixed>
+     */
     private function dumpValues(PackageInterface $package, array $keys, array $data)
     {
         foreach ($keys as $method => $key) {

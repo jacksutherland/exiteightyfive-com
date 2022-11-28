@@ -25,10 +25,16 @@ use Composer\Util\Filesystem;
  */
 class ProjectInstaller implements InstallerInterface
 {
+    /** @var string */
     private $installPath;
+    /** @var DownloadManager */
     private $downloadManager;
+    /** @var Filesystem */
     private $filesystem;
 
+    /**
+     * @param string $installPath
+     */
     public function __construct($installPath, DownloadManager $dm, Filesystem $fs)
     {
         $this->installPath = rtrim(strtr($installPath, '\\', '/'), '/').'/';
@@ -48,7 +54,7 @@ class ProjectInstaller implements InstallerInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function isInstalled(InstalledRepositoryInterface $repo, PackageInterface $package)
     {
@@ -56,7 +62,7 @@ class ProjectInstaller implements InstallerInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function download(PackageInterface $package, PackageInterface $prevPackage = null)
     {
@@ -72,7 +78,7 @@ class ProjectInstaller implements InstallerInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function prepare($type, PackageInterface $package, PackageInterface $prevPackage = null)
     {
@@ -80,7 +86,7 @@ class ProjectInstaller implements InstallerInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function cleanup($type, PackageInterface $package, PackageInterface $prevPackage = null)
     {
@@ -88,7 +94,7 @@ class ProjectInstaller implements InstallerInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function install(InstalledRepositoryInterface $repo, PackageInterface $package)
     {
@@ -96,7 +102,7 @@ class ProjectInstaller implements InstallerInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function update(InstalledRepositoryInterface $repo, PackageInterface $initial, PackageInterface $target)
     {
@@ -104,7 +110,7 @@ class ProjectInstaller implements InstallerInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function uninstall(InstalledRepositoryInterface $repo, PackageInterface $package)
     {

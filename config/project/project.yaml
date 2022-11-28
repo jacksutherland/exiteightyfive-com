@@ -1,91 +1,105 @@
-comments:
-  comments:
-    fieldLayouts:
-      3694d1a5-1034-4cb6-947d-977389795a15: null
-dateModified: 1625632172
+dateModified: 1669672772
 email:
-  fromEmail: jack@jacksutherland.com
-  fromName: 'Exit 85 CMS'
-  replyToEmail: null
-  template: ''
-  transportSettings:
-    command: ''
+  fromEmail: jacksutherl@gmail.com
+  fromName: 'QC Family Tree'
   transportType: craft\mail\transportadapters\Sendmail
+meta:
+  __names__:
+    0ae7743d-2dde-4cb9-9e4b-d777bbbcd599: Pages # Pages
+    1b3688fd-2fcb-4218-bf2e-6e70ff06f540: 'Contact Form Thank You Message' # Contact Form Thank You Message
+    1d2450dd-01a1-4146-aecf-8f7b74beab9a: 'Hero Button Entry' # Hero Button Entry
+    01e414b6-86e9-4026-ad60-1c09c21da40d: Homepage # Homepage
+    1f101357-c1c7-4de5-b26e-aa701e4165e1: Header # Header
+    2d5ef627-3d40-4895-8113-2ccae0a01303: 'Hero Images' # Hero Images
+    02ecd261-7708-48ba-b76e-64480108d4b7: 'Hero Button Text' # Hero Button Text
+    3ad820fc-2bc8-4eec-a192-6f6bb857c7e0: 'Button Entry' # Button Entry
+    3b888636-f526-4fc1-a7a9-646ca34561b0: Callout # Callout
+    5a91090e-ad3d-48ee-bf8b-45a4a92b230b: Subtitle # Subtitle
+    5d769594-de8e-4851-b176-18f8b65442d1: 'Show In Menu' # Show In Menu
+    5ed32af1-673e-4be3-bd0b-7ff45f08e4fb: 'Image Alignment' # Image Alignment
+    6e805dce-ceea-4a2b-8a6c-ad92990c2fa7: Blog # Blog
+    8b8fd5a6-1f98-49d2-b719-2885b1922e02: 'Blog Header Image' # Blog Header Image
+    8bb4c1f0-0870-4430-be62-deec5bd45f2c: 'Button External URL' # Button External URL
+    8d55cc8e-b956-4dcd-b4ca-dcc1a79250a0: 'Blog Author' # Blog Author
+    08d717c8-3d2d-47c4-ba90-69e091596fa4: 'Button Text' # Button Text
+    8f34b7f7-ccaf-4579-9b50-ed681ffe57ac: Blog # Blog
+    9c48c40c-7781-4102-8c49-77262f9eba8b: SEO # SEO
+    17f9e1f5-416a-48ca-9484-4d7bbc54200c: 'Public Schema' # Public Schema
+    37c534b6-8e13-441e-b1e9-4de8195b8788: 'Hero Image' # Hero Image
+    53caff22-2ce8-4149-83e4-74b104ad4bb6: Module # Module
+    54ae8317-e2b6-4c7c-b7d3-c765bc0e7c85: 'Button Text' # Button Text
+    56a95cbd-1d8d-4679-ac91-678bb423b185: Calendar # Calendar
+    88c93d62-7146-47c4-a618-5c6373e86208: Header # Header
+    143ac896-62d4-474a-ab2a-bb7870bd969d: 'Podcast Embed Code' # Podcast Embed Code
+    242c4e4f-4798-46c6-b29c-ff1ac8b5b384: 'Recent Blog Posts' # Recent Blog Posts
+    381dbae5-0024-4c00-ba0e-51741a6d13df: Header # Header
+    435b0ef2-0c42-40bf-9055-6769daac4110: Header # Header
+    522a1e20-eb23-49b6-b0d7-dd291bbc87fc: Z-Pattern # Z-Pattern
+    544c41d1-f6a8-4c2d-a2b5-56137457a82b: 'Banner Image' # Banner Image
+    614c340c-eea8-4963-ad35-29a6fb50b2d1: Blog # Blog
+    734bf298-c9d9-4385-becf-5cea3b2c1e5b: 'Button Url' # Button Url
+    744e90e2-2c61-4e03-9f9e-a94488c44bfa: 'Map Embed Code' # Map Embed Code
+    745a5de4-1b18-4678-b6fe-662aa91dab77: 'Generic Page' # Generic Page
+    781c6289-28be-46d4-b6e9-9b02f9ea8956: 'Blog Categories' # Blog Categories
+    819ec044-c73c-410f-9e7d-e70c96293cc5: 'Contact Form' # Contact Form
+    924e2a33-7a89-4e1a-b5d5-99b142c10e0b: 'QC Family Tree' # QC Family Tree
+    957e8546-4a46-44b6-ac7f-8fe37cea2673: Blog # Blog
+    984e5618-3661-46df-90d3-ad35d7398245: 'Hero Header' # Hero Header
+    2668fd76-d41d-4a30-8b94-31a5bb181027: Social # Social
+    4682f4b1-e94a-4694-ad6f-5dd0f7fcd8c8: 'Button Entry' # Button Entry
+    6290fb4a-532f-47d9-8c7b-d38c5baff567: 'SEO Title' # SEO Title
+    7861dd6b-590b-4cab-be23-a9cbd1384e2b: Text # Text
+    8184e37a-1c7b-485d-bd11-7b40a22421e0: Video # Video
+    57245f8c-0dca-4332-b54d-7ca9b2f0bd20: PDFs # PDFs
+    62005acc-3859-4702-9877-32d4c6427e08: 'QC Family Tree' # QC Family Tree
+    85567d8f-264b-4316-8798-e3d8cd7d23ee: Z-Pattern # Z-Pattern
+    160141ae-e779-4662-b8c7-f02363f1c55d: 'Blog Header' # Blog Header
+    07001914-40cd-4d7f-a811-71ea9633d0a1: 'Number of Posts' # Number of Posts
+    66930516-69a8-44e4-83bf-44a092f8b604: 'Contact Form To Email Address' # Contact Form To Email Address
+    92281620-f193-4639-9703-1f3a148692e5: 'Blog Intro' # Blog Intro
+    a0668e76-464c-4f3a-a60e-c75a6c3f3ede: 'Hero Subtitle' # Hero Subtitle
+    a627f3be-ac3a-4f1e-92e2-8c0efc307e0b: Header # Header
+    acfdf49e-258b-419c-a1eb-066cc06f6e28: 'Twitter Url' # Twitter Url
+    ad70e420-b63d-48b6-98a8-053806147750: Social # Social
+    aea1eb4c-9c1e-47cf-b001-869cb75aba85: Text # Text
+    b0b39e63-4520-41e1-bd0c-899e7d39aea5: 'Embed Code' # Embed Code
+    b403fbdb-81cb-4b47-9c0a-aac7e4d219ee: Image # Image
+    ba9fdd62-9aa2-4539-8405-0b55f3d54457: Pages # Pages
+    c3bbe8b3-89e6-4466-a592-d8478141c65c: 'Blog Text' # Blog Text
+    cb0e3dab-78d4-405b-8132-5bef8b778f77: Icon # Icon
+    d1e57679-2bcb-4952-b8b0-4a51006cc8f9: 'Canonical Url' # Canonical Url
+    d56c0a92-9493-4c8d-b403-9d20aad3c6be: 'Rich Text' # Rich Text
+    dd369345-e0fd-48a8-a9ec-aaa6d7c5d8ba: 'Show Tree' # Show Tree
+    dfb05c32-10bd-4f04-99e3-775e23080203: 'Site Images' # Site Images
+    eb0a6fec-b9b8-4e15-9c77-bb8dbc681659: Blog # Blog
+    ed2c2b92-2b93-482e-ac8c-9bd75169ed85: 'Blog Thumbnail' # Blog Thumbnail
+    efd9bc94-0820-4f63-9c40-86fed6ff0329: 'Google Map' # Google Map
+    f7fd0309-f150-4c01-8a40-40dbac72f0d0: Image # Image
+    f9ad1539-d926-48ac-a5ed-49d281d531ed: 'Rich Text' # Rich Text
+    f9af1c10-e265-4c99-b094-1dc833efec86: 'Facebook Url' # Facebook Url
+    f3370fbf-b260-4da1-89c5-24b1012e38df: Homepage # Homepage
+    fbe8468b-6038-4ceb-8c99-10c9c32fd884: 'SEO Description' # SEO Description
+    fdd3aa13-c571-4651-bc35-5afa75252401: Hero # Hero
 plugins:
-  comments:
-    enabled: true
-    licenseKey: U811NSF5PKID01Y0UKRDM4E6
-    settings:
-      allowAnonymous: null
-      allowAnonymousFlagging: null
-      allowAnonymousVoting: null
-      allowFlagging: true
-      allowGuest: false
-      allowGuestFlagging: false
-      allowGuestVoting: false
-      allowVoting: true
-      autoCloseDays: ''
-      closed: null
-      defaultQueryStatus:
-        - approved
-      downvoteCommentLimit: 5
-      enableGravatar: false
-      enableSpamChecks: true
-      flaggedCommentLimit: 5
-      guestNotice: ''
-      guestRequireEmailName: true
-      guestShowEmailName: true
-      hideVotingForThreshold: false
-      indexSidebarGroup: true
-      indexSidebarIndividualElements: false
-      indexSidebarLimit: 25
-      maxReplyDepth: null
-      maxUserComments: null
-      moderatorUserGroup: null
-      notificationAdminEnabled: false
-      notificationAuthorEnabled: true
-      notificationFlaggedEnabled: false
-      notificationModeratorApprovedEnabled: false
-      notificationModeratorEnabled: false
-      notificationReplyEnabled: true
-      notificationSubscribeAuto: false
-      notificationSubscribeCommentEnabled: false
-      notificationSubscribeDefault: true
-      notificationSubscribeEnabled: false
-      outputDefaultCss: true
-      outputDefaultJs: true
-      permissions: null
-      placeholderAvatar: null
-      recaptchaEnabled: false
-      recaptchaKey: null
-      recaptchaSecret: null
-      requireModeration: true
-      securityBanned: null
-      securityFlooding: null
-      securityMatchExact: false
-      securityMaxLength: null
-      securityModeration: null
-      securitySpamlist: null
-      showAvatar: true
-      showCustomFieldInstructions: false
-      showCustomFieldNames: false
-      showTimeAgo: true
-      structureUid: 6444bc69-6815-4afe-8223-3600c7713208
-      templateEmail: null
-      templateFolderOverride: null
-      users: null
-  mobile-detect:
-    edition: standard
-    enabled: true
-    schemaVersion: 1.0.0
   redactor:
-    edition: standard
-    enabled: true
+    enabled: '1'
+    licenseKey: null
     schemaVersion: 2.3.0
+    settings: null
+  sitemap:
+    enabled: '1'
+    licenseKey: null
+    schemaVersion: 1.0.2
+    settings: null
 system:
-  edition: pro
+  edition: solo
   live: true
-  name: 'Exit 85'
-  retryDuration: null
-  schemaVersion: 3.6.8
+  name: 'QC Family Tree'
+  schemaVersion: 3.7.33
   timeZone: America/New_York
+users:
+  allowPublicRegistration: false
+  defaultGroup: null
+  photoSubpath: null
+  photoVolumeUid: null
+  requireEmailVerification: true

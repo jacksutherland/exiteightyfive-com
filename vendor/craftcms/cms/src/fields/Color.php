@@ -54,7 +54,7 @@ class Color extends Field implements PreviewableFieldInterface
         return Schema::TYPE_STRING . '(7)';
     }
 
-    /* @inheritdoc */
+    /** @inheritdoc */
     public function getSettingsHtml()
     {
         return Cp::colorFieldHtml([
@@ -123,11 +123,10 @@ class Color extends Field implements PreviewableFieldInterface
      */
     protected function inputHtml($value, ElementInterface $element = null): string
     {
-        /* @var ColorData|null $value */
-        $id = Html::id($this->handle);
+        /** @var ColorData|null $value */
         return Craft::$app->getView()->renderTemplate('_includes/forms/color', [
-            'id' => $id,
-            'instructionsId' => "$id-instructions",
+            'id' => $this->getInputId(),
+            'describedBy' => $this->describedBy,
             'name' => $this->handle,
             'value' => $value ? $value->getHex() : null,
         ]);
@@ -138,7 +137,7 @@ class Color extends Field implements PreviewableFieldInterface
      */
     public function getStaticHtml($value, ElementInterface $element): string
     {
-        /* @var ColorData|null $value */
+        /** @var ColorData|null $value */
         if (!$value) {
             return '';
         }
@@ -155,7 +154,7 @@ class Color extends Field implements PreviewableFieldInterface
      */
     public function getTableAttributeHtml($value, ElementInterface $element): string
     {
-        /* @var ColorData|null $value */
+        /** @var ColorData|null $value */
         if (!$value) {
             return '<div class="color small static"><div class="color-preview"></div></div>';
         }

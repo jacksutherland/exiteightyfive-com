@@ -15,6 +15,7 @@ namespace Composer\Command;
 use Composer\Script\Event as ScriptEvent;
 use Composer\Script\ScriptEvents;
 use Composer\Util\ProcessExecutor;
+use Composer\Util\Platform;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Input\InputArgument;
@@ -26,7 +27,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 class RunScriptCommand extends BaseCommand
 {
     /**
-     * @var array Array with command events
+     * @var string[] Array with command events
      */
     protected $scriptEvents = array(
         ScriptEvents::PRE_INSTALL_CMD,
@@ -43,6 +44,9 @@ class RunScriptCommand extends BaseCommand
         ScriptEvents::POST_AUTOLOAD_DUMP,
     );
 
+    /**
+     * @return void
+     */
     protected function configure()
     {
         $this
@@ -103,9 +107,14 @@ EOT
             ProcessExecutor::setTimeout((int) $timeout);
         }
 
+        Platform::putEnv('COMPOSER_DEV_MODE', $devMode ? '1' : '0');
+
         return $composer->getEventDispatcher()->dispatchScript($script, $devMode, $args);
     }
 
+    /**
+     * @return int
+     */
     protected function listScripts(OutputInterface $output)
     {
         $scripts = $this->getComposer()->getPackage()->getScripts();

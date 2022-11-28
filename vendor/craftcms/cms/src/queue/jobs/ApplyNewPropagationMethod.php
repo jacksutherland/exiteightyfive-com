@@ -17,6 +17,7 @@ use craft\helpers\Db;
 use craft\helpers\ElementHelper;
 use craft\queue\BaseJob;
 use craft\services\Elements;
+use craft\services\Structures;
 
 /**
  * ApplyNewPropagationMethod loads all elements that match a given criteria,
@@ -44,12 +45,15 @@ class ApplyNewPropagationMethod extends BaseJob
      */
     public function execute($queue)
     {
-        /* @var string|ElementInterface $elementType */
+        /** @var string|ElementInterface $elementType */
         $elementType = $this->elementType;
         $query = $elementType::find()
-            ->siteId('*')
+            ->site('*')
+            ->preferSites([Craft::$app->getSites()->getPrimarySite()->id])
             ->unique()
-            ->anyStatus();
+            ->anyStatus()
+            ->drafts(null)
+            ->provisionalDrafts(null);
 
         if (!empty($this->criteria)) {
             Craft::configure($query, $this->criteria);
@@ -57,9 +61,21 @@ class ApplyNewPropagationMethod extends BaseJob
 
         $total = $query->count();
         $elementsService = Craft::$app->getElements();
+        $structuresService = Craft::$app->getStructures();
         $allSiteIds = Craft::$app->getSites()->getAllSiteIds();
 
-        $callback = function(BatchElementActionEvent $e) use ($elementType, $queue, $query, $total, $elementsService, $allSiteIds) {
+        $duplicatedElementIds = [];
+
+        $callback = function(BatchElementActionEvent $e) use (
+            $elementType,
+            $queue,
+            $query,
+            $total,
+            $elementsService,
+            $structuresService,
+            $allSiteIds,
+            &$duplicatedElementIds
+        ) {
             if ($e->query === $query) {
                 $this->setProgress($queue, ($e->position - 1) / $total, Craft::t('app', '{step, number} of {total, number}', [
                     'step' => $e->position,
@@ -83,24 +99,28 @@ class ApplyNewPropagationMethod extends BaseJob
                     ->siteId($otherSiteIds)
                     ->structureId($element->structureId)
                     ->anyStatus()
+                    ->drafts(null)
+                    ->provisionalDrafts(null)
                     ->orderBy(null)
                     ->indexBy('siteId')
                     ->all();
 
-                if (!empty($otherSiteElements)) {
-                    // Remove their URIs so the duplicated elements can retain them w/out needing to increment them
-                    Db::update(Table::ELEMENTS_SITES, [
-                        'uri' => null,
-                    ], [
-                        'id' => ArrayHelper::getColumn($otherSiteElements, 'siteSettingsId'),
-                    ], [], false);
+                if (empty($otherSiteElements)) {
+                    return;
                 }
 
-                // Duplicate those blocks so their content can live on
+                // Remove their URIs so the duplicated elements can retain them w/out needing to increment them
+                Db::update(Table::ELEMENTS_SITES, [
+                    'uri' => null,
+                ], [
+                    'id' => ArrayHelper::getColumn($otherSiteElements, 'siteSettingsId'),
+                ], [], false);
+
+                // Duplicate those elements so their content can live on
                 while (!empty($otherSiteElements)) {
                     $otherSiteElement = array_pop($otherSiteElements);
                     try {
-                        $newElement = $elementsService->duplicateElement($otherSiteElement);
+                        $newElement = $elementsService->duplicateElement($otherSiteElement, [], false);
                     } catch (UnsupportedSiteException $e) {
                         // Just log it and move along
                         Craft::warning("Unable to duplicate “{$otherSiteElement}” to site $otherSiteElement->siteId: " . $e->getMessage());
@@ -108,10 +128,48 @@ class ApplyNewPropagationMethod extends BaseJob
                         continue;
                     }
 
+                    // Should we add the clone to the source element's structure?
+                    if (
+                        $element->structureId &&
+                        $element->root &&
+                        !$newElement->root &&
+                        $newElement->structureId == $element->structureId
+                    ) {
+                        // If this is a root level element, insert the duplicate after the source
+                        if ($element->level == 1) {
+                            $structuresService->moveAfter($element->structureId, $newElement, $element, Structures::MODE_INSERT);
+                        } else {
+                            // Append the clone to the source's parent
+                            $parentId = $elementType::find()
+                                ->ancestorOf($element->id)
+                                ->ancestorDist(1)
+                                ->select(['elements.id'])
+                                ->site('*')
+                                ->unique()
+                                ->anyStatus()
+                                ->drafts(null)
+                                ->provisionalDrafts(null)
+                                ->scalar();
+
+                            if ($parentId !== false) {
+                                // If we've cloned the parent, use the clone's ID instead
+                                if (isset($duplicatedElementIds[$parentId][$newElement->siteId])) {
+                                    $parentId = $duplicatedElementIds[$parentId][$newElement->siteId];
+                                }
+
+                                $structuresService->append($element->structureId, $newElement, $parentId, Structures::MODE_INSERT);
+                            } else {
+                                // Just append it to the root
+                                $structuresService->appendToRoot($element->structureId, $newElement, Structures::MODE_INSERT);
+                            }
+                        }
+                    }
+
                     // This may support more than just the site it was saved in
                     $newElementSiteIds = ArrayHelper::getColumn(ElementHelper::supportedSitesForElement($newElement), 'siteId');
-                    foreach ($newElementSiteIds as $newBlockSiteId) {
-                        unset($otherSiteElements[$newBlockSiteId]);
+                    foreach ($newElementSiteIds as $newElementSiteId) {
+                        unset($otherSiteElements[$newElementSiteId]);
+                        $duplicatedElementIds[$element->id][$newElementSiteId] = $newElement->id;
                     }
                 }
             }

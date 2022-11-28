@@ -23,13 +23,13 @@ class CompositeRepository implements RepositoryInterface
 {
     /**
      * List of repositories
-     * @var array
+     * @var RepositoryInterface[]
      */
     private $repositories;
 
     /**
      * Constructor
-     * @param array $repositories
+     * @param RepositoryInterface[] $repositories
      */
     public function __construct(array $repositories)
     {
@@ -49,7 +49,7 @@ class CompositeRepository implements RepositoryInterface
     /**
      * Returns all the wrapped repositories
      *
-     * @return array
+     * @return RepositoryInterface[]
      */
     public function getRepositories()
     {
@@ -57,7 +57,7 @@ class CompositeRepository implements RepositoryInterface
     }
 
     /**
-     * {@inheritdoc}
+     * @inheritDoc
      */
     public function hasPackage(PackageInterface $package)
     {
@@ -72,7 +72,7 @@ class CompositeRepository implements RepositoryInterface
     }
 
     /**
-     * {@inheritdoc}
+     * @inheritDoc
      */
     public function findPackage($name, $constraint)
     {
@@ -88,7 +88,7 @@ class CompositeRepository implements RepositoryInterface
     }
 
     /**
-     * {@inheritdoc}
+     * @inheritDoc
      */
     public function findPackages($name, $constraint = null)
     {
@@ -102,7 +102,7 @@ class CompositeRepository implements RepositoryInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function loadPackages(array $packageMap, array $acceptableStabilities, array $stabilityFlags, array $alreadyLoaded = array())
     {
@@ -122,7 +122,7 @@ class CompositeRepository implements RepositoryInterface
     }
 
     /**
-     * {@inheritdoc}
+     * @inheritDoc
      */
     public function search($query, $mode = 0, $type = null)
     {
@@ -136,7 +136,7 @@ class CompositeRepository implements RepositoryInterface
     }
 
     /**
-     * {@inheritdoc}
+     * @inheritDoc
      */
     public function getPackages()
     {
@@ -150,7 +150,7 @@ class CompositeRepository implements RepositoryInterface
     }
 
     /**
-     * {@inheritdoc}
+     * @inheritDoc
      */
     public function getProviders($packageName)
     {
@@ -164,19 +164,21 @@ class CompositeRepository implements RepositoryInterface
     }
 
     /**
-     * {@inheritdoc}
+     * @return void
      */
     public function removePackage(PackageInterface $package)
     {
         foreach ($this->repositories as $repository) {
-            /* @var $repository RepositoryInterface */
-            $repository->removePackage($package);
+            if ($repository instanceof WritableRepositoryInterface) {
+                $repository->removePackage($package);
+            }
         }
     }
 
     /**
-     * {@inheritdoc}
+     * @inheritDoc
      */
+    #[\ReturnTypeWillChange]
     public function count()
     {
         $total = 0;
@@ -191,6 +193,8 @@ class CompositeRepository implements RepositoryInterface
     /**
      * Add a repository.
      * @param RepositoryInterface $repository
+     *
+     * @return void
      */
     public function addRepository(RepositoryInterface $repository)
     {

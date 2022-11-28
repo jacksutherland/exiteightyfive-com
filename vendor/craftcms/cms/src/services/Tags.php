@@ -13,7 +13,6 @@ use craft\db\Table;
 use craft\elements\Tag;
 use craft\errors\TagGroupNotFoundException;
 use craft\events\ConfigEvent;
-use craft\events\FieldEvent;
 use craft\events\TagGroupEvent;
 use craft\helpers\ArrayHelper;
 use craft\helpers\Db;
@@ -26,7 +25,8 @@ use yii\base\Component;
 
 /**
  * Tags service.
- * An instance of the Tags service is globally accessible in Craft via [[\craft\base\ApplicationTrait::getTags()|`Craft::$app->tags`]].
+ *
+ * An instance of the service is available via [[\craft\base\ApplicationTrait::getTags()|`Craft::$app->tags`]].
  *
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
@@ -62,7 +62,7 @@ class Tags extends Component
     const CONFIG_TAGGROUP_KEY = 'tagGroups';
 
     /**
-     * @var MemoizableArray|null
+     * @var MemoizableArray<TagGroup>|null
      * @see _tagGroups()
      */
     private $_tagGroups;
@@ -95,7 +95,7 @@ class Tags extends Component
     /**
      * Returns a memoizable array of all tag groups.
      *
-     * @return MemoizableArray
+     * @return MemoizableArray<TagGroup>
      */
     private function _tagGroups(): MemoizableArray
     {
@@ -203,7 +203,7 @@ class Tags extends Component
 
         if ($isNewTagGroup) {
             $tagGroup->uid = StringHelper::UUID();
-        } else if (!$tagGroup->uid) {
+        } elseif (!$tagGroup->uid) {
             $tagGroup->uid = Db::uidById(Table::TAGGROUPS, $tagGroup->id);
         }
 
@@ -246,9 +246,9 @@ class Tags extends Component
                 $layout->id = $tagGroupRecord->fieldLayoutId;
                 $layout->type = Tag::class;
                 $layout->uid = key($data['fieldLayouts']);
-                Craft::$app->getFields()->saveLayout($layout);
+                Craft::$app->getFields()->saveLayout($layout, false);
                 $tagGroupRecord->fieldLayoutId = $layout->id;
-            } else if ($tagGroupRecord->fieldLayoutId) {
+            } elseif ($tagGroupRecord->fieldLayoutId) {
                 // Delete the field layout
                 Craft::$app->getFields()->deleteLayoutById($tagGroupRecord->fieldLayoutId);
                 $tagGroupRecord->fieldLayoutId = null;
@@ -353,7 +353,7 @@ class Tags extends Component
             return;
         }
 
-        /* @var TagGroup $tagGroup */
+        /** @var TagGroup $tagGroup */
         $tagGroup = $this->getTagGroupById($tagGroupRecord->id);
 
         // Fire a 'beforeApplyGroupDelete' event
@@ -408,43 +408,10 @@ class Tags extends Component
     }
 
     /**
-     * Prune a deleted field from tag group layouts.
-     *
-     * @param FieldEvent $event
+     * @deprecated in 3.7.51. Unused fields will be pruned automatically as field layouts are resaved.
      */
-    public function pruneDeletedField(FieldEvent $event)
+    public function pruneDeletedField()
     {
-        $field = $event->field;
-        $fieldUid = $field->uid;
-
-        $projectConfig = Craft::$app->getProjectConfig();
-        $tagGroups = $projectConfig->get(self::CONFIG_TAGGROUP_KEY);
-
-        // Engage stealth mode
-        $projectConfig->muteEvents = true;
-
-        // Loop through the tag groups and prune the UID from field layouts.
-        if (is_array($tagGroups)) {
-            foreach ($tagGroups as $tagGroupUid => $tagGroup) {
-                if (!empty($tagGroup['fieldLayouts'])) {
-                    foreach ($tagGroup['fieldLayouts'] as $layoutUid => $layout) {
-                        if (!empty($layout['tabs'])) {
-                            foreach ($layout['tabs'] as $tabUid => $tab) {
-                                $projectConfig->remove(self::CONFIG_TAGGROUP_KEY . '.' . $tagGroupUid . '.fieldLayouts.' . $layoutUid . '.tabs.' . $tabUid . '.fields.' . $fieldUid, 'Prune deleted field');
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Nuke all the layout fields from the DB
-        Db::delete(Table::FIELDLAYOUTFIELDS, [
-            'fieldId' => $field->id,
-        ]);
-
-        // Allow events again
-        $projectConfig->muteEvents = false;
     }
 
     // Tags
@@ -459,7 +426,7 @@ class Tags extends Component
      */
     public function getTagById(int $tagId, int $siteId = null)
     {
-        /* @noinspection PhpIncompatibleReturnTypeInspection */
+        /** @noinspection PhpIncompatibleReturnTypeInspection */
         return Craft::$app->getElements()->getElementById($tagId, Tag::class, $siteId);
     }
 

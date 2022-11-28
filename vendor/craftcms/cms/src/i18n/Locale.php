@@ -225,7 +225,13 @@ class Locale extends BaseObject
     /**
      * @var array The languages that use RTL orientation.
      */
-    private static $_rtlLanguages = ['ar', 'he', 'ur', 'fa'];
+    private static $_rtlLanguages = [
+        'ar',
+        'fa',
+        'he',
+        'ps',
+        'ur',
+    ];
 
     /**
      * @var string|null The locale ID.
@@ -233,7 +239,7 @@ class Locale extends BaseObject
     public $id;
 
     /**
-     * @var array|null The configured locale data, used if the [PHP intl extension](http://php.net/manual/en/book.intl.php) isn’t loaded.
+     * @var array|null The configured locale data, used if the [PHP intl extension](https://php.net/manual/en/book.intl.php) isn’t loaded.
      */
     private $_data;
 
@@ -952,19 +958,19 @@ class Locale extends BaseObject
             // Convert length to IntlDateFormatter constants
             switch ($length) {
                 case self::LENGTH_FULL:
-                    /* @noinspection CallableParameterUseCaseInTypeContextInspection */
+                    /** @noinspection CallableParameterUseCaseInTypeContextInspection */
                     $length = IntlDateFormatter::FULL;
                     break;
                 case self::LENGTH_LONG:
-                    /* @noinspection CallableParameterUseCaseInTypeContextInspection */
+                    /** @noinspection CallableParameterUseCaseInTypeContextInspection */
                     $length = IntlDateFormatter::LONG;
                     break;
                 case self::LENGTH_MEDIUM:
-                    /* @noinspection CallableParameterUseCaseInTypeContextInspection */
+                    /** @noinspection CallableParameterUseCaseInTypeContextInspection */
                     $length = IntlDateFormatter::MEDIUM;
                     break;
                 case self::LENGTH_SHORT:
-                    /* @noinspection CallableParameterUseCaseInTypeContextInspection */
+                    /** @noinspection CallableParameterUseCaseInTypeContextInspection */
                     $length = IntlDateFormatter::SHORT;
                     break;
                 default:

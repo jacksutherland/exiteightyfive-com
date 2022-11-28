@@ -8,7 +8,6 @@
 namespace craft\redactor\events;
 
 use craft\redactor\Field;
-use HTMLPurifier_Config;
 use yii\base\Event;
 
 /**
@@ -19,9 +18,6 @@ use yii\base\Event;
  */
 class ModifyRedactorConfigEvent extends Event
 {
-    // Properties
-    // =========================================================================
-
     /**
      * @var array $config The loaded redactor config
      */

@@ -1,7 +1,7 @@
 {% extends "_layouts/element" %}
 {% import "_includes/forms" as forms %}
 
-{% set redirectUrl = "assets/#{volume.handle}" %}
+{% set redirectUrl = (crumbs|last).url %}
 {% set canUpdateSource = canEdit %}
 {% set saveSourceAction = 'assets/save-asset' %}
 {% set deleteSourceAction = 'assets/delete-asset' %}
@@ -75,8 +75,6 @@
         </div>
     {% endif %}
 
-    {{ parent() }}
-
     {% set uploader = element.getUploader() %}
     {% if uploader %}
         <div class="data">
@@ -87,7 +85,7 @@
                 } %}
             </div>
             {% js %}
-                new Craft.ElementThumbLoader().load($('#uploader-element'));
+            new Craft.ElementThumbLoader().load($('#uploader-element'));
             {% endjs %}
         </div>
     {% endif %}
@@ -99,13 +97,14 @@
         </div>
     {% endif %}
 
+    {{ parent() }}
     {# Give plugins a chance to add other things here #}
     {% hook "cp.assets.edit.meta" %}
 {% endblock %}
 
 {% js on ready %}
     var assetId = {{ element.id|json_encode|raw }};
-    var $previewThumbContainer = $('#preview-thumb-container');
+    var $previewThumbContainer = $('#details .preview-thumb-container');
 
     function updatePreviewThumb() {
         $previewThumbContainer.addClass('loading');
@@ -153,6 +152,7 @@
             events: {
                 fileuploadstart: function() {
                     $previewThumbContainer.addClass('loading');
+                    console.log('okay');
                 },
                 fileuploaddone: function(event, data) {
                     if (data.result.error) {

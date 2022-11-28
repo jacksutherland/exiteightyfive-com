@@ -38,7 +38,7 @@ abstract class VcsDownloader implements DownloaderInterface, ChangeReportInterfa
     protected $process;
     /** @var Filesystem */
     protected $filesystem;
-    /** @var array */
+    /** @var array<string, true> */
     protected $hasCleanedChanges = array();
 
     public function __construct(IOInterface $io, Config $config, ProcessExecutor $process = null, Filesystem $fs = null)
@@ -50,7 +50,7 @@ abstract class VcsDownloader implements DownloaderInterface, ChangeReportInterfa
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function getInstallationSource()
     {
@@ -58,7 +58,7 @@ abstract class VcsDownloader implements DownloaderInterface, ChangeReportInterfa
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function download(PackageInterface $package, $path, PackageInterface $prevPackage = null)
     {
@@ -86,10 +86,12 @@ abstract class VcsDownloader implements DownloaderInterface, ChangeReportInterfa
                 }
             }
         }
+
+        return \React\Promise\resolve();
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function prepare($type, PackageInterface $package, $path, PackageInterface $prevPackage = null)
     {
@@ -101,10 +103,12 @@ abstract class VcsDownloader implements DownloaderInterface, ChangeReportInterfa
         } elseif ($type === 'uninstall') {
             $this->cleanChanges($package, $path, false);
         }
+
+        return \React\Promise\resolve();
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function cleanup($type, PackageInterface $package, $path, PackageInterface $prevPackage = null)
     {
@@ -112,10 +116,12 @@ abstract class VcsDownloader implements DownloaderInterface, ChangeReportInterfa
             $this->reapplyChanges($path);
             unset($this->hasCleanedChanges[$prevPackage->getUniqueName()]);
         }
+
+        return \React\Promise\resolve();
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function install(PackageInterface $package, $path)
     {
@@ -145,10 +151,12 @@ abstract class VcsDownloader implements DownloaderInterface, ChangeReportInterfa
                 }
             }
         }
+
+        return \React\Promise\resolve();
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function update(PackageInterface $initial, PackageInterface $target, $path)
     {
@@ -207,21 +215,28 @@ abstract class VcsDownloader implements DownloaderInterface, ChangeReportInterfa
         if (!$urls && $exception) {
             throw $exception;
         }
+
+        return \React\Promise\resolve();
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function remove(PackageInterface $package, $path)
     {
         $this->io->writeError("  - " . UninstallOperation::format($package));
-        if (!$this->filesystem->removeDirectory($path)) {
-            throw new \RuntimeException('Could not completely delete '.$path.', aborting.');
-        }
+
+        $promise = $this->filesystem->removeDirectoryAsync($path);
+
+        return $promise->then(function ($result) use ($path) {
+            if (!$result) {
+                throw new \RuntimeException('Could not completely delete '.$path.', aborting.');
+            }
+        });
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function getVcsReference(PackageInterface $package, $path)
     {
@@ -233,6 +248,8 @@ abstract class VcsDownloader implements DownloaderInterface, ChangeReportInterfa
         if ($packageVersion = $guesser->guessVersion($packageConfig, $path)) {
             return $packageVersion['commit'];
         }
+
+        return null;
     }
 
     /**
@@ -242,6 +259,9 @@ abstract class VcsDownloader implements DownloaderInterface, ChangeReportInterfa
      * @param  string            $path
      * @param  bool              $update  if true (update) the changes can be stashed and reapplied after an update,
      *                                    if false (remove) the changes should be assumed to be lost if the operation is not aborted
+     *
+     * @return PromiseInterface
+     *
      * @throws \RuntimeException in case the operation must be aborted
      */
     protected function cleanChanges(PackageInterface $package, $path, $update)
@@ -250,12 +270,17 @@ abstract class VcsDownloader implements DownloaderInterface, ChangeReportInterfa
         if (null !== $this->getLocalChanges($package, $path)) {
             throw new \RuntimeException('Source directory ' . $path . ' has uncommitted changes.');
         }
+
+        return \React\Promise\resolve();
     }
 
     /**
      * Reapply previously stashes changes if applicable, only called after an update (regardless if successful or not)
      *
-     * @param  string            $path
+     * @param string $path
+     *
+     * @return void
+     *
      * @throws \RuntimeException in case the operation must be aborted or the patch does not apply cleanly
      */
     protected function reapplyChanges($path)
@@ -316,6 +341,11 @@ abstract class VcsDownloader implements DownloaderInterface, ChangeReportInterfa
      */
     abstract protected function hasMetadataRepository($path);
 
+    /**
+     * @param string[] $urls
+     *
+     * @return string[]
+     */
     private function prepareUrls(array $urls)
     {
         foreach ($urls as $index => $url) {

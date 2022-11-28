@@ -14,6 +14,7 @@ namespace Composer\Command;
 
 use Composer\Package\Link;
 use Composer\Package\PackageInterface;
+use Composer\Package\CompletePackageInterface;
 use Composer\Package\RootPackage;
 use Composer\Repository\InstalledArrayRepository;
 use Composer\Repository\CompositeRepository;
@@ -25,9 +26,7 @@ use Composer\Plugin\CommandEvent;
 use Composer\Plugin\PluginEvents;
 use Symfony\Component\Console\Formatter\OutputFormatterStyle;
 use Composer\Package\Version\VersionParser;
-use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 /**
@@ -38,30 +37,16 @@ use Symfony\Component\Console\Output\OutputInterface;
 class BaseDependencyCommand extends BaseCommand
 {
     const ARGUMENT_PACKAGE = 'package';
-    const ARGUMENT_CONSTRAINT = 'constraint';
+    const ARGUMENT_CONSTRAINT = 'version';
     const OPTION_RECURSIVE = 'recursive';
     const OPTION_TREE = 'tree';
 
+    /** @var ?string[] */
     protected $colors;
-
-    /**
-     * Set common options and arguments.
-     */
-    protected function configure()
-    {
-        $this->setDefinition(array(
-            new InputArgument(self::ARGUMENT_PACKAGE, InputArgument::REQUIRED, 'Package to inspect'),
-            new InputArgument(self::ARGUMENT_CONSTRAINT, InputArgument::OPTIONAL, 'Optional version constraint', '*'),
-            new InputOption(self::OPTION_RECURSIVE, 'r', InputOption::VALUE_NONE, 'Recursively resolves up to the root package'),
-            new InputOption(self::OPTION_TREE, 't', InputOption::VALUE_NONE, 'Prints the results as a nested tree'),
-        ));
-    }
 
     /**
      * Execute the command.
      *
-     * @param  InputInterface  $input
-     * @param  OutputInterface $output
      * @param  bool            $inverted Whether to invert matching process (why-not vs why behaviour)
      * @return int             Exit code of the operation.
      */
@@ -83,7 +68,7 @@ class BaseDependencyCommand extends BaseCommand
         list($needle, $textConstraint) = array_pad(
             explode(':', $input->getArgument(self::ARGUMENT_PACKAGE)),
             2,
-            $input->getArgument(self::ARGUMENT_CONSTRAINT)
+            $input->hasArgument(self::ARGUMENT_CONSTRAINT) ? $input->getArgument(self::ARGUMENT_CONSTRAINT) : '*'
         );
 
         // Find packages that are or provide the requested package first
@@ -135,7 +120,7 @@ class BaseDependencyCommand extends BaseCommand
         } elseif ($renderTree) {
             $this->initStyles($output);
             $root = $packages[0];
-            $this->getIO()->write(sprintf('<info>%s</info> %s %s', $root->getPrettyName(), $root->getPrettyVersion(), $root->getDescription()));
+            $this->getIO()->write(sprintf('<info>%s</info> %s %s', $root->getPrettyName(), $root->getPrettyVersion(), $root instanceof CompletePackageInterface ? $root->getDescription() : ''));
             $this->printTree($results);
         } else {
             $this->printTable($output, $results);
@@ -147,8 +132,9 @@ class BaseDependencyCommand extends BaseCommand
     /**
      * Assembles and prints a bottom-up table of the dependencies.
      *
-     * @param OutputInterface $output
-     * @param array           $results
+     * @param array{PackageInterface, Link, mixed}[] $results
+     *
+     * @return void
      */
     protected function printTable(OutputInterface $output, $results)
     {
@@ -184,7 +170,7 @@ class BaseDependencyCommand extends BaseCommand
     /**
      * Init styles for tree
      *
-     * @param OutputInterface $output
+     * @return void
      */
     protected function initStyles(OutputInterface $output)
     {
@@ -205,20 +191,17 @@ class BaseDependencyCommand extends BaseCommand
     /**
      * Recursively prints a tree of the selected results.
      *
-     * @param array  $results Results to be printed at this level.
-     * @param string $prefix  Prefix of the current tree level.
-     * @param int    $level   Current level of recursion.
+     * @param array{PackageInterface, Link, mixed[]|bool}[] $results Results to be printed at this level.
+     * @param string  $prefix  Prefix of the current tree level.
+     * @param int     $level   Current level of recursion.
+     *
+     * @return void
      */
     protected function printTree($results, $prefix = '', $level = 1)
     {
         $count = count($results);
         $idx = 0;
         foreach ($results as $result) {
-            /**
-             * @var PackageInterface $package
-             * @var Link             $link
-             * @var array|bool       $children
-             */
             list($package, $link, $children) = $result;
 
             $color = $this->colors[$level % count($this->colors)];
@@ -235,6 +218,11 @@ class BaseDependencyCommand extends BaseCommand
         }
     }
 
+    /**
+     * @param string $line
+     *
+     * @return void
+     */
     private function writeTreeLine($line)
     {
         $io = $this->getIO();

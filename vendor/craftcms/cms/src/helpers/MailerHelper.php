@@ -80,7 +80,7 @@ class MailerHelper
      */
     public static function createTransportAdapter(string $type, ?array $settings = null): TransportAdapterInterface
     {
-        /* @var BaseTransportAdapter $adapter */
+        /** @var BaseTransportAdapter $adapter */
         $adapter = Component::createComponent([
             'type' => $type,
             'settings' => $settings,
@@ -128,7 +128,7 @@ class MailerHelper
                 } else {
                     $normalized[] = $value->email;
                 }
-            } else if (is_numeric($key)) {
+            } elseif (is_numeric($key)) {
                 $normalized[] = $value;
             } else {
                 $normalized[$key] = $value;
@@ -161,7 +161,7 @@ class MailerHelper
 
         // Use the transport adapter settings if it was sent
         if ($transportAdapter !== null) {
-            /* @var BaseTransportAdapter $transportAdapter */
+            /** @var BaseTransportAdapter $transportAdapter */
             foreach ($transportAdapter->settingsAttributes() as $name) {
                 $transportSettings[$transportAdapter->getAttributeLabel($name)] = $transportAdapter->$name;
             }
@@ -175,9 +175,9 @@ class MailerHelper
         foreach ($transportSettings as $label => $value) {
             if (is_scalar($value)) {
                 $settings[$label] = $security->redactIfSensitive($label, $value);
-            } else if (is_array($value)) {
+            } elseif (is_array($value)) {
                 $settings[$label] = 'Array';
-            } else if (is_object($value)) {
+            } elseif (is_object($value)) {
                 $settings[$label] = 'Object';
             }
         }

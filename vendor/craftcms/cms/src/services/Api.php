@@ -19,7 +19,8 @@ use yii\base\Component;
 
 /**
  * The API service provides APIs for calling the Craft API (api.craftcms.com).
- * An instance of the API service is globally accessible in Craft via [[\craft\base\ApplicationTrait::getApi()|`Craft::$app->api`]].
+ *
+ * An instance of the service is available via [[\craft\base\ApplicationTrait::getApi()|`Craft::$app->api`]].
  *
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
@@ -121,20 +122,15 @@ class Api extends Component
             'headers' => ApiHelper::headers(),
         ]);
 
-        $e = null;
-
         try {
             $response = $this->client->request($method, $uri, $options);
         } catch (RequestException $e) {
-            if (($response = $e->getResponse()) === null || $response->getStatusCode() === 500) {
-                throw $e;
-            }
-        }
-
-        ApiHelper::processResponseHeaders($response->getHeaders());
-
-        if ($e !== null) {
+            $response = $e->getResponse();
             throw $e;
+        } finally {
+            if (isset($response) && $response->getStatusCode() !== 500) {
+                ApiHelper::processResponseHeaders($response->getHeaders());
+            }
         }
 
         return $response;

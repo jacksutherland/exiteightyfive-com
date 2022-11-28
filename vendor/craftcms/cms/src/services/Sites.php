@@ -39,7 +39,8 @@ use yii\db\Exception as DbException;
 
 /**
  * Sites service.
- * An instance of the Sites service is globally accessible in Craft via [[\craft\base\ApplicationTrait::getSites()|`Craft::$app->sites`]].
+ *
+ * An instance of the service is available via [[\craft\base\ApplicationTrait::getSites()|`Craft::$app->sites`]].
  *
  * @property-read Site[] $allSites all of the sites
  * @property int[] $allSiteIds all of the site IDs
@@ -107,7 +108,7 @@ class Sites extends Component
     /**
      * @event DeleteSiteEvent The event that is triggered before a site is deleted.
      *
-     * You may set [[SiteEvent::isValid]] to `false` to prevent the site from getting deleted.
+     * You may set [[\craft\events\CancelableEvent::$isValid]] to `false` to prevent the site from getting deleted.
      */
     const EVENT_BEFORE_DELETE_SITE = 'beforeDeleteSite';
 
@@ -126,7 +127,7 @@ class Sites extends Component
     const CONFIG_SITES_KEY = 'sites';
 
     /**
-     * @var MemoizableArray|null
+     * @var MemoizableArray<SiteGroup>|null
      * @see _groups()
      */
     private $_groups;
@@ -194,7 +195,7 @@ class Sites extends Component
     /**
      * Returns a memoizable array of all site groups.
      *
-     * @return MemoizableArray
+     * @return MemoizableArray<SiteGroup>
      */
     private function _groups(): MemoizableArray
     {
@@ -268,13 +269,13 @@ class Sites extends Component
 
         if ($isNewGroup) {
             $group->uid = StringHelper::UUID();
-        } else if (!$group->uid) {
+        } elseif (!$group->uid) {
             $group->uid = Db::uidById(Table::SITEGROUPS, $group->id);
         }
 
         $configPath = self::CONFIG_SITEGROUP_KEY . '.' . $group->uid;
         $configData = $group->getConfig();
-        Craft::$app->getProjectConfig()->set($configPath, $configData, "Save the “{$group->name}” site group");
+        Craft::$app->getProjectConfig()->set($configPath, $configData, "Save the “{$group->getName(false)}” site group");
 
         // Now that we have an ID, save it on the model
         if ($isNewGroup) {
@@ -388,7 +389,7 @@ class Sites extends Component
             return false;
         }
 
-        /* @var SiteGroupRecord $groupRecord */
+        /** @var SiteGroupRecord $groupRecord */
         $groupRecord = SiteGroupRecord::find()
             ->where(['id' => $group->id])
             ->one();
@@ -404,7 +405,7 @@ class Sites extends Component
             ]));
         }
 
-        Craft::$app->getProjectConfig()->remove(self::CONFIG_SITEGROUP_KEY . '.' . $group->uid, "Delete the “{$group->name}” site group");
+        Craft::$app->getProjectConfig()->remove(self::CONFIG_SITEGROUP_KEY . '.' . $group->uid, "Delete the “{$group->getName(false)}” site group");
         return true;
     }
 
@@ -483,7 +484,7 @@ class Sites extends Component
 
         if ($site instanceof Site) {
             $this->_currentSite = $site;
-        } else if (is_numeric($site)) {
+        } elseif (is_numeric($site)) {
             $this->_currentSite = $this->getSiteById($site, false);
         } else {
             $this->_currentSite = $this->getSiteByHandle($site, false);
@@ -529,7 +530,7 @@ class Sites extends Component
     public function getEditableSiteIds(): array
     {
         if (!Craft::$app->getIsMultiSite()) {
-            return $this->getAllSiteIds();
+            return $this->getAllSiteIds(true);
         }
 
         if ($this->_editableSiteIds !== null) {
@@ -539,7 +540,7 @@ class Sites extends Component
         $this->_editableSiteIds = [];
         $userSession = Craft::$app->getUser();
 
-        foreach ($this->getAllSites() as $site) {
+        foreach ($this->getAllSites(true) as $site) {
             if ($userSession->checkPermission("editSite:$site->uid")) {
                 $this->_editableSiteIds[] = $site->id;
             }
@@ -663,7 +664,7 @@ class Sites extends Component
             $this->trigger(self::EVENT_BEFORE_SAVE_SITE, new SiteEvent([
                 'site' => $site,
                 'isNew' => $isNewSite,
-                'oldPrimarySiteId' => $primarySite->id,
+                'oldPrimarySiteId' => $primarySite->id ?? null,
             ]));
         }
 
@@ -678,7 +679,7 @@ class Sites extends Component
                     ->from([Table::SITES])
                     ->where(['dateDeleted' => null])
                     ->max('[[sortOrder]]')) + 1;
-        } else if (!$site->uid) {
+        } elseif (!$site->uid) {
             $site->uid = Db::uidById(Table::SITES, $site->id);
         }
 
@@ -766,7 +767,7 @@ class Sites extends Component
         // Clear caches
         $this->refreshSites();
 
-        /* @var Site $site */
+        /** @var Site $site */
         $site = $this->getSiteById($siteRecord->id);
 
         // Is this the current site?
@@ -1063,7 +1064,7 @@ class Sites extends Component
             return;
         }
 
-        /* @var Site $site */
+        /** @var Site $site */
         $site = $this->getSiteById($siteRecord->id);
 
         // Fire a 'beforeApplySiteDelete' event
@@ -1201,7 +1202,7 @@ class Sites extends Component
             if (isset($e->errorInfo[0]) && in_array($e->errorInfo[0], ['42S02', '42P01'], true)) {
                 return;
             }
-            /* @noinspection PhpUnhandledExceptionInspection */
+            /** @noinspection PhpUnhandledExceptionInspection */
             throw $e;
         }
 
@@ -1269,7 +1270,7 @@ class Sites extends Component
         $query = $withTrashed ? SiteGroupRecord::findWithTrashed() : SiteGroupRecord::find();
         if (is_numeric($criteria)) {
             $query->andWhere(['id' => $criteria]);
-        } else if (is_string($criteria)) {
+        } elseif (is_string($criteria)) {
             $query->andWhere(['uid' => $criteria]);
         }
 
@@ -1286,7 +1287,10 @@ class Sites extends Component
     {
         if ($withDisabled === null) {
             $request = Craft::$app->getRequest();
-            $withDisabled = !$request->getIsSiteRequest() || $request->getIsActionRequest();
+            $withDisabled = (
+                $request->getIsConsoleRequest() ||
+                ($request->getIsCpRequest() && !Craft::$app->getUser()->getIsGuest())
+            );
         }
 
         return $withDisabled ? $this->_allSitesById : $this->_enabledSitesById;
@@ -1304,7 +1308,7 @@ class Sites extends Component
         $query = $withTrashed ? SiteRecord::findWithTrashed() : SiteRecord::find();
         if (is_numeric($criteria)) {
             $query->andWhere(['id' => $criteria]);
-        } else if (\is_string($criteria)) {
+        } elseif (\is_string($criteria)) {
             $query->andWhere(['uid' => $criteria]);
         }
 
@@ -1341,39 +1345,61 @@ class Sites extends Component
             $nonLocalizedElementTypes = [];
 
             foreach (Craft::$app->getElements()->getAllElementTypes() as $elementType) {
-                /* @var ElementInterface|string $elementType */
+                /** @var ElementInterface|string $elementType */
                 if (!$elementType::isLocalized()) {
                     $nonLocalizedElementTypes[] = $elementType;
                 }
             }
 
             if (!empty($nonLocalizedElementTypes)) {
-                $elementIds = (new Query())
-                    ->select(['id'])
-                    ->from([Table::ELEMENTS])
-                    ->where(['type' => $nonLocalizedElementTypes])
-                    ->column();
+                // To be sure we don't hit any unique constraint database errors, first make sure there are no rows for
+                // these elements that don't currently use the old primary site ID
+                $qb = $db->getQueryBuilder();
+                $isMysql = $db->getIsMysql();
+                $elementsTable = Table::ELEMENTS;
 
-                if (!empty($elementIds)) {
-                    // To be sure we don't hit any unique constraint database errors, first make sure there are no rows for
-                    // these elements that don't currently use the old primary site ID
-                    $deleteCondition = [
+                foreach ([Table::ELEMENTS_SITES, Table::CONTENT, Table::SEARCHINDEX] as $table) {
+                    $deleteParams = [];
+                    $deleteCondition = $qb->buildCondition([
                         'and',
-                        ['elementId' => $elementIds],
-                        ['not', ['siteId' => $oldPrimarySiteId]],
-                    ];
+                        ['e.type' => $nonLocalizedElementTypes],
+                        ['not', ['t.siteId' => $oldPrimarySiteId]],
+                    ], $deleteParams);
 
-                    Db::delete(Table::ELEMENTS_SITES, $deleteCondition);
-                    Db::delete(Table::CONTENT, $deleteCondition);
-                    Db::delete(Table::SEARCHINDEX, $deleteCondition);
+                    $updateParams = [':siteId' => $newPrimarySiteId];
+                    $updateCondition = $qb->buildCondition(['e.type' => $nonLocalizedElementTypes], $updateParams);
 
-                    // Now swap the sites
-                    $updateColumns = ['siteId' => $newPrimarySiteId];
-                    $updateCondition = ['elementId' => $elementIds];
+                    if ($isMysql) {
+                        $deleteSql = <<<SQL
+DELETE `t`
+FROM $table `t`
+INNER JOIN $elementsTable `e` ON `e`.`id` = `t`.`elementId`
+WHERE $deleteCondition
+SQL;
+                        $updateSql = <<<SQL
+UPDATE $table `t`
+INNER JOIN $elementsTable `e` ON `e`.`id` = `t`.`elementId`
+SET `siteId` = :siteId
+WHERE $updateCondition
+SQL;
+                    } else {
+                        $deleteSql = <<<SQL
+DELETE FROM $table "t"
+USING $elementsTable "e"
+WHERE "e"."id" = "t"."elementId"
+AND $deleteCondition;
+SQL;
+                        $updateSql = <<<SQL
+UPDATE $table AS "t"
+SET "siteId" = :siteId
+FROM $elementsTable "e"
+WHERE "e"."id" = "t"."elementId"
+AND $updateCondition;
+SQL;
+                    }
 
-                    Db::update(Table::ELEMENTS_SITES, $updateColumns, $updateCondition, [], false);
-                    Db::update(Table::CONTENT, $updateColumns, $updateCondition, [], false);
-                    Db::update(Table::SEARCHINDEX, $updateColumns, $updateCondition, [], false);
+                    $db->createCommand($deleteSql, $deleteParams)->execute();
+                    $db->createCommand($updateSql, $updateParams)->execute();
                 }
             }
 

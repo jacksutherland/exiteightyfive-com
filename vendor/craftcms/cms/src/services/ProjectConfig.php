@@ -11,7 +11,9 @@ use Craft;
 use craft\db\Query;
 use craft\db\Table;
 use craft\elements\User;
+use craft\errors\BusyResourceException;
 use craft\errors\OperationAbortedException;
+use craft\errors\StaleResourceException;
 use craft\events\ConfigEvent;
 use craft\events\RebuildConfigEvent;
 use craft\helpers\ArrayHelper;
@@ -22,17 +24,19 @@ use craft\helpers\Json;
 use craft\helpers\ProjectConfig as ProjectConfigHelper;
 use craft\helpers\StringHelper;
 use Symfony\Component\Yaml\Yaml;
+use Throwable;
 use yii\base\Application;
 use yii\base\Component;
 use yii\base\ErrorException;
 use yii\base\Exception;
+use yii\base\InvalidConfigException;
 use yii\base\NotSupportedException;
 use yii\caching\ExpressionDependency;
-use yii\web\ServerErrorHttpException;
 
 /**
- * Project config service.
- * An instance of the ProjectConfig service is globally accessible in Craft via [[\craft\base\ApplicationTrait::getProjectConfig()|`Craft::$app->projectConfig`]].
+ * Project Config service.
+ *
+ * An instance of the service is available via [[\craft\base\ApplicationTrait::getProjectConfig()|`Craft::$app->projectConfig`]].
  *
  * @property-read bool $isApplyingYamlChanges
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
@@ -109,6 +113,17 @@ class ProjectConfig extends Component
      * @deprecated in 3.5.0
      */
     const CONFIG_ALL_KEY = '__all__';
+    /**
+     * The project config key that Craft uses to store project config names.
+     */
+    const CONFIG_NAMES_KEY = 'meta.__names__';
+
+    /**
+     * @since 3.7.35
+     * @see _acquireLock()
+     * @see _releaseLock()
+     */
+    const MUTEX_NAME = 'project-config';
 
     // Regexp patterns
     // -------------------------------------------------------------------------
@@ -219,7 +234,7 @@ class ProjectConfig extends Component
     public $folderName = 'project';
 
     /**
-     * @var int The maximum number of project.yaml deltas to store in storage/config-backups/
+     * @var int The maximum number of project.yaml deltas to store in storage/config-deltas/
      * @since 3.4.0
      */
     public $maxDeltas = 50;
@@ -270,14 +285,14 @@ class ProjectConfig extends Component
     private $_configFileList = [];
 
     /**
-     * @var bool Whether the config has been modified during the request and must be saved.
+     * @var bool Whether to write out updated YAML changes at the end of the request
      */
-    private $_isConfigModified = false;
+    private $_updateYaml = false;
 
     /**
-     * @var bool Whether the config should be saved to DB after request
+     * @var bool Whether to update the database config data at the end of the request
      */
-    private $_updateInternalConfig = false;
+    private $_updateDb = false;
 
     /**
      * @var bool Whether we’re listening for the request end, to update the Yaml caches.
@@ -368,6 +383,13 @@ class ProjectConfig extends Component
     private $_projectConfigNameChanges = [];
 
     /**
+     * @var bool Whether a mutex lock was acquired for this request
+     * @see _acquireLock()
+     * @see _releaseLock()
+     */
+    private $_locked = false;
+
+    /**
      * @inheritdoc
      */
     public function __construct($config = [])
@@ -408,8 +430,8 @@ class ProjectConfig extends Component
         $this->_parsedChanges = [];
         $this->_appliedConfig = [];
         $this->_configFileList = [];
-        $this->_isConfigModified = false;
-        $this->_updateInternalConfig = false;
+        $this->_updateYaml = false;
+        $this->_updateDb = false;
         $this->_applyingYamlChanges = false;
         $this->_timestampUpdated = false;
         $this->_changesBeingApplied = null;
@@ -462,8 +484,9 @@ class ProjectConfig extends Component
      * @throws ErrorException
      * @throws Exception
      * @throws NotSupportedException if the service is set to read-only mode
-     * @throws ServerErrorHttpException
-     * @throws \yii\base\InvalidConfigException
+     * @throws InvalidConfigException
+     * @throws BusyResourceException if a lock could not be acquired
+     * @throws StaleResourceException if the loaded project config is out-of-date
      */
     public function set(string $path, $value, string $message = null, bool $updateTimestamp = true, $rebuilding = false)
     {
@@ -494,6 +517,10 @@ class ProjectConfig extends Component
             }
 
             $valueChanged = true;
+        }
+
+        if ($valueChanged) {
+            $this->_acquireLock();
         }
 
         // Mark this path (and its parent paths) as being processed, and store their current values
@@ -546,15 +573,13 @@ class ProjectConfig extends Component
 
     /**
      * Applies changes in `project.yaml` to the project config.
+     *
+     * @throws BusyResourceException if a lock could not be acquired
+     * @throws StaleResourceException if the loaded project config is out-of-date
      */
     public function applyYamlChanges()
     {
-        $mutex = Craft::$app->getMutex();
-        $lockName = 'project-config-sync';
-
-        if (!$mutex->acquire($lockName, 15)) {
-            throw new Exception('Could not acquire a lock to apply project config changes.');
-        }
+        $this->_acquireLock();
 
         // Disable read/write splitting for the remainder of this request
         Craft::$app->getDb()->enableReplicas = false;
@@ -574,8 +599,6 @@ class ProjectConfig extends Component
         if ($anyChangesApplied) {
             $this->_updateConfigVersion();
         }
-
-        $mutex->release($lockName);
     }
 
     /**
@@ -717,7 +740,7 @@ class ProjectConfig extends Component
             if (strpos("$path.", "$thisPath.") === 0) {
                 if ($path === $thisPath) {
                     $oldValue = $thisOldValue;
-                } else if (is_array($thisOldValue)) {
+                } elseif (is_array($thisOldValue)) {
                     $oldValue = $this->_traverseDataArray($thisOldValue, substr($path, strlen($thisPath) + 1));
                 } else {
                     $oldValue = null;
@@ -730,9 +753,9 @@ class ProjectConfig extends Component
         $valueChanged = $triggerUpdate || $this->forceUpdate || $this->encodeValueAsString($oldValue) !== $this->encodeValueAsString($newValue);
 
         if ($newValue === null && is_array($oldValue)) {
-            $this->_removeContainedProjectConfigNames(pathinfo($path, PATHINFO_EXTENSION), $oldValue);
-        } else if (is_array($newValue)) {
-            $this->_setContainedProjectConfigNames(pathinfo($path, PATHINFO_EXTENSION), $newValue);
+            $this->_removeContainedProjectConfigNames(ProjectConfigHelper::lastPathSegment($path), $oldValue);
+        } elseif (is_array($newValue)) {
+            $this->_setContainedProjectConfigNames(ProjectConfigHelper::lastPathSegment($path), $newValue);
         }
 
         if ($valueChanged && !$this->muteEvents) {
@@ -740,7 +763,7 @@ class ProjectConfig extends Component
             if ($newValue === null && $oldValue !== null) {
                 // Fire a 'removeItem' event
                 $this->trigger(self::EVENT_REMOVE_ITEM, $event);
-            } else if ($oldValue === null && $newValue !== null) {
+            } elseif ($oldValue === null && $newValue !== null) {
                 // Fire an 'addItem' event
                 $this->trigger(self::EVENT_ADD_ITEM, $event);
             } else {
@@ -776,7 +799,7 @@ class ProjectConfig extends Component
      */
     public function updateStoredConfigAfterRequest()
     {
-        $this->_updateInternalConfig = true;
+        $this->_updateDb = true;
     }
 
     /**
@@ -831,109 +854,100 @@ class ProjectConfig extends Component
     {
         $this->_processProjectConfigNameChanges();
 
-        if ($this->_isConfigModified) {
-            $this->_updateConfigVersion();
-
-            if ($writeYaml ?? $this->writeYamlAutomatically) {
-                $this->_updateYamlFiles();
-            }
-        }
-
-        if (!$this->_updateInternalConfig) {
-            return;
-        }
-
-        if (!empty($this->_appliedChanges)) {
-            $deltaEntry = [
-                'dateApplied' => date('Y-m-d H:i:s'),
-                'changes' => [],
-            ];
-
+        if ($this->_updateDb && !empty($this->_appliedChanges)) {
+            $deltaChanges = [];
             $db = Craft::$app->getDb();
-            foreach ($this->_appliedChanges as $changeSet) {
-                // Allow modification of the array being looped over.
-                $currentSet = $changeSet;
 
-                if (!empty($changeSet['removed'])) {
-                    Db::delete(Table::PROJECTCONFIG, [
-                        'path' => array_keys($changeSet['removed']),
-                    ]);
-                }
+            $db->transaction(function() use ($db, &$deltaChanges) {
+                foreach ($this->_appliedChanges as $changeSet) {
+                    // Allow modification of the array being looped over.
+                    $currentSet = $changeSet;
 
-                if (!empty($changeSet['added'])) {
-                    $isMysql = $db->getIsMysql();
-                    $batch = [];
-                    $pathsToInsert = [];
-                    $additionalCleanupPaths = [];
+                    if (!empty($changeSet['removed'])) {
+                        Db::delete(Table::PROJECTCONFIG, [
+                            'path' => array_keys($changeSet['removed']),
+                        ]);
+                    }
 
-                    foreach ($currentSet['added'] as $key => $value) {
-                        // Prepare for storage
-                        $dbValue = $this->encodeValueAsString($value);
-                        if (!mb_check_encoding($value, 'UTF-8') || ($isMysql && StringHelper::containsMb4($dbValue))) {
-                            $dbValue = 'base64:' . base64_encode($dbValue);
+                    if (!empty($changeSet['added'])) {
+                        $isMysql = $db->getIsMysql();
+                        $batch = [];
+                        $pathsToInsert = [];
+                        $additionalCleanupPaths = [];
+
+                        foreach ($currentSet['added'] as $key => $value) {
+                            // Prepare for storage
+                            $dbValue = $this->encodeValueAsString($value);
+                            if (!mb_check_encoding($value, 'UTF-8') || ($isMysql && StringHelper::containsMb4($dbValue))) {
+                                $dbValue = 'base64:' . base64_encode($dbValue);
+                            }
+                            $batch[] = [$key, $dbValue];
+                            $pathsToInsert[] = $key;
+
+                            // Delete parent key, as it cannot hold a value AND be an array at the same time
+                            $additionalCleanupPaths[ProjectConfigHelper::pathWithoutLastSegment($key) ?? $key] = true;
+
+                            // Prepare for delta
+                            if (!empty($currentSet['removed']) && array_key_exists($key, $currentSet['removed'])) {
+                                if (is_string($changeSet['removed'][$key])) {
+                                    $changeSet['removed'][$key] = StringHelper::decdec($changeSet['removed'][$key]);
+                                }
+
+                                $changeSet['removed'][$key] = Json::decodeIfJson($changeSet['removed'][$key]);
+
+                                // Ensure types
+                                if (is_bool($value)) {
+                                    $changeSet['removed'][$key] = (bool)$changeSet['removed'][$key];
+                                } elseif (is_int($value)) {
+                                    $changeSet['removed'][$key] = (int)$changeSet['removed'][$key];
+                                }
+
+                                if ($changeSet['removed'][$key] === $value) {
+                                    unset($changeSet['removed'][$key], $changeSet['added'][$key]);
+                                } elseif (array_key_exists($key, $changeSet['removed'])) {
+                                    $changeSet['changed'][$key] = [
+                                        'from' => $changeSet['removed'][$key],
+                                        'to' => $changeSet['added'][$key],
+                                    ];
+
+                                    unset($changeSet['removed'][$key], $changeSet['added'][$key]);
+                                }
+                            }
                         }
-                        $batch[] = [$key, $dbValue];
-                        $pathsToInsert[] = $key;
 
-                        // Delete parent key, as it cannot hold a value AND be an array at the same time
-                        $additionalCleanupPaths[pathinfo($key, PATHINFO_FILENAME)] = true;
-
-                        // Prepare for delta
-                        if (!empty($currentSet['removed']) && array_key_exists($key, $currentSet['removed'])) {
-                            if (is_string($changeSet['removed'][$key])) {
-                                $changeSet['removed'][$key] = StringHelper::decdec($changeSet['removed'][$key]);
-                            }
-
-                            $changeSet['removed'][$key] = Json::decodeIfJson($changeSet['removed'][$key]);
-
-                            // Ensure types
-                            if (is_bool($value)) {
-                                $changeSet['removed'][$key] = (bool)$changeSet['removed'][$key];
-                            } else if (is_int($value)) {
-                                $changeSet['removed'][$key] = (int)$changeSet['removed'][$key];
-                            }
-
-                            if ($changeSet['removed'][$key] === $value) {
-                                unset($changeSet['removed'][$key], $changeSet['added'][$key]);
-                            } else if (array_key_exists($key, $changeSet['removed'])) {
-                                $changeSet['changed'][$key] = [
-                                    'from' => $changeSet['removed'][$key],
-                                    'to' => $changeSet['added'][$key],
-                                ];
-
-                                unset($changeSet['removed'][$key], $changeSet['added'][$key]);
-                            }
+                        // Store in the DB
+                        if (!empty($batch)) {
+                            Db::delete(Table::PROJECTCONFIG, [
+                                'path' => $pathsToInsert,
+                            ]);
+                            Db::delete(Table::PROJECTCONFIG, [
+                                'path' => array_keys($additionalCleanupPaths),
+                            ]);
+                            Db::batchInsert(Table::PROJECTCONFIG, ['path', 'value'], $batch, false);
                         }
                     }
 
-                    // Store in the DB
-                    if (!empty($batch)) {
-                        Db::delete(Table::PROJECTCONFIG, [
-                            'path' => $pathsToInsert,
-                        ]);
-                        Db::delete(Table::PROJECTCONFIG, [
-                            'path' => array_keys($additionalCleanupPaths),
-                        ]);
-                        Db::batchInsert(Table::PROJECTCONFIG, ['path', 'value'], $batch, false);
+                    $changeSet = array_filter($changeSet);
+
+                    if (!empty($changeSet)) {
+                        $deltaChanges[] = $changeSet;
                     }
                 }
 
-                if (empty($changeSet['added'])) {
-                    unset($changeSet['added']);
-                }
+                $this->_updateConfigVersion();
+                $this->_releaseLock();
+            });
 
-                if (empty($changeSet['removed'])) {
-                    unset($changeSet['removed']);
-                }
-
-                if (!empty($changeSet['added']) || !empty($changeSet['removed']) || !empty($changeSet['changed'])) {
-                    $deltaEntry['changes'][] = $changeSet;
-                }
+            if (!empty($deltaChanges)) {
+                $this->_storeYamlHistory([
+                    'dateApplied' => date('Y-m-d H:i:s'),
+                    'changes' => $deltaChanges,
+                ]);
             }
+        }
 
-            if (!empty($deltaEntry['changes'])) {
-                $this->_storeYamlHistory($deltaEntry);
-            }
+        if ($this->_updateYaml && ($writeYaml ?? $this->writeYamlAutomatically)) {
+            $this->_updateYamlFiles();
         }
     }
 
@@ -1213,13 +1227,15 @@ class ProjectConfig extends Component
     /**
      * Rebuilds the project config from the current state in the database.
      *
+     * @throws BusyResourceException if a lock could not be acquired
+     * @throws StaleResourceException if the loaded project config is out-of-date
      * @throws \Throwable if reasons
      * @since 3.1.20
      */
     public function rebuild()
     {
+        $this->_acquireLock();
         $this->reset();
-        $this->_discardProjectConfigNames();
 
         $config = $this->get();
         $config['dateModified'] = DateTimeHelper::currentTimeStamp();
@@ -1250,6 +1266,8 @@ class ProjectConfig extends Component
         $readOnly = $this->readOnly;
         $this->readOnly = false;
 
+        $this->_discardProjectConfigNames();
+
         // Process the changes
         foreach ($event->config as $path => $value) {
             $this->set($path, $value, 'Project config rebuild', false, true);
@@ -1265,8 +1283,8 @@ class ProjectConfig extends Component
         }
 
         // And now ensure that Project Config doesn't attempt to save to yaml files again
-        $this->_isConfigModified = false;
-        $this->_updateInternalConfig = true;
+        $this->_updateYaml = false;
+        $this->_updateDb = true;
 
         $this->readOnly = $readOnly;
         $this->muteEvents = false;
@@ -1319,9 +1337,9 @@ class ProjectConfig extends Component
                 throw new OperationAbortedException($message);
             }
 
-            /* @var ConfigEvent $event */
-            /* @var string[]|null $tokenMatches */
-            /* @var callable $handler */
+            /** @var ConfigEvent $event */
+            /** @var string[]|null $tokenMatches */
+            /** @var callable $handler */
             [$event, $tokenMatches, $handler] = array_shift($this->_deferredEvents);
             Craft::info('Re-triggering deferred event for ' . $event->path, __METHOD__);
             $event->tokenMatches = $tokenMatches;
@@ -1342,7 +1360,7 @@ class ProjectConfig extends Component
     }
 
     /**
-     * Retrieve a a config file tree with modified times based on the main configuration file.
+     * Retrieve a config file tree with modified times based on the main configuration file.
      *
      * @return int
      */
@@ -1384,6 +1402,7 @@ class ProjectConfig extends Component
                 $filename = pathinfo(array_pop($configPath), PATHINFO_FILENAME);
                 $insertionPoint = &$generatedConfig;
 
+                /** @var string $pathSegment */
                 foreach ($configPath as $pathSegment) {
                     if (!isset($insertionPoint[$pathSegment])) {
                         $insertionPoint[$pathSegment] = [];
@@ -1442,14 +1461,14 @@ class ProjectConfig extends Component
         // Compare and if something is different, mark the immediate parent as changed.
         foreach ($flatConfig as $key => $value) {
             // Drop the last part of path
-            $immediateParent = pathinfo($key, PATHINFO_FILENAME);
+            $immediateParent = ProjectConfigHelper::pathWithoutLastSegment($key) ?? $key;
 
             if (!array_key_exists($key, $flatCurrent)) {
                 if ($existsOnly) {
                     return true;
                 }
                 $newItems[] = $immediateParent;
-            } else if ($this->forceUpdate || $flatCurrent[$key] !== $value) {
+            } elseif ($this->forceUpdate || $flatCurrent[$key] !== $value) {
                 if ($existsOnly) {
                     return true;
                 }
@@ -1467,7 +1486,7 @@ class ProjectConfig extends Component
 
         foreach ($removedItems as &$removedItem) {
             // Drop the last part of path
-            $removedItem = pathinfo($removedItem, PATHINFO_FILENAME);
+            $removedItem = ProjectConfigHelper::pathWithoutLastSegment($removedItem) ?? $removedItem;
         }
 
         // Sort by number of dots to ensure deepest paths listed first
@@ -1551,7 +1570,7 @@ class ProjectConfig extends Component
     private function _saveConfig(array $data)
     {
         $this->_appliedConfig = $data;
-        $this->_isConfigModified = true;
+        $this->_updateYaml = true;
     }
 
     /**
@@ -1575,7 +1594,7 @@ class ProjectConfig extends Component
         if (count($path) === 0) {
             if ($delete) {
                 unset($data[$nextSegment]);
-            } else if ($value === null) {
+            } elseif ($value === null) {
                 return $data[$nextSegment] ?? null;
             } else {
                 $data[$nextSegment] = $value;
@@ -1588,7 +1607,7 @@ class ProjectConfig extends Component
                 }
 
                 $data[$nextSegment] = [];
-            } else if (!is_array($data[$nextSegment])) {
+            } elseif (!is_array($data[$nextSegment])) {
                 // If the next part is not an array, but we have to travel further, make it an array.
                 $data[$nextSegment] = [];
             }
@@ -1694,15 +1713,7 @@ class ProjectConfig extends Component
                 'except' => ['.*', '.*/'],
             ]);
 
-            // todo: remove this condition after the next breakpoint
-            if (Craft::$app->getDb()->tableExists(Table::PROJECTCONFIGNAMES)) {
-                $projectConfigNames = (new Query())
-                    ->select(['uid', 'name'])
-                    ->from([Table::PROJECTCONFIGNAMES])
-                    ->pairs();
-            } else {
-                $projectConfigNames = [];
-            }
+            $projectConfigNames = $this->get(self::CONFIG_NAMES_KEY);
 
             $uids = [];
             $replacements = [];
@@ -1753,11 +1764,7 @@ class ProjectConfig extends Component
     private function _discardProjectConfigNames(): void
     {
         $this->_projectConfigNameChanges = [];
-
-        // todo: remove this condition after the next breakpoint
-        if (Craft::$app->getDb()->tableExists(Table::PROJECTCONFIGNAMES)) {
-            Db::truncateTable(Table::PROJECTCONFIGNAMES);
-        }
+        $this->set(self::CONFIG_NAMES_KEY, []);
     }
 
     /**
@@ -1768,31 +1775,9 @@ class ProjectConfig extends Component
      */
     private function _processProjectConfigNameChanges(): void
     {
-        if (!empty($this->_projectConfigNameChanges)) {
-            $remove = [];
-            $set = [];
-
+        if (!empty($this->_projectConfigNameChanges) && !$this->readOnly) {
             foreach ($this->_projectConfigNameChanges as $uid => $name) {
-                if ($name === null) {
-                    $remove[] = $uid;
-                } else {
-                    $set[$uid] = $name;
-                }
-            }
-
-            // todo: remove this condition after the next breakpoint
-            if (Craft::$app->getDb()->tableExists(Table::PROJECTCONFIGNAMES)) {
-                if (!empty($remove)) {
-                    Db::delete(Table::PROJECTCONFIGNAMES, ['uid' => $remove]);
-                }
-
-                if (!empty($set)) {
-                    Db::delete(Table::PROJECTCONFIGNAMES, ['uid' => array_keys($set)]);
-                    array_walk($set, function(&$value, $key) {
-                        $value = [$key, $value];
-                    });
-                    Db::batchInsert(Table::PROJECTCONFIGNAMES, ['uid', 'name'], $set, false);
-                }
+                $this->set(self::CONFIG_NAMES_KEY . '.' . $uid, $name);
             }
 
             $this->_projectConfigNameChanges = [];
@@ -2267,5 +2252,57 @@ class ProjectConfig extends Component
                 $this->_setContainedProjectConfigNames($key, $value);
             }
         }
+    }
+
+    /**
+     * Acquires a mutex lock on the project config, and then ensures that we’ve actually got the latest
+     * and greatest version of it.
+     *
+     * @throws BusyResourceException if a lock could not be acquired
+     * @throws StaleResourceException if the loaded project config is out-of-date
+     */
+    private function _acquireLock(): void
+    {
+        if ($this->_locked) {
+            return;
+        }
+
+        $mutex = Craft::$app->getMutex();
+
+        if (!$mutex->acquire(self::MUTEX_NAME)) {
+            throw new BusyResourceException('A lock could not be acquired to modify the project config.');
+        }
+
+        if (Craft::$app->getIsInstalled()) {
+            try {
+                $storedConfigVersion = (new Query())
+                    ->select(['configVersion'])
+                    ->from([Table::INFO])
+                    ->scalar();
+            } catch (Throwable $e) {
+                $storedConfigVersion = null;
+            }
+
+            if ($storedConfigVersion && $storedConfigVersion !== Craft::$app->getInfo()->configVersion) {
+                // Another request must have updated the project config after this request began
+                $mutex->release(self::MUTEX_NAME);
+                throw new StaleResourceException('The loaded project config is out-of-date.');
+            }
+        }
+
+        $this->_locked = true;
+    }
+
+    /**
+     * Releases the mutex lock on the project config.
+     */
+    private function _releaseLock(): void
+    {
+        if (!$this->_locked) {
+            return;
+        }
+
+        Craft::$app->getMutex()->release(self::MUTEX_NAME);
+        $this->_locked = false;
     }
 }

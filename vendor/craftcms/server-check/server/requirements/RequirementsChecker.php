@@ -472,20 +472,20 @@ class RequirementsChecker
         // ini_set can return false or an empty string depending on your php version / FastCGI.
         // If ini_set has been disabled in php.ini, the value will be null because of our muted error handler
         if ($result === null) {
-            $memo = 'It looks like <a rel="noopener" target="_blank" href="http://php.net/manual/en/function.ini-set.php">ini_set</a> has been disabled in your <code>php.ini</code> file. Craft requires that to operate.';
+            $memo = 'It looks like <a rel="noopener" target="_blank" href="https://php.net/manual/en/function.ini-set.php">ini_set</a> has been disabled in your <code>php.ini</code> file. Craft requires that to operate.';
             $condition = false;
         }
 
         // ini_set can return false or an empty string or the current value of memory_limit depending on your php
         // version and FastCGI. Regard, calling it didn't work, but there was no error.
         else if ($result === false || $result === '' || $result === $newValue) {
-            $memo = 'It appears calls to <a rel="noopener" target="_blank" href="http://php.net/manual/en/function.ini-set.php">ini_set</a> are not working for Craft. You may need to increase some settings in your php.ini file such as <a rel="noopener" target="_blank" href="http://php.net/manual/en/ini.core.php#ini.memory-limit">memory_limit</a> and <a rel="noopener" target="_blank" href="http://php.net/manual/en/info.configuration.php#ini.max-execution-time">max_execution_time</a> for long running operations like updating and asset transformations.';
+            $memo = 'It appears calls to <a rel="noopener" target="_blank" href="https://php.net/manual/en/function.ini-set.php">ini_set</a> are not working for Craft. You may need to increase some settings in your php.ini file such as <a rel="noopener" target="_blank" href="https://php.net/manual/en/ini.core.php#ini.memory-limit">memory_limit</a> and <a rel="noopener" target="_blank" href="https://php.net/manual/en/info.configuration.php#ini.max-execution-time">max_execution_time</a> for long running operations like updating and asset transformations.';
 
             // Set mandatory to false here so it's not a "fatal" error, but will be treated as a warning.
             $mandatory = false;
             $condition = false;
         } else {
-            $memo = 'Calls to <a rel="noopener" target="_blank" href="http://php.net/manual/en/function.ini-set.php">ini_set</a> are working correctly.';
+            $memo = 'Calls to <a rel="noopener" target="_blank" href="https://php.net/manual/en/function.ini-set.php">ini_set</a> are working correctly.';
             $condition = true;
         }
 
@@ -500,7 +500,7 @@ class RequirementsChecker
     /**
      * @return array
      *
-     * @see http://php.net/manual/en/ini.core.php#ini.memory-limit
+     * @see https://php.net/manual/en/ini.core.php#ini.memory-limit
      */
     function memoryLimitRequirement()
     {
@@ -521,7 +521,7 @@ class RequirementsChecker
     /**
      * @return array
      *
-     * @see http://php.net/manual/en/info.configuration.php#ini.max-execution-time
+     * @see https://php.net/manual/en/info.configuration.php#ini.max-execution-time
      */
     function maxExecutionTimeRequirement()
     {
@@ -534,6 +534,28 @@ class RequirementsChecker
             'name' => 'Max Execution Time',
             'mandatory' => false,
             'condition' => $maxExecutionTime === 0 || $maxExecutionTime >= 120,
+            'memo' => $memo,
+        );
+    }
+
+    /**
+     * @return array
+     */
+    function webAliasRequirement()
+    {
+        $aliases = Craft::$app->getConfig()->getGeneral()->aliases;
+        $memo = 'We recommend explicitly overriding the <a rel="noopener" target="_blank" href="https://craftcms.com/docs/3.x/config/#aliases">@web alias</a>.';
+        $pass = false;
+
+        if (isset($aliases['web']) || isset($aliases['@web'])) {
+            $memo = 'Your @web alias is set correctly';
+            $pass = true;
+        }
+
+        return array(
+            'name' => 'Ensure @web alias is explicitly overridden',
+            'mandatory' => false,
+            'condition' => $pass,
             'memo' => $memo,
         );
     }

@@ -1,5 +1,30 @@
 # Changelog
 
+### 6.5.3 (2022-03-28)
+- "To people of Russia": There is a war in Ukraine right now. The forces of the Russian Federation are attacking civilians.
+- use optimized phpdocs for phpstan
+
+### 6.5.2 (2022-01-30)
+- update vendor (ASCII)
+
+### 6.5.1 (2022-01-30)
+- optimize phpdoc for "titleize"
+
+### 6.5.0 (2022-01-06)
+- add "extractIntegers()"
+- add "extractSpecialCharacters()"
+- add more tests
+- fixed some "mixed" phpdocs
+
+### 6.4.4 (2021-12-21
+- fix PHP 8.1 compatibility v2 -> thanks @boboldehampsink
+
+### 6.4.3 (2021-12-15)
+- fix PHP 8.1 compatibility -> thanks @boboldehampsink
+
+### 6.4.2 (2021-12-08)
+- update vendor (UTF-8)
+
 ### 6.4.1 (2021-04-07)
 - use Github Actions
 - use optimized phpdocs for phpstan

@@ -50,22 +50,28 @@ class PluginStoreController extends Controller
      */
     public function actionIndex(): Response
     {
-        $pluginStoreAppBaseUrl = $this->_getVueAppBaseUrl();
-
-        $cmsInfo = [
-            'version' => Craft::$app->getVersion(),
-            'edition' => strtolower(Craft::$app->getEditionName()),
-        ];
-
-        $craftIdAccessToken = $this->getCraftIdAccessToken();
-
         $view = $this->getView();
         $view->registerJsFile('https://js.stripe.com/v2/');
-        $view->registerJs('window.craftApiEndpoint = "' . Craft::$app->getPluginStore()->craftApiEndpoint . '";', View::POS_BEGIN);
-        $view->registerJs('window.pluginStoreAppBaseUrl = "' . $pluginStoreAppBaseUrl . '";', View::POS_BEGIN);
-        $view->registerJs('window.cmsInfo = ' . Json::encode($cmsInfo) . ';', View::POS_BEGIN);
-        $view->registerJs('window.cmsLicenseKey = ' . Json::encode(App::licenseKey()) . ';', View::POS_BEGIN);
-        $view->registerJs('window.craftIdAccessToken = ' . Json::encode($craftIdAccessToken) . ';', View::POS_BEGIN);
+
+        $variables = [
+            'craftIdEndpoint' => Craft::$app->getPluginStore()->craftIdEndpoint,
+            'craftApiEndpoint' => Craft::$app->getPluginStore()->craftApiEndpoint,
+            'pluginStoreAppBaseUrl' => $this->_getVueAppBaseUrl(),
+            'cmsInfo' => [
+                'version' => Craft::$app->getVersion(),
+                'edition' => strtolower(Craft::$app->getEditionName()),
+            ],
+            'cmsLicenseKey' => App::licenseKey(),
+            'craftIdAccessToken' => $this->getCraftIdAccessToken(),
+            'phpVersion' => App::phpVersion(),
+            'composerPhpVersion' => Craft::$app->getComposer()->getConfig()['config']['platform']['php'] ?? null,
+        ];
+
+        $view->registerJsWithVars(function($variables) {
+            return <<<JS
+Object.assign(window, $variables);
+JS;
+        }, [$variables], View::POS_BEGIN);
 
         $view->registerAssetBundle(PluginStoreAsset::class);
 

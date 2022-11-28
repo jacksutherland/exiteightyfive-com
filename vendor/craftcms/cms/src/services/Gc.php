@@ -8,6 +8,10 @@
 namespace craft\services;
 
 use Craft;
+use craft\base\ElementInterface;
+use craft\config\GeneralConfig;
+use craft\console\Application as ConsoleApplication;
+use craft\db\Query;
 use craft\db\Table;
 use craft\elements\Asset;
 use craft\elements\Category;
@@ -16,13 +20,20 @@ use craft\elements\GlobalSet;
 use craft\elements\MatrixBlock;
 use craft\elements\Tag;
 use craft\elements\User;
+use craft\helpers\Console;
 use craft\helpers\DateTimeHelper;
 use craft\helpers\Db;
+use craft\records\Volume;
+use craft\records\VolumeFolder;
+use craft\volumes\Temp;
+use DateTime;
+use ReflectionMethod;
 use yii\base\Component;
 
 /**
- * Garbage collection service.
- * An instance of the GC service is globally accessible in Craft via [[\craft\base\ApplicationTrait::getGc()|`Craft::$app->gc`]].
+ * Garbage Collection service.
+ *
+ * An instance of the service is available via [[\craft\base\ApplicationTrait::getGc()|`Craft::$app->gc`]].
  *
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.1.0
@@ -61,9 +72,11 @@ class Gc extends Component
             return;
         }
 
-        Craft::$app->getDrafts()->purgeUnsavedDrafts();
-        Craft::$app->getUsers()->purgeExpiredPendingUsers();
-        $this->_deleteStaleSessions();
+        $generalConfig = Craft::$app->getConfig()->getGeneral();
+        $this->_purgeUnsavedDrafts($generalConfig);
+        $this->_purgePendingUsers($generalConfig);
+        $this->_deleteStaleSessions($generalConfig);
+        $this->_deleteStaleAnnouncements();
 
         $this->hardDelete([
             Table::ELEMENTS, // elements should always go first
@@ -72,7 +85,6 @@ class Gc extends Component
             Table::FIELDGROUPS,
             Table::SECTIONS,
             Table::TAGGROUPS,
-            Table::VOLUMES,
         ]);
 
         $this->deletePartialElements(Asset::class, Table::ASSETS, 'id');
@@ -91,7 +103,7 @@ class Gc extends Component
         $this->deletePartialElements(User::class, Table::CONTENT, 'elementId');
 
         $this->_deleteOrphanedDraftsAndRevisions();
-        Craft::$app->getSearch()->deleteOrphanedIndexes();
+        $this->_deleteOrphanedSearchIndexes();
 
         // Fire a 'run' event
         if ($this->hasEventHandlers(self::EVENT_RUN)) {
@@ -103,6 +115,46 @@ class Gc extends Component
             Table::FIELDLAYOUTS,
             Table::SITES,
         ]);
+
+        $this->hardDeleteVolumes();
+        $this->removeEmptyTempFolders();
+        $this->_gcCache();
+
+        // Invalidate all element caches so any hard-deleted elements don't look like they still exist
+        Craft::$app->getElements()->invalidateAllCaches();
+    }
+
+    /**
+     * Hard delete eligible volumes, deleting the folders one by one to avoid nested dependency errors.
+     */
+    public function hardDeleteVolumes()
+    {
+        $generalConfig = Craft::$app->getConfig()->getGeneral();
+        if (!$generalConfig->softDeleteDuration && !$this->deleteAllTrashed) {
+            return;
+        }
+
+        $this->_stdout("    > deleting trashed volumes and their folders ... ");
+        $condition = $this->getHardDeleteConditions($generalConfig);
+
+        $volumes = (new Query())->select(['id'])->from([Table::VOLUMES])->where($condition)->all();
+        $volumeIds = [];
+
+        foreach ($volumes as $volume) {
+            $volumeIds[] = $volume['id'];
+        }
+
+        $folders = (new Query())->select(['id', 'path'])->from([Table::VOLUMEFOLDERS])->where(['volumeId' => $volumeIds])->all();
+        usort($folders, function($a, $b) {
+            return substr_count($a['path'], '/') < substr_count($b['path'], '/');
+        });
+
+        foreach ($folders as $folder) {
+            VolumeFolder::deleteAll(['id' => $folder['id']]);
+        }
+
+        Volume::deleteAll(['id' => $volumeIds]);
+        $this->_stdout("done\n", Console::FG_GREEN);
     }
 
     /**
@@ -117,25 +169,16 @@ class Gc extends Component
             return;
         }
 
-        $condition = ['not', ['dateDeleted' => null]];
-
-        if (!$this->deleteAllTrashed) {
-            $expire = DateTimeHelper::currentUTCDateTime();
-            $interval = DateTimeHelper::secondsToInterval($generalConfig->softDeleteDuration);
-            $pastTime = $expire->sub($interval);
-            $condition = [
-                'and',
-                $condition,
-                ['<', 'dateDeleted', Db::prepareDateForDb($pastTime)],
-            ];
-        }
+        $condition = $this->getHardDeleteConditions($generalConfig);
 
         if (!is_array($tables)) {
             $tables = [$tables];
         }
 
         foreach ($tables as $table) {
+            $this->_stdout("    > deleting trashed rows in the `$table` table ... ");
             Db::delete($table, $condition);
+            $this->_stdout("done\n", Console::FG_GREEN);
         }
     }
 
@@ -145,11 +188,12 @@ class Gc extends Component
      * @param string $elementType The element type
      * @param string $table The extension table name
      * @param string $fk The column name that contains the foreign key to `elements.id`
-     * @return void
      * @since 3.6.6
      */
     public function deletePartialElements(string $elementType, string $table, string $fk): void
     {
+        /** @var string|ElementInterface $elementType */
+        $this->_stdout(sprintf('    > deleting partial %s data in the `%s` table ... ', $elementType::lowerDisplayName(), $table));
         $db = Craft::$app->getDb();
         $elementsTable = Table::ELEMENTS;
 
@@ -174,33 +218,98 @@ SQL;
         }
 
         $db->createCommand($sql, ['type' => $elementType])->execute();
+        $this->_stdout("done\n", Console::FG_GREEN);
+    }
+
+    private function _purgeUnsavedDrafts(GeneralConfig $generalConfig)
+    {
+        if ($generalConfig->purgeUnsavedDraftsDuration === 0) {
+            return;
+        }
+
+        $this->_stdout('    > purging unsaved drafts that have gone stale ... ');
+        Craft::$app->getDrafts()->purgeUnsavedDrafts();
+        $this->_stdout("done\n", Console::FG_GREEN);
+    }
+
+    private function _purgePendingUsers(GeneralConfig $generalConfig)
+    {
+        if ($generalConfig->purgePendingUsersDuration === 0) {
+            return;
+        }
+
+        $this->_stdout('    > purging pending users with stale activation codes ... ');
+        Craft::$app->getUsers()->purgeExpiredPendingUsers();
+        $this->_stdout("done\n", Console::FG_GREEN);
+    }
+
+    /**
+     * Removes any temp upload folders with no assets in them.
+     *
+     * @since 3.7.53
+     */
+    public function removeEmptyTempFolders(): void
+    {
+        $this->_stdout('    > removing empty temp folders ... ');
+
+        $emptyFolders = (new Query())
+            ->select(['folders.id', 'folders.path'])
+            ->from(['folders' => Table::VOLUMEFOLDERS])
+            ->leftJoin(['assets' => Table::ASSETS], '[[assets.folderId]] = [[folders.id]]')
+            ->where([
+                'folders.volumeId' => null,
+                'assets.id' => null,
+            ])
+            ->andWhere(['not', ['folders.parentId' => null]])
+            ->andWhere(['not', ['folders.path' => null]])
+            ->pairs();
+
+        $volume = Craft::createObject(Temp::class);
+
+        foreach ($emptyFolders as $emptyFolderPath) {
+            if ($volume->directoryExists($emptyFolderPath)) {
+                $volume->deleteDirectory($emptyFolderPath);
+            }
+        }
+
+        VolumeFolder::deleteAll(['id' => array_keys($emptyFolders)]);
+        $this->_stdout("done\n", Console::FG_GREEN);
     }
 
     /**
      * Deletes any session rows that have gone stale.
      */
-    private function _deleteStaleSessions()
+    private function _deleteStaleSessions(GeneralConfig $generalConfig)
     {
-        $generalConfig = Craft::$app->getConfig()->getGeneral();
-
         if ($generalConfig->purgeStaleUserSessionDuration === 0) {
             return;
         }
 
+        $this->_stdout('    > deleting stale user sessions ... ');
         $interval = DateTimeHelper::secondsToInterval($generalConfig->purgeStaleUserSessionDuration);
         $expire = DateTimeHelper::currentUTCDateTime();
         $pastTime = $expire->sub($interval);
-
         Db::delete(Table::SESSIONS, ['<', 'dateUpdated', Db::prepareDateForDb($pastTime)]);
+        $this->_stdout("done\n", Console::FG_GREEN);
     }
 
     /**
+     * Deletes any feature announcement rows that have gone stale.
+     */
+    private function _deleteStaleAnnouncements(): void
+    {
+        $this->_stdout('    > deleting stale feature announcements ... ');
+        Db::delete(Table::ANNOUNCEMENTS, ['<', 'dateRead', Db::prepareDateForDb(new DateTime('7 days ago'))]);
+        $this->_stdout("done\n", Console::FG_GREEN);
+    }
+
+
+    /**
      * Deletes any orphaned rows in the `drafts` and `revisions` tables.
-     *
-     * @return void
      */
     private function _deleteOrphanedDraftsAndRevisions(): void
     {
+        $this->_stdout('    > deleting orphaned drafts and revisions ... ');
         $db = Craft::$app->getDb();
         $elementsTable = Table::ELEMENTS;
 
@@ -223,6 +332,79 @@ SQL;
             }
 
             $db->createCommand($sql)->execute();
+        }
+
+        $this->_stdout("done\n", Console::FG_GREEN);
+    }
+
+    private function _deleteOrphanedSearchIndexes(): void
+    {
+        $this->_stdout('    > deleting orphaned search indexes ... ');
+        Craft::$app->getSearch()->deleteOrphanedIndexes();
+        $this->_stdout("done\n", Console::FG_GREEN);
+    }
+
+    private function _gcCache(): void
+    {
+        $cache = Craft::$app->getCache();
+
+        // gc() isn't always implemented, or defined by an interface,
+        // so we have to be super defensive here :-/
+
+        if (!method_exists($cache, 'gc')) {
+            return;
+        }
+
+        $method = new ReflectionMethod($cache, 'gc');
+
+        if (!$method->isPublic()) {
+            return;
+        }
+
+        $requiredArgs = $method->getNumberOfRequiredParameters();
+        $firstArg = $method->getParameters()[0] ?? null;
+        $hasForceArg = $firstArg && $firstArg->getName() === 'force';
+
+        if ($requiredArgs > 1 || ($requiredArgs === 1 && !$hasForceArg)) {
+            return;
+        }
+
+        $this->_stdout('    > garbage-collecting data caches ... ');
+
+        if ($hasForceArg) {
+            $cache->gc(true);
+        } else {
+            $cache->gc();
+        }
+
+        $this->_stdout("done\n", Console::FG_GREEN);
+    }
+
+    /**
+     * @param GeneralConfig $generalConfig
+     * @return array
+     */
+    protected function getHardDeleteConditions(GeneralConfig $generalConfig): array
+    {
+        $condition = ['not', ['dateDeleted' => null]];
+
+        if (!$this->deleteAllTrashed) {
+            $expire = DateTimeHelper::currentUTCDateTime();
+            $interval = DateTimeHelper::secondsToInterval($generalConfig->softDeleteDuration);
+            $pastTime = $expire->sub($interval);
+            $condition = [
+                'and',
+                $condition,
+                ['<', 'dateDeleted', Db::prepareDateForDb($pastTime)],
+            ];
+        }
+        return $condition;
+    }
+
+    private function _stdout(string $string, ...$format): void
+    {
+        if (Craft::$app instanceof ConsoleApplication) {
+            Console::stdout($string, ...$format);
         }
     }
 }

@@ -10,11 +10,9 @@ namespace craft\controllers;
 use Craft;
 use craft\base\Field;
 use craft\base\FieldInterface;
-use craft\db\Table;
 use craft\fields\MissingField;
 use craft\fields\PlainText;
 use craft\helpers\ArrayHelper;
-use craft\helpers\Db;
 use craft\helpers\UrlHelper;
 use craft\models\FieldGroup;
 use craft\web\assets\fieldsettings\FieldSettingsAsset;
@@ -127,18 +125,11 @@ class FieldsController extends Controller
         // The field
         // ---------------------------------------------------------------------
 
-        $missingFieldPlaceholder = null;
-
         if ($field === null && $fieldId !== null) {
             $field = $fieldsService->getFieldById($fieldId);
 
             if ($field === null) {
                 throw new NotFoundHttpException('Field not found');
-            }
-
-            if ($field instanceof MissingField) {
-                $missingFieldPlaceholder = $field->getPlaceholderHtml();
-                $field = $field->createFallback(PlainText::class);
             }
         }
 
@@ -150,7 +141,7 @@ class FieldsController extends Controller
         // ---------------------------------------------------------------------
 
         $supportedTranslationMethods = [];
-        /* @var string[]|FieldInterface[] $allFieldTypes */
+        /** @var string[]|FieldInterface[] $allFieldTypes */
         $allFieldTypes = $fieldsService->getAllFieldTypes();
 
         foreach ($allFieldTypes as $class) {
@@ -168,12 +159,17 @@ class FieldsController extends Controller
             $compatibleFieldTypes = $fieldsService->getCompatibleFieldTypes($field, true);
         }
 
-        /* @var string[]|FieldInterface[] $compatibleFieldTypes */
+        /** @var string[]|FieldInterface[] $compatibleFieldTypes */
         $fieldTypeOptions = [];
+        $foundCurrent = false;
+        $missingFieldPlaceholder = null;
 
         foreach ($allFieldTypes as $class) {
-            if ($class === get_class($field) || $class::isSelectable()) {
-                $compatible = in_array($class, $compatibleFieldTypes, true);
+            $isCurrent = $class === ($field instanceof MissingField ? $field->expectedType : get_class($field));
+            $foundCurrent = $foundCurrent || $isCurrent;
+
+            if ($isCurrent || $class::isSelectable()) {
+                $compatible = $isCurrent || in_array($class, $compatibleFieldTypes, true);
                 $fieldTypeOptions[] = [
                     'value' => $class,
                     'label' => $class::displayName() . ($compatible ? '' : ' ⚠️'),
@@ -183,6 +179,15 @@ class FieldsController extends Controller
 
         // Sort them by name
         ArrayHelper::multisort($fieldTypeOptions, 'label');
+
+        if ($field instanceof MissingField) {
+            if ($foundCurrent) {
+                $field = $fieldsService->createField($field->expectedType);
+            } else {
+                array_unshift($fieldTypeOptions, ['value' => $field->expectedType, 'label' => '']);
+                $missingFieldPlaceholder = $field->getPlaceholderHtml();
+            }
+        }
 
         // Groups
         // ---------------------------------------------------------------------
@@ -303,10 +308,11 @@ JS;
         $fieldId = $this->request->getBodyParam('fieldId') ?: null;
 
         if ($fieldId) {
-            $fieldUid = Db::uidById(Table::FIELDS, $fieldId);
-            if (!$fieldUid) {
+            $oldField = clone Craft::$app->getFields()->getFieldById($fieldId);
+            if (!$oldField) {
                 throw new BadRequestHttpException("Invalid field ID: $fieldId");
             }
+            $fieldUid = $oldField->uid;
         } else {
             $fieldUid = null;
         }
@@ -318,6 +324,7 @@ JS;
             'groupId' => $this->request->getRequiredBodyParam('group'),
             'name' => $this->request->getBodyParam('name'),
             'handle' => $this->request->getBodyParam('handle'),
+            'columnSuffix' => $oldField->columnSuffix ?? null,
             'instructions' => $this->request->getBodyParam('instructions'),
             'searchable' => (bool)$this->request->getBodyParam('searchable', true),
             'translationMethod' => $this->request->getBodyParam('translationMethod', Field::TRANSLATION_METHOD_NONE),

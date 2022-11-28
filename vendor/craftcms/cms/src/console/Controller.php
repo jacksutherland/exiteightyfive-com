@@ -50,11 +50,11 @@ class Controller extends YiiController
      *             'action' => function($params): int {
      *                 // @var ResaveController $controller
      *                 $controller = Craft::$app->controller;
-     *                 $query = Product::find();
+     *                 $criteria = [];
      *                 if ($controller->type) {
-     *                     $query->type(explode(',', $controller->type));
+     *                     $criteria['type'] = explode(',', $controller->type);
      *                 }
-     *                 return $controller->saveElements($query);
+     *                 return $controller->resaveElements(Product::class, $criteria);
      *             }
      *         ];
      *     }
@@ -164,6 +164,19 @@ class Controller extends YiiController
     /**
      * @inheritdoc
      */
+    public function beforeAction($action)
+    {
+        // Make sure this isn't a root user
+        if (!$this->checkRootUser()) {
+            return false;
+        }
+
+        return parent::beforeAction($action);
+    }
+
+    /**
+     * @inheritdoc
+     */
     public function actions()
     {
         return ArrayHelper::getColumn($this->_actions, 'action');
@@ -181,6 +194,22 @@ class Controller extends YiiController
         }
 
         return $options;
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function run($route, $params = [])
+    {
+        // Pass along the common params
+        $passedOptions = $this->getPassedOptionValues();
+        foreach (['interactive', 'color', 'silentExitOnException'] as $param) {
+            if (!array_key_exists($param, $params) && array_key_exists($param, $passedOptions)) {
+                $params[$param] = $passedOptions[$param];
+            }
+        }
+
+        return parent::run($route, $params);
     }
 
     /**
@@ -385,5 +414,22 @@ class Controller extends YiiController
         }
 
         return $input;
+    }
+
+    /**
+     * Outputs a table via [[Console::table()]].
+     *
+     * @param string[]|array[] $headers The table headers
+     * @param array[] $data The table data
+     * @param array $options
+     * @since 3.7.23
+     */
+    public function table(array $headers, array $data, array $options = []): void
+    {
+        $options += [
+            'colors' => $this->isColorEnabled(),
+        ];
+
+        Console::table($headers, $data, $options);
     }
 }

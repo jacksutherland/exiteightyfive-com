@@ -14,6 +14,7 @@ namespace Composer\Downloader;
 
 use Composer\Package\PackageInterface;
 use Composer\IO\IOInterface;
+use Composer\Pcre\Preg;
 use Composer\Util\Filesystem;
 use Composer\Exception\IrrecoverableDownloadException;
 use React\Promise\PromiseInterface;
@@ -81,7 +82,8 @@ class DownloadManager
     /**
      * Sets fine tuned preference settings for package level source/dist selection.
      *
-     * @param  array           $preferences array of preferences by package patterns
+     * @param array<string, string> $preferences array of preferences by package patterns
+     *
      * @return DownloadManager
      */
     public function setPreferences(array $preferences)
@@ -137,7 +139,7 @@ class DownloadManager
         $installationSource = $package->getInstallationSource();
 
         if ('metapackage' === $package->getType()) {
-            return;
+            return null;
         }
 
         if ('dist' === $installationSource) {
@@ -163,6 +165,9 @@ class DownloadManager
         return $downloader;
     }
 
+    /**
+     * @return string
+     */
     public function getDownloaderType(DownloaderInterface $downloader)
     {
         return array_search($downloader, $this->downloaders);
@@ -256,6 +261,8 @@ class DownloadManager
         if ($downloader) {
             return $downloader->prepare($type, $package, $targetDir, $prevPackage);
         }
+
+        return \React\Promise\resolve();
     }
 
     /**
@@ -275,6 +282,8 @@ class DownloadManager
         if ($downloader) {
             return $downloader->install($package, $targetDir);
         }
+
+        return \React\Promise\resolve();
     }
 
     /**
@@ -295,7 +304,7 @@ class DownloadManager
 
         // no downloaders present means update from metapackage to metapackage, nothing to do
         if (!$initialDownloader && !$downloader) {
-            return;
+            return \React\Promise\resolve();
         }
 
         // if we have a downloader present before, but not after, the package became a metapackage and its files should be removed
@@ -348,6 +357,8 @@ class DownloadManager
         if ($downloader) {
             return $downloader->remove($package, $targetDir);
         }
+
+        return \React\Promise\resolve();
     }
 
     /**
@@ -367,6 +378,8 @@ class DownloadManager
         if ($downloader) {
             return $downloader->cleanup($type, $package, $targetDir, $prevPackage);
         }
+
+        return \React\Promise\resolve();
     }
 
     /**
@@ -380,7 +393,7 @@ class DownloadManager
     {
         foreach ($this->packagePreferences as $pattern => $preference) {
             $pattern = '{^'.str_replace('\\*', '.*', preg_quote($pattern)).'$}i';
-            if (preg_match($pattern, $package->getName())) {
+            if (Preg::isMatch($pattern, $package->getName())) {
                 if ('dist' === $preference || (!$package->isDev() && 'auto' === $preference)) {
                     return 'dist';
                 }
@@ -394,6 +407,7 @@ class DownloadManager
 
     /**
      * @return string[]
+     * @phpstan-return array<'dist'|'source'>&non-empty-array
      */
     private function getAvailableSources(PackageInterface $package, PackageInterface $prevPackage = null)
     {
@@ -440,6 +454,8 @@ class DownloadManager
      * Downloaders expect a /path/to/dir without trailing slash
      *
      * If any Installer provides a path with a trailing slash, this can cause bugs so make sure we remove them
+     *
+     * @param string $dir
      *
      * @return string
      */

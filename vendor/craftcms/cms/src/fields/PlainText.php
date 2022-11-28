@@ -13,7 +13,6 @@ use craft\base\Field;
 use craft\base\PreviewableFieldInterface;
 use craft\base\SortableFieldInterface;
 use craft\helpers\Db;
-use craft\helpers\Html;
 use LitEmoji\LitEmoji;
 use yii\db\Schema;
 
@@ -194,7 +193,7 @@ class PlainText extends Field implements PreviewableFieldInterface, SortableFiel
 
         if ($this->byteLimit) {
             $bytes = $this->byteLimit;
-        } else if ($this->charLimit) {
+        } elseif ($this->charLimit) {
             $bytes = $this->charLimit * 4;
         } else {
             return Schema::TYPE_TEXT;
@@ -222,10 +221,10 @@ class PlainText extends Field implements PreviewableFieldInterface, SortableFiel
     protected function inputHtml($value, ElementInterface $element = null): string
     {
         return Craft::$app->getView()->renderTemplate('_components/fieldtypes/PlainText/input', [
-            'id' => Html::id($this->handle),
             'name' => $this->handle,
             'value' => $value,
             'field' => $this,
+            'orientation' => $this->getOrientation($element),
         ]);
     }
 

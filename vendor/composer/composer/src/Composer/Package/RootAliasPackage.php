@@ -15,15 +15,33 @@ namespace Composer\Package;
 /**
  * @author Jordi Boggiano <j.boggiano@seld.be>
  */
-class RootAliasPackage extends AliasPackage implements RootPackageInterface
+class RootAliasPackage extends CompleteAliasPackage implements RootPackageInterface
 {
-    public function __construct(RootPackageInterface $aliasOf, $version, $prettyVersion)
+    /** @var RootPackage */
+    protected $aliasOf;
+
+    /**
+     * All descendants' constructors should call this parent constructor
+     *
+     * @param RootPackage $aliasOf       The package this package is an alias of
+     * @param string      $version       The version the alias must report
+     * @param string      $prettyVersion The alias's non-normalized version
+     */
+    public function __construct(RootPackage $aliasOf, $version, $prettyVersion)
     {
         parent::__construct($aliasOf, $version, $prettyVersion);
     }
 
     /**
-     * {@inheritDoc}
+     * @return RootPackage
+     */
+    public function getAliasOf()
+    {
+        return $this->aliasOf;
+    }
+
+    /**
+     * @inheritDoc
      */
     public function getAliases()
     {
@@ -31,7 +49,7 @@ class RootAliasPackage extends AliasPackage implements RootPackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function getMinimumStability()
     {
@@ -39,7 +57,7 @@ class RootAliasPackage extends AliasPackage implements RootPackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function getStabilityFlags()
     {
@@ -47,7 +65,7 @@ class RootAliasPackage extends AliasPackage implements RootPackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function getReferences()
     {
@@ -55,7 +73,7 @@ class RootAliasPackage extends AliasPackage implements RootPackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function getPreferStable()
     {
@@ -63,7 +81,7 @@ class RootAliasPackage extends AliasPackage implements RootPackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function getConfig()
     {
@@ -71,7 +89,7 @@ class RootAliasPackage extends AliasPackage implements RootPackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function setRequires(array $require)
     {
@@ -81,7 +99,7 @@ class RootAliasPackage extends AliasPackage implements RootPackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function setDevRequires(array $devRequire)
     {
@@ -91,7 +109,7 @@ class RootAliasPackage extends AliasPackage implements RootPackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function setConflicts(array $conflicts)
     {
@@ -100,7 +118,7 @@ class RootAliasPackage extends AliasPackage implements RootPackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function setProvides(array $provides)
     {
@@ -109,7 +127,7 @@ class RootAliasPackage extends AliasPackage implements RootPackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function setReplaces(array $replaces)
     {
@@ -118,15 +136,7 @@ class RootAliasPackage extends AliasPackage implements RootPackageInterface
     }
 
     /**
-     * {@inheritDoc}
-     */
-    public function setRepositories($repositories)
-    {
-        $this->aliasOf->setRepositories($repositories);
-    }
-
-    /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function setAutoload(array $autoload)
     {
@@ -134,7 +144,7 @@ class RootAliasPackage extends AliasPackage implements RootPackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function setDevAutoload(array $devAutoload)
     {
@@ -142,7 +152,7 @@ class RootAliasPackage extends AliasPackage implements RootPackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function setStabilityFlags(array $stabilityFlags)
     {
@@ -150,7 +160,47 @@ class RootAliasPackage extends AliasPackage implements RootPackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
+     */
+    public function setMinimumStability($minimumStability)
+    {
+        $this->aliasOf->setMinimumStability($minimumStability);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function setPreferStable($preferStable)
+    {
+        $this->aliasOf->setPreferStable($preferStable);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function setConfig(array $config)
+    {
+        $this->aliasOf->setConfig($config);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function setReferences(array $references)
+    {
+        $this->aliasOf->setReferences($references);
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public function setAliases(array $aliases)
+    {
+        $this->aliasOf->setAliases($aliases);
+    }
+
+    /**
+     * @inheritDoc
      */
     public function setSuggests(array $suggests)
     {
@@ -158,7 +208,7 @@ class RootAliasPackage extends AliasPackage implements RootPackageInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function setExtra(array $extra)
     {

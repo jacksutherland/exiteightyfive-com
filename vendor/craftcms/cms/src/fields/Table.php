@@ -16,9 +16,7 @@ use craft\gql\types\generators\TableRowType as TableRowTypeGenerator;
 use craft\gql\types\TableRow;
 use craft\helpers\Cp;
 use craft\helpers\DateTimeHelper;
-use craft\helpers\Html;
 use craft\helpers\Json;
-use craft\helpers\StringHelper;
 use craft\validators\ColorValidator;
 use craft\validators\HandleValidator;
 use craft\validators\UrlValidator;
@@ -115,7 +113,7 @@ class Table extends Field
                 if ($column['type'] === 'select') {
                     if (!isset($column['options'])) {
                         $column['options'] = [];
-                    } else if (is_string($column['options'])) {
+                    } elseif (is_string($column['options'])) {
                         $column['options'] = Json::decode($column['options']);
                     }
                 } else {
@@ -172,7 +170,7 @@ class Table extends Field
                     $error = Craft::t('app', '“{handle}” isn’t a valid handle.', [
                         'handle' => $col['handle'],
                     ]);
-                } else if (preg_match('/^col\d+$/', $col['handle'])) {
+                } elseif (preg_match('/^col\d+$/', $col['handle'])) {
                     $error = Craft::t('app', 'Column handles can’t be in the format “{format}”.', [
                         'format' => 'colX',
                     ]);
@@ -330,6 +328,14 @@ class Table extends Field
     /**
      * @inheritdoc
      */
+    public function useFieldset(): bool
+    {
+        return true;
+    }
+
+    /**
+     * @inheritdoc
+     */
     protected function inputHtml($value, ElementInterface $element = null): string
     {
         Craft::$app->getView()->registerAssetBundle(TimepickerAsset::class);
@@ -376,7 +382,7 @@ class Table extends Field
     {
         if (is_string($value) && !empty($value)) {
             $value = Json::decodeIfJson($value);
-        } else if ($value === null && $this->isFresh($element)) {
+        } elseif ($value === null && $this->isFresh($element)) {
             $value = array_values($this->defaults);
         }
 
@@ -389,7 +395,7 @@ class Table extends Field
             foreach ($this->columns as $colId => $col) {
                 if (array_key_exists($colId, $row)) {
                     $cellValue = $row[$colId];
-                } else if ($col['handle'] && array_key_exists($col['handle'], $row)) {
+                } elseif ($col['handle'] && array_key_exists($col['handle'], $row)) {
                     $cellValue = $row[$col['handle']];
                 } else {
                     $cellValue = null;
@@ -482,7 +488,7 @@ class Table extends Field
         $typeName = $this->handle . '_TableRowInput';
 
         if ($argumentType = GqlEntityRegistry::getEntity($typeName)) {
-            return $argumentType;
+            return Type::listOf($argumentType);
         }
 
         $contentFields = TableRow::prepareRowFieldDefinition($this->columns, $typeName, false);
@@ -535,6 +541,7 @@ class Table extends Field
                     $value = LitEmoji::shortcodeToUnicode($value);
                     return trim(preg_replace('/\R/u', "\n", $value));
                 }
+                // no break
             case 'date':
             case 'time':
                 return DateTimeHelper::toDateTime($value) ?: null;
@@ -560,7 +567,7 @@ class Table extends Field
 
         switch ($type) {
             case 'color':
-                /* @var ColorData $value */
+                /** @var ColorData $value */
                 $value = $value->getHex();
                 $validator = new ColorValidator();
                 break;
@@ -586,7 +593,7 @@ class Table extends Field
      * @param bool $static
      * @return string
      */
-    private function _getInputHtml($value, ElementInterface $element = null, bool $static): string
+    private function _getInputHtml($value, ?ElementInterface $element, bool $static): string
     {
         if (empty($this->columns)) {
             return '';
@@ -627,7 +634,7 @@ class Table extends Field
         }
 
         return Craft::$app->getView()->renderTemplate('_includes/forms/editableTable', [
-            'id' => Html::id($this->handle),
+            'id' => $this->getInputId(),
             'name' => $this->handle,
             'cols' => $this->columns,
             'rows' => $value,
@@ -635,6 +642,7 @@ class Table extends Field
             'maxRows' => $this->maxRows,
             'static' => $static,
             'addRowLabel' => Craft::t('site', $this->addRowLabel),
+            'describedBy' => $this->describedBy,
         ]);
     }
 }

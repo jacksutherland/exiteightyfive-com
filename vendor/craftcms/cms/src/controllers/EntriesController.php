@@ -9,6 +9,8 @@ namespace craft\controllers;
 
 use Craft;
 use craft\base\Element;
+use craft\behaviors\DraftBehavior;
+use craft\behaviors\RevisionBehavior;
 use craft\db\Table;
 use craft\elements\Entry;
 use craft\elements\User;
@@ -20,8 +22,9 @@ use craft\helpers\ElementHelper;
 use craft\helpers\UrlHelper;
 use craft\models\Section;
 use craft\models\Site;
-use craft\services\Structures;
 use craft\web\assets\editentry\EditEntryAsset;
+use Throwable;
+use yii\base\Exception;
 use yii\base\InvalidConfigException;
 use yii\web\BadRequestHttpException;
 use yii\web\ForbiddenHttpException;
@@ -56,9 +59,14 @@ class EntriesController extends BaseEntriesController
      * @return Response
      * @throws NotFoundHttpException if the requested site handle is invalid
      * @throws ForbiddenHttpException
+     * @throws BadRequestHttpException
      */
     public function actionEditEntry(string $section, int $entryId = null, int $draftId = null, int $revisionId = null, string $site = null, Entry $entry = null): Response
     {
+        if ($draftId && $revisionId) {
+            throw new BadRequestHttpException('Only a draftId or revisionId can be specified.');
+        }
+
         $variables = [
             'sectionHandle' => $section,
             'entryId' => $entryId,
@@ -82,11 +90,11 @@ class EntriesController extends BaseEntriesController
 
         $this->getView()->registerAssetBundle(EditEntryAsset::class);
 
-        /* @var Site $site */
+        /** @var Site $site */
         $site = $variables['site'];
-        /* @var Entry $entry */
+        /** @var Entry $entry */
         $entry = $variables['entry'];
-        /* @var Section $section */
+        /** @var Section $section */
         $section = $variables['section'];
 
         // Make sure they have permission to edit this entry
@@ -131,15 +139,19 @@ class EntriesController extends BaseEntriesController
             // Prevent the current entry, or any of its descendants, from being options
             $excludeIds = Entry::find()
                 ->descendantOf($entry)
+                ->drafts(null)
+                ->draftOf(false)
                 ->anyStatus()
                 ->ids();
-            $excludeIds[] = $entry->getSourceId();
+            $excludeIds[] = $entry->getCanonicalId();
 
             $variables['parentOptionCriteria'] = [
                 'siteId' => $site->id,
                 'sectionId' => $section->id,
                 'status' => null,
                 'where' => ['not in', 'elements.id', $excludeIds],
+                'drafts' => null,
+                'draftOf' => false,
             ];
 
             if ($section->maxLevels) {
@@ -160,25 +172,25 @@ class EntriesController extends BaseEntriesController
             }
 
             // Get the initially selected parent
-            $parentId = $this->request->getParam('parentId');
-
-            if ($parentId === null) {
-                // Is it already set on the model (e.g. if we're loading a draft)?
-                if ($entry->newParentId !== null) {
-                    $parentId = $entry->newParentId;
-                } else {
-                    $parentId = $entry->getAncestors(1)
-                        ->anyStatus()
-                        ->ids();
-                }
-            }
-
-            if (is_array($parentId)) {
-                $parentId = reset($parentId) ?: null;
-            }
+            $parentId = $this->request->getParam('parentId') ?? $entry->newParentId;
 
             if ($parentId) {
-                $variables['parent'] = Craft::$app->getEntries()->getEntryById($parentId, $site->id);
+                $variables['parent'] = Craft::$app->getEntries()->getEntryById(
+                    is_array($parentId) ? reset($parentId) : $parentId,
+                    $site->id,
+                    ['drafts' => null, 'draftOf' => false]
+                );
+            } else {
+                // If the entry already has structure data, use it.
+                // Otherwise, use its canonical entry
+                $variables['parent'] = Entry::find()
+                    ->siteId($entry->siteId)
+                    ->ancestorOf($entry->lft ? $entry : ($entry->getIsCanonical() ? $entry->id : $entry->getCanonical(true)))
+                    ->ancestorDist(1)
+                    ->drafts(null)
+                    ->draftOf(false)
+                    ->anyStatus()
+                    ->one();
             }
         }
 
@@ -187,10 +199,6 @@ class EntriesController extends BaseEntriesController
 
         // Body class
         $variables['bodyClass'] = 'edit-entry site--' . $site->handle;
-
-        // Page title
-        $variables['docTitle'] = $this->docTitle($entry);
-        $variables['title'] = $this->pageTitle($entry);
 
         // Breadcrumbs
         $variables['crumbs'] = [
@@ -212,8 +220,8 @@ class EntriesController extends BaseEntriesController
             ];
 
             if ($section->type === Section::TYPE_STRUCTURE) {
-                /* @var Entry $ancestor */
-                foreach ($entry->getAncestors()->all() as $ancestor) {
+                /** @var Entry $ancestor */
+                foreach ($entry->getCanonical(true)->getAncestors()->all() as $ancestor) {
                     $variables['crumbs'][] = [
                         'label' => $ancestor->title,
                         'url' => $ancestor->getCpEditUrl(),
@@ -283,6 +291,9 @@ class EntriesController extends BaseEntriesController
         return $this->asJson([
             'tabsHtml' => count($tabs) > 1 ? $view->renderTemplate('_includes/tabs', [
                 'tabs' => $tabs,
+                'containerAttributes' => [
+                    'id' => 'tabs',
+                ],
             ]) : null,
             'fieldsHtml' => $form->render(),
             'headHtml' => $view->getHeadHtml(),
@@ -324,65 +335,93 @@ class EntriesController extends BaseEntriesController
         // Keep track of whether the entry was disabled as a result of duplication
         $forceDisabled = false;
 
-        // If we're duplicating the entry, swap $entry with the duplicate
-        if ($duplicate) {
-            try {
-                $wasEnabled = $entry->enabled;
-                $entry = Craft::$app->getElements()->duplicateElement($entry);
-                if ($wasEnabled && !$entry->enabled) {
-                    $forceDisabled = true;
-                }
-            } catch (InvalidElementException $e) {
-                /* @var Entry $clone */
-                $clone = $e->element;
+        $transation = Craft::$app->getDb()->beginTransaction();
+        try {
+            // If we're duplicating the entry, swap $entry with the duplicate
+            if ($duplicate) {
+                try {
+                    $originalEntry = $entry;
+                    $wasEnabled = $entry->enabled;
+                    $entry->draftId = null;
+                    $entry->isProvisionalDraft = false;
+                    $entry = Craft::$app->getElements()->duplicateElement($entry);
+                    if ($wasEnabled && !$entry->enabled) {
+                        $forceDisabled = true;
+                    }
+                } catch (InvalidElementException $e) {
+                    /** @var Entry $clone */
+                    $clone = $e->element;
 
-                if ($this->request->getAcceptsJson()) {
-                    return $this->asJson([
-                        'success' => false,
-                        'errors' => $clone->getErrors(),
+                    if ($this->request->getAcceptsJson()) {
+                        return $this->asJson([
+                            'success' => false,
+                            'errors' => $clone->getErrors(),
+                        ]);
+                    }
+
+                    $this->setFailFlash(Craft::t('app', 'Couldn’t duplicate entry.'));
+
+                    // Send the original entry back to the template, with any validation errors on the clone
+                    $entry->addErrors($clone->getErrors());
+                    Craft::$app->getUrlManager()->setRouteParams([
+                        'entry' => $entry,
                     ]);
+
+                    return null;
+                } catch (\Throwable $e) {
+                    throw new ServerErrorHttpException(Craft::t('app', 'An error occurred when duplicating the entry.'), 0, $e);
                 }
-
-                $this->setFailFlash(Craft::t('app', 'Couldn’t duplicate entry.'));
-
-                // Send the original entry back to the template, with any validation errors on the clone
-                $entry->addErrors($clone->getErrors());
-                Craft::$app->getUrlManager()->setRouteParams([
-                    'entry' => $entry,
-                ]);
-
-                return null;
-            } catch (\Throwable $e) {
-                throw new ServerErrorHttpException(Craft::t('app', 'An error occurred when duplicating the entry.'), 0, $e);
             }
-        }
 
-        // Populate the entry with post data
-        $this->_populateEntryModel($entry);
+            // Populate the entry with post data
+            $this->_populateEntryModel($entry);
 
-        if ($forceDisabled) {
-            $entry->enabled = false;
-        }
-
-        // Even more permission enforcement
-        if ($entry->enabled) {
-            if ($entry->id) {
-                $this->requirePermission('publishEntries:' . $entry->getSection()->uid);
-            } else if (!$currentUser->can('publishEntries:' . $entry->getSection()->uid)) {
+            if ($forceDisabled) {
                 $entry->enabled = false;
             }
-        }
 
-        // Save the entry (finally!)
-        if ($entry->enabled && $entry->getEnabledForSite()) {
-            $entry->setScenario(Element::SCENARIO_LIVE);
-        }
+            // Even more permission enforcement
+            if ($entry->enabled) {
+                if ($entry->id) {
+                    $this->requirePermission('publishEntries:' . $entry->getSection()->uid);
+                } elseif (!$currentUser->can('publishEntries:' . $entry->getSection()->uid)) {
+                    $entry->enabled = false;
+                }
+            }
 
-        try {
-            $success = Craft::$app->getElements()->saveElement($entry);
-        } catch (UnsupportedSiteException $e) {
-            $entry->addError('siteId', $e->getMessage());
-            $success = false;
+            // Save the entry (finally!)
+            if ($entry->enabled && $entry->getEnabledForSite()) {
+                $entry->setScenario(Element::SCENARIO_LIVE);
+            }
+
+            $isNotNew = (bool)$entry->id;
+            if ($isNotNew) {
+                $lockKey = "entry:$entry->id";
+                $mutex = Craft::$app->getMutex();
+                if (!$mutex->acquire($lockKey, 15)) {
+                    throw new Exception('Could not acquire a lock to save the entry.');
+                }
+            }
+
+            try {
+                $success = Craft::$app->getElements()->saveElement($entry);
+            } catch (UnsupportedSiteException $e) {
+                $entry->addError('siteId', $e->getMessage());
+                $success = false;
+            } finally {
+                if ($isNotNew) {
+                    $mutex->release($lockKey);
+                }
+            }
+
+            if ($success) {
+                $transation->commit();
+            } else {
+                $transation->rollBack();
+            }
+        } catch (Throwable $e) {
+            $transation->rollBack();
+            throw $e;
         }
 
         if (!$success) {
@@ -392,6 +431,13 @@ class EntriesController extends BaseEntriesController
                 ]);
             }
 
+            // If the entry was duplicated, swap it back to the original entry, populated with the errors
+            if ($duplicate) {
+                $originalEntry->addErrors($entry->getErrors());
+                $entry = $originalEntry;
+            }
+
+
             $this->setFailFlash(Craft::t('app', 'Couldn’t save entry.'));
 
             // Send the entry back to the template
@@ -400,6 +446,19 @@ class EntriesController extends BaseEntriesController
             ]);
 
             return null;
+        }
+
+        // See if the user happens to have a provisional entry. If so delete it.
+        $provisional = Entry::find()
+            ->provisionalDrafts()
+            ->draftOf($entry->id)
+            ->draftCreator(Craft::$app->getUser()->getIdentity())
+            ->siteId($entry->siteId)
+            ->anyStatus()
+            ->one();
+
+        if ($provisional) {
+            Craft::$app->getElements()->deleteElement($provisional, true);
         }
 
         if ($this->request->getAcceptsJson()) {
@@ -467,6 +526,7 @@ class EntriesController extends BaseEntriesController
         // Get the entry in any but the to-be-deleted site -- preferably one the user has access to edit
         $draftId = $this->request->getBodyParam('draftId');
         $entryId = $this->request->getBodyParam('sourceId');
+        $provisional = (bool)($this->request->getBodyParam('provisional') ?? false);
         $editableSiteIds = $sitesService->getEditableSiteIds();
 
         $query = Entry::find()
@@ -476,7 +536,9 @@ class EntriesController extends BaseEntriesController
             ->anyStatus();
 
         if ($draftId) {
-            $query->draftId($draftId);
+            $query
+                ->draftId($draftId)
+                ->provisionalDrafts($provisional);
         } else {
             $query->id($entryId);
         }
@@ -497,9 +559,10 @@ class EntriesController extends BaseEntriesController
 
         // Resave the entry
         $entry->setScenario(Element::SCENARIO_ESSENTIALS);
-        Craft::$app->getElements()->saveElement($entry);
+        $entry->resaving = true;
+        Craft::$app->getElements()->saveElement($entry, true, true, false);
 
-        if ($draftId) {
+        if ($draftId && !$provisional) {
             $this->setSuccessFlash(Craft::t('app', 'Draft deleted for site.'));
         } else {
             $this->setSuccessFlash(Craft::t('app', 'Entry deleted for site.'));
@@ -512,8 +575,7 @@ class EntriesController extends BaseEntriesController
 
         if ($draftId) {
             // Redirect to the same draft in the fetched site
-            $source = ElementHelper::sourceElement($entry) ?? $entry;
-            return $this->redirect(UrlHelper::url($source->getCpEditUrl(), [
+            return $this->redirect(UrlHelper::url($entry->getCanonical()->getCpEditUrl(), [
                 'siteId' => $entry->siteId,
                 'draftId' => $draftId,
             ]));
@@ -581,7 +643,7 @@ class EntriesController extends BaseEntriesController
 
         if (!empty($variables['sectionHandle'])) {
             $variables['section'] = Craft::$app->getSections()->getSectionByHandle($variables['sectionHandle']);
-        } else if (!empty($variables['sectionId'])) {
+        } elseif (!empty($variables['sectionId'])) {
             $variables['section'] = Craft::$app->getSections()->getSectionById($variables['sectionId']);
         }
 
@@ -595,7 +657,7 @@ class EntriesController extends BaseEntriesController
         $siteIds = $this->editableSiteIds($variables['section']);
 
         if (empty($variables['site'])) {
-            /* @noinspection PhpUnhandledExceptionInspection */
+            /** @noinspection PhpUnhandledExceptionInspection */
             $variables['site'] = Craft::$app->getSites()->getCurrentSite();
 
             if (!in_array($variables['site']->id, $siteIds, false)) {
@@ -605,7 +667,7 @@ class EntriesController extends BaseEntriesController
             $site = $variables['site'];
         } else {
             // Make sure they were requesting a valid site
-            /* @var Site $site */
+            /** @var Site $site */
             $site = $variables['site'];
             if (!in_array($site->id, $siteIds, false)) {
                 throw new ForbiddenHttpException('User not permitted to edit content in this site');
@@ -629,7 +691,7 @@ class EntriesController extends BaseEntriesController
             );
 
             if (!$variables['entry']) {
-                // If they're attempting to access adraft/revision, or if the entry may be available in another
+                // If they're attempting to access a draft/revision, or if the entry may be available in another
                 // site, try to redirect them
                 if (
                     count($siteIds) > 1 ||
@@ -651,6 +713,15 @@ class EntriesController extends BaseEntriesController
             }
         }
 
+        /** @var Entry|DraftBehavior|RevisionBehavior $entry */
+        $entry = $variables['entry'];
+
+        // If this is an outdated draft, merge in the latest canonical changes
+        if ($entry->getIsDraft() && $entry->getIsDerivative() && ElementHelper::isOutdated($entry)) {
+            Craft::$app->getElements()->mergeCanonicalChanges($entry);
+            $variables['notices'][] = Craft::t('app', 'Recent changes to the Current revision have been merged into this draft.');
+        }
+
         // Determine whether we're showing the site label & site-specific entry status
         // ---------------------------------------------------------------------
 
@@ -663,7 +734,7 @@ class EntriesController extends BaseEntriesController
 
         $variables['isMultiSiteEntry'] = (
             Craft::$app->getIsMultiSite() &&
-            count($variables['entry']->getSupportedSites()) > 1
+            count($entry->getSupportedSites()) > 1
         );
 
         // Get the entry type
@@ -674,14 +745,14 @@ class EntriesController extends BaseEntriesController
 
         if (!$typeId) {
             // Default to the section's first entry type
-            $typeId = $variables['entry']->typeId ?? $variables['entry']->getAvailableEntryTypes()[0]->id;
+            $typeId = $entry->typeId ?? $entry->getAvailableEntryTypes()[0]->id;
         }
 
-        $variables['entry']->typeId = $typeId;
-        $variables['entryType'] = $variables['entry']->getType();
+        $entry->typeId = $typeId;
+        $variables['entryType'] = $entry->getType();
 
         // Prevent the last entry type's field layout from being used
-        $variables['entry']->fieldLayoutId = null;
+        $entry->fieldLayoutId = null;
 
         return null;
     }
@@ -698,65 +769,37 @@ class EntriesController extends BaseEntriesController
      */
     private function _loadEntry(Site $site, Section $section, int $entryId, int $draftId = null, int $revisionId = null)
     {
-        if ($draftId) {
+        if ($draftId || $revisionId) {
             $entry = Entry::find()
                 ->draftId($draftId)
-                ->structureId($section->structureId)
-                ->siteId($site->id)
-                ->anyStatus()
-                ->one();
-        } else if ($revisionId) {
-            $entry = Entry::find()
                 ->revisionId($revisionId)
                 ->structureId($section->structureId)
                 ->siteId($site->id)
                 ->anyStatus()
                 ->one();
         } else {
+            // First check if there's a provisional draft
             $entry = Entry::find()
-                ->id($entryId)
+                ->provisionalDrafts()
+                ->draftOf($entryId)
+                ->draftCreator(Craft::$app->getUser()->getIdentity())
                 ->structureId($section->structureId)
                 ->siteId($site->id)
                 ->anyStatus()
                 ->one();
-        }
 
-        if ($entry) {
-            return $entry;
-        }
-
-        // If a draft or revision was requested in a Structure section, see if it's just missing a `structureelements` record
-        if ($section->structureId) {
-            if ($draftId) {
+            if (!$entry) {
+                // Otherwise load the real Current revision
                 $entry = Entry::find()
-                    ->draftId($draftId)
-                    ->siteId($site->id)
-                    ->anyStatus()
-                    ->one();
-            } else if ($revisionId) {
-                $entry = Entry::find()
-                    ->revisionId($revisionId)
-                    ->siteId($site->id)
-                    ->anyStatus()
-                    ->one();
-            }
-
-            if ($entry) {
-                // Get the source entry
-                $sourceEntry = Entry::find()
                     ->id($entryId)
+                    ->structureId($section->structureId)
                     ->siteId($site->id)
                     ->anyStatus()
                     ->one();
-                if ($sourceEntry) {
-                    // Insert the draft/revision alongside the source entry
-                    Craft::$app->getStructures()->moveAfter($section->structureId, $entry, $sourceEntry, Structures::MODE_INSERT);
-                    return $entry;
-                }
             }
         }
 
-        return null;
+        return $entry;
     }
 
     /**
@@ -767,22 +810,40 @@ class EntriesController extends BaseEntriesController
      */
     private function _getEntryModel(): Entry
     {
-        $entryId = $this->request->getBodyParam('draftId') ?? $this->request->getBodyParam('sourceId') ?? $this->request->getBodyParam('entryId');
+        $entryId = $this->request->getBodyParam('sourceId') ?? $this->request->getBodyParam('entryId');
         $siteId = $this->request->getBodyParam('siteId');
 
         if ($entryId) {
+            // Is this a provisional draft?
+            $provisional = $this->request->getBodyParam('provisional');
+            if ($provisional) {
+                $entry = Entry::find()
+                    ->provisionalDrafts()
+                    ->draftOf($entryId)
+                    ->draftCreator(Craft::$app->getUser()->getIdentity())
+                    ->siteId($siteId)
+                    ->anyStatus()
+                    ->one();
+
+                if ($entry) {
+                    return $entry;
+                }
+            }
+
             $entry = Craft::$app->getEntries()->getEntryById($entryId, $siteId);
 
-            if (!$entry) {
-                throw new NotFoundHttpException('Entry not found');
+            if ($entry) {
+                return $entry;
             }
-        } else {
-            $entry = new Entry();
-            $entry->sectionId = $this->request->getRequiredBodyParam('sectionId');
 
-            if ($siteId) {
-                $entry->siteId = $siteId;
-            }
+            throw new NotFoundHttpException('Entry not found');
+        }
+
+        $entry = new Entry();
+        $entry->sectionId = $this->request->getRequiredBodyParam('sectionId');
+
+        if ($siteId) {
+            $entry->siteId = $siteId;
         }
 
         return $entry;
@@ -841,6 +902,11 @@ class EntriesController extends BaseEntriesController
                 $parentId = reset($parentId) ?: false;
             }
             $entry->newParentId = $parentId ?: false;
+        }
+
+        // Is fresh?
+        if ($this->request->getBodyParam('isFresh')) {
+            $entry->setIsFresh();
         }
 
         // Revision notes

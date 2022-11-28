@@ -162,15 +162,15 @@ class User extends \yii\web\User
      * ```
      * ```twig{5}
      * <form method="post" action="" accept-charset="UTF-8">
-     *     {{ csrfInput() }}
-     *     {{ actionInput('users/login') }}
+     *   {{ csrfInput() }}
+     *   {{ actionInput('users/login') }}
      *
-     *     {% set username = craft.app.user.rememberedUsername %}
-     *     <input type="text" name="loginName" value="{{ username }}">
+     *   {% set username = craft.app.user.rememberedUsername %}
+     *   <input type="text" name="loginName" value="{{ username }}">
      *
-     *     <input type="password" name="password">
+     *   <input type="password" name="password">
      *
-     *     <input type="submit" value="Login">
+     *   <input type="submit" value="Login">
      * </form>
      * ```
      *
@@ -191,13 +191,13 @@ class User extends \yii\web\User
      * ```
      * ```twig
      * {% if craft.app.user.isGuest %}
-     *     <a href="{{ url(craft.app.config.general.getLoginPath()) }}">
-     *         Login
-     *     </a>
+     *   <a href="{{ url(craft.app.config.general.getLoginPath()) }}">
+     *     Login
+     *   </a>
      * {% else %}
-     *     <a href="{{ url(craft.app.config.general.getLogoutPath()) }}">
-     *         Logout
-     *     </a>
+     *   <a href="{{ url(craft.app.config.general.getLogoutPath()) }}">
+     *     Logout
+     *   </a>
      * {% endif %}
      * ```
      */
@@ -425,7 +425,7 @@ class User extends \yii\web\User
      */
     protected function afterLogin($identity, $cookieBased, $duration)
     {
-        /* @var UserElement $identity */
+        /** @var UserElement $identity */
 
         if ($duration > 0) {
             // Store the duration on the session
@@ -460,7 +460,7 @@ class User extends \yii\web\User
             SessionHelper::remove($this->tokenParam);
 
             if ($identity) {
-                /* @var UserElement $identity */
+                /** @var UserElement $identity */
                 // Generate a new session token
                 $this->generateToken($identity->id);
             }
@@ -554,7 +554,7 @@ class User extends \yii\web\User
      */
     protected function afterLogout($identity)
     {
-        /* @var UserElement $identity */
+        /** @var UserElement $identity */
         // Delete the impersonation session, if there is one
         SessionHelper::remove(UserElement::IMPERSONATE_KEY);
 

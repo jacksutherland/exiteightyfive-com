@@ -11,6 +11,7 @@ use Craft;
 use craft\db\Connection;
 use craft\helpers\App;
 use craft\helpers\Db;
+use craft\helpers\Path;
 use craft\helpers\Template;
 use craft\web\Controller;
 use craft\web\View;
@@ -22,7 +23,7 @@ use yii\web\NotFoundHttpException;
 use yii\web\Response;
 use yii\web\ServerErrorHttpException;
 
-/* @noinspection ClassOverridesFieldOfSuperClassInspection */
+/** @noinspection ClassOverridesFieldOfSuperClassInspection */
 
 /**
  * The TemplatesController class is a controller that handles various template rendering related tasks for both the
@@ -63,7 +64,7 @@ class TemplatesController extends Controller
             // Allow anonymous access to the Login template even if the site is offline
             if ($this->request->getIsLoginRequest()) {
                 $this->allowAnonymous = self::ALLOW_ANONYMOUS_LIVE | self::ALLOW_ANONYMOUS_OFFLINE;
-            } else if ($this->request->getIsSiteRequest()) {
+            } elseif ($this->request->getIsSiteRequest()) {
                 $this->allowAnonymous = self::ALLOW_ANONYMOUS_LIVE;
             }
         }
@@ -87,6 +88,7 @@ class TemplatesController extends Controller
                 Craft::$app->getConfig()->getGeneral()->headlessMode &&
                 $this->request->getIsSiteRequest()
             ) ||
+            !Path::ensurePathIsContained($template) || // avoid the Craft::warning() from View::_validateTemplateName()
             !$this->getView()->doesTemplateExist($template)
         ) {
             throw new NotFoundHttpException('Template not found: ' . $template);
@@ -174,7 +176,7 @@ class TemplatesController extends Controller
      */
     public function actionRenderError(): Response
     {
-        /* @var $errorHandler \yii\web\ErrorHandler */
+        /** @var \yii\web\ErrorHandler $errorHandler */
         $errorHandler = Craft::$app->getErrorHandler();
         $exception = $errorHandler->exception;
 
@@ -195,14 +197,14 @@ class TemplatesController extends Controller
 
             if ($this->getView()->doesTemplateExist($prefix . $statusCode)) {
                 $template = $prefix . $statusCode;
-            } else if ($statusCode == 503 && $this->getView()->doesTemplateExist($prefix . 'offline')) {
+            } elseif ($statusCode == 503 && $this->getView()->doesTemplateExist($prefix . 'offline')) {
                 $template = $prefix . 'offline';
-            } else if ($this->getView()->doesTemplateExist($prefix . 'error')) {
+            } elseif ($this->getView()->doesTemplateExist($prefix . 'error')) {
                 $template = $prefix . 'error';
             }
         }
 
-        /* @noinspection UnSafeIsSetOverArrayInspection - FP */
+        /** @noinspection UnSafeIsSetOverArrayInspection - FP */
         if (!isset($template)) {
             $view = $this->getView();
             $view->setTemplateMode(View::TEMPLATE_MODE_CP);
@@ -222,7 +224,7 @@ class TemplatesController extends Controller
             'statusCode' => $statusCode,
         ], get_object_vars($exception));
 
-        // If this is a PHP error and html_errors (http://php.net/manual/en/errorfunc.configuration.php#ini.html-errors)
+        // If this is a PHP error and html_errors (https://php.net/manual/en/errorfunc.configuration.php#ini.html-errors)
         // is enabled, then allow the HTML not get encoded
         if ($exception instanceof ErrorException && App::phpConfigValueAsBool('html_errors')) {
             $variables['message'] = Template::raw($variables['message']);

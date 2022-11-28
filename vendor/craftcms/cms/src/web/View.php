@@ -8,6 +8,7 @@
 namespace craft\web;
 
 use Craft;
+use craft\base\ElementInterface;
 use craft\events\RegisterTemplateRootsEvent;
 use craft\events\TemplateEvent;
 use craft\helpers\Cp;
@@ -16,8 +17,10 @@ use craft\helpers\Html;
 use craft\helpers\Json;
 use craft\helpers\Path;
 use craft\helpers\StringHelper;
+use craft\web\twig\CpExtension;
 use craft\web\twig\Environment;
 use craft\web\twig\Extension;
+use craft\web\twig\GlobalsExtension;
 use craft\web\twig\Template;
 use craft\web\twig\TemplateLoader;
 use Twig\Error\LoaderError as TwigLoaderError;
@@ -214,6 +217,16 @@ class View extends \yii\web\View
     private $_jsBuffers = [];
 
     /**
+     * @var array
+     */
+    private $_scriptBuffers = [];
+
+    /**
+     * @var array
+     */
+    private $_cssBuffers = [];
+
+    /**
      * @var array the registered generic `<script>` code blocks
      * @see registerScript()
      */
@@ -274,8 +287,9 @@ class View extends \yii\web\View
             $this->setTemplateMode(self::TEMPLATE_MODE_SITE);
         }
 
-        // Register the cp.elements.element hook
+        // Register the CP hooks
         $this->hook('cp.elements.element', [$this, '_getCpElementHtml']);
+        $this->hook('cp.elements.edit', [$this, '_prepEditElementVariables']);
     }
 
     /**
@@ -302,6 +316,12 @@ class View extends \yii\web\View
         $twig->addExtension(new StringLoaderExtension());
         $twig->addExtension(new Extension($this, $twig));
 
+        if ($this->_templateMode === self::TEMPLATE_MODE_CP) {
+            $twig->addExtension(new CpExtension());
+        } elseif (Craft::$app->getIsInstalled()) {
+            $twig->addExtension(new GlobalsExtension());
+        }
+
         if (YII_DEBUG) {
             $twig->addExtension(new DebugExtension());
         }
@@ -312,7 +332,7 @@ class View extends \yii\web\View
         }
 
         // Set our timezone
-        /* @var CoreExtension $core */
+        /** @var CoreExtension $core */
         $core = $twig->getExtension(CoreExtension::class);
         $core->setTimezone(Craft::$app->getTimeZone());
 
@@ -384,22 +404,14 @@ class View extends \yii\web\View
         $renderingTemplate = $this->_renderingTemplate;
         $this->_renderingTemplate = $template;
 
-        $e = null;
         try {
             $output = $this->getTwig()->render($template, $variables);
-        } catch (\Throwable $e) {
-            // throw it later
-        }
-
-        $this->_renderingTemplate = $renderingTemplate;
-        $this->setTemplateMode($oldTemplateMode);
-
-        if ($e !== null) {
-            throw $e;
+        } finally {
+            $this->_renderingTemplate = $renderingTemplate;
+            $this->setTemplateMode($oldTemplateMode);
         }
 
         $this->afterRenderTemplate($template, $variables, $templateMode, $output);
-
         return $output;
     }
 
@@ -444,25 +456,17 @@ class View extends \yii\web\View
         $isRenderingPageTemplate = $this->_isRenderingPageTemplate;
         $this->_isRenderingPageTemplate = true;
 
-        $e = null;
         try {
             $this->beginPage();
             echo $this->renderTemplate($template, $variables);
             $this->endPage();
-        } catch (\Throwable $e) {
-            // throw it later
-        }
-
-        $this->_isRenderingPageTemplate = $isRenderingPageTemplate;
-        $this->setTemplateMode($oldTemplateMode);
-        $output = ob_get_clean();
-
-        if ($e !== null) {
-            throw $e;
+        } finally {
+            $this->_isRenderingPageTemplate = $isRenderingPageTemplate;
+            $this->setTemplateMode($oldTemplateMode);
+            $output = ob_get_clean();
         }
 
         $this->afterRenderPageTemplate($template, $variables, $templateMode, $output);
-
         return $output;
     }
 
@@ -495,21 +499,12 @@ class View extends \yii\web\View
         $renderingTemplate = $this->_renderingTemplate;
         $this->_renderingTemplate = $template;
 
-        $e = null;
         try {
-            $output = call_user_func_array([$twigTemplate, 'macro_' . $macro], $args);
-        } catch (\Throwable $e) {
-            // throw it later
+            return (string)call_user_func_array([$twigTemplate, 'macro_' . $macro], $args);
+        } finally {
+            $this->_renderingTemplate = $renderingTemplate;
+            $this->setTemplateMode($oldTemplateMode);
         }
-
-        $this->_renderingTemplate = $renderingTemplate;
-        $this->setTemplateMode($oldTemplateMode);
-
-        if ($e !== null) {
-            throw $e;
-        }
-
-        return (string)$output;
     }
 
     /**
@@ -537,22 +532,13 @@ class View extends \yii\web\View
         $lastRenderingTemplate = $this->_renderingTemplate;
         $this->_renderingTemplate = 'string:' . $template;
 
-        $e = null;
         try {
-            $result = $twig->createTemplate($template)->render($variables);
-        } catch (\Throwable $e) {
-            // throw it later
+            return $twig->createTemplate($template)->render($variables);
+        } finally {
+            $this->_renderingTemplate = $lastRenderingTemplate;
+            $twig->setDefaultEscaperStrategy();
+            $this->setTemplateMode($oldTemplateMode);
         }
-
-        $this->_renderingTemplate = $lastRenderingTemplate;
-        $twig->setDefaultEscaperStrategy();
-        $this->setTemplateMode($oldTemplateMode);
-
-        if ($e !== null) {
-            throw $e;
-        }
-
-        return $result;
     }
 
     /**
@@ -596,7 +582,6 @@ class View extends \yii\web\View
         $lastRenderingTemplate = $this->_renderingTemplate;
         $this->_renderingTemplate = 'string:' . $template;
 
-        $e = null;
         try {
             // Is this the first time we've parsed this template?
             $cacheKey = md5($template);
@@ -622,7 +607,7 @@ class View extends \yii\web\View
                     if (is_int($field)) {
                         $field = $definition;
                     }
-                    if (strpos($template, $field) !== false) {
+                    if (preg_match('/\b' . preg_quote($field, '/') . '\b/', $template)) {
                         $extra[] = $field;
                     }
                 }
@@ -633,27 +618,19 @@ class View extends \yii\web\View
             $variables['_variables'] = $variables;
 
             // Render it!
-            /* @var TwigTemplate $templateObj */
+            /** @var TwigTemplate $templateObj */
             $templateObj = $this->_objectTemplates[$cacheKey];
-            $output = $templateObj->render($variables);
-        } catch (\Throwable $e) {
-            // throw it later
+            return $templateObj->render($variables);
+        } finally {
+            $this->_renderingTemplate = $lastRenderingTemplate;
+            $twig->setDefaultEscaperStrategy();
+            $this->setTemplateMode($oldTemplateMode);
+
+            // Re-enable strict variables
+            if ($strictVariables) {
+                $twig->enableStrictVariables();
+            }
         }
-
-        $this->_renderingTemplate = $lastRenderingTemplate;
-        $twig->setDefaultEscaperStrategy();
-        $this->setTemplateMode($oldTemplateMode);
-
-        // Re-enable strict variables
-        if ($strictVariables) {
-            $twig->enableStrictVariables();
-        }
-
-        if ($e !== null) {
-            throw $e;
-        }
-
-        return $output;
     }
 
     /**
@@ -666,12 +643,25 @@ class View extends \yii\web\View
     {
         $tokens = [];
 
-        // Tokenize {% verbatim %} tags
-        $template = preg_replace_callback('/\{%-?\s*verbatim\s*-?%\}.*?{%-?\s*endverbatim\s*-?%\}/s', function(array $matches) use (&$tokens) {
-            $token = 'tok_' . StringHelper::randomString(10);
-            $tokens[$token] = $matches[0];
-            return $token;
-        }, $template);
+        // Tokenize {% verbatim %} ... {% endverbatim %} tags in their entirety
+        $template = preg_replace_callback('/\{%-?\s*verbatim\s*-?%\}.*?{%-?\s*endverbatim\s*-?%\}/s',
+            function(array $matches) use (&$tokens) {
+                $token = 'tok_' . StringHelper::randomString(10);
+                $tokens[$token] = $matches[0];
+                return $token;
+            },
+            $template
+        );
+
+        // Tokenize any remaining Twig tags (including print tags)
+        $template = preg_replace_callback('/\{%-?\s*\w+.*?%\}|(?<!\{)\{\{(?!\{).+?(?<!\})\}\}(?!\})/s',
+            function(array $matches) use (&$tokens) {
+                $token = 'tok_' . StringHelper::randomString(10);
+                $tokens[$token] = $matches[0];
+                return $token;
+            },
+            $template
+        );
 
         // Tokenize inline code and code blocks
         $template = preg_replace_callback('/(?<!`)(`|`{3,})(?!`).*?(?<!`)\1(?!`)/s', function(array $matches) use (&$tokens) {
@@ -824,20 +814,11 @@ class View extends \yii\web\View
         $oldTemplateMode = $this->getTemplateMode();
         $this->setTemplateMode($templateMode);
 
-        $e = null;
         try {
-            $path = $this->_resolveTemplateInternal($name);
-        } catch (\Throwable $e) {
-            // throw it later
+            return $this->_resolveTemplateInternal($name);
+        } finally {
+            $this->setTemplateMode($oldTemplateMode);
         }
-
-        $this->setTemplateMode($oldTemplateMode);
-
-        if ($e !== null) {
-            throw $e;
-        }
-
-        return $path;
     }
 
     /**
@@ -867,7 +848,7 @@ class View extends \yii\web\View
 
         // Should we be looking for a localized version of the template?
         if ($this->_templateMode === self::TEMPLATE_MODE_SITE && Craft::$app->getIsInstalled()) {
-            /* @noinspection PhpUnhandledExceptionInspection */
+            /** @noinspection PhpUnhandledExceptionInspection */
             $sitePath = $this->_templatesPath . DIRECTORY_SEPARATOR . Craft::$app->getSites()->getCurrentSite()->handle;
             if (is_dir($sitePath)) {
                 $basePaths[] = $sitePath;
@@ -893,7 +874,7 @@ class View extends \yii\web\View
 
         if (!empty($roots)) {
             foreach ($roots as $templateRoot => $basePaths) {
-                /* @var string[] $basePaths */
+                /** @var string[] $basePaths */
                 $templateRootLen = strlen($templateRoot);
                 if ($templateRoot === '' || strncasecmp($templateRoot . '/', $name . '/', $templateRootLen + 1) === 0) {
                     $subName = $templateRoot === '' ? $name : (strlen($name) === $templateRootLen ? '' : substr($name, $templateRootLen + 1));
@@ -966,10 +947,40 @@ class View extends \yii\web\View
     }
 
     /**
+     * Registers JavaScript code with the given variables, pre-JSON-encoded.
+     *
+     * @param callable $jsFn callback function that returns the JS code to be registered.
+     * @param array $vars Array of variables that will be JSON-encoded before being passed to `$jsFn`.
+     * @param int $position the position at which the JS script tag should be inserted
+     * in a page. The possible values are:
+     *
+     * - [[POS_HEAD]]: in the head section
+     * - [[POS_BEGIN]]: at the beginning of the body section
+     * - [[POS_END]]: at the end of the body section
+     * - [[POS_LOAD]]: enclosed within jQuery(window).load().
+     *   Note that by using this position, the method will automatically register the jQuery js file.
+     * - [[POS_READY]]: enclosed within jQuery(document).ready(). This is the default value.
+     *   Note that by using this position, the method will automatically register the jQuery js file.
+     *
+     * @param string|null $key the key that identifies the JS code block. If null, it will use
+     * $js as the key. If two JS code blocks are registered with the same key, the latter
+     * will overwrite the former.
+     * @since 3.7.31
+     */
+    public function registerJsWithVars(callable $jsFn, array $vars, int $position = self::POS_READY, ?string $key = null): void
+    {
+        $jsVars = array_map(function($variable) {
+            return Json::encode($variable);
+        }, $vars);
+        $js = call_user_func($jsFn, ...array_values($jsVars));
+        $this->registerJs($js, $position, $key);
+    }
+
+    /**
      * Starts a JavaScript buffer.
      *
-     * JavaScript buffers work similarly to [output buffers](http://php.net/manual/en/intro.outcontrol.php) in PHP.
-     * Once you’ve started a JavaScript buffer, any JavaScript code included with [[registerJs()]] will be included
+     * JavaScript buffers work similarly to [output buffers](https://php.net/manual/en/intro.outcontrol.php) in PHP.
+     * Once you’ve started a JavaScript buffer, any JavaScript code registered with [[registerJs()]] will be included
      * in a buffer, and you will have the opportunity to fetch all of that code via [[clearJsBuffer()]] without
      * having it actually get output to the page.
      */
@@ -981,34 +992,106 @@ class View extends \yii\web\View
     }
 
     /**
-     * Clears and ends a JavaScript buffer, returning whatever JavaScript code was included while the buffer was active.
+     * Clears and ends a JavaScript buffer, returning whatever JavaScript code was registered while the buffer was active.
      *
-     * @param bool $scriptTag Whether the JavaScript code should be wrapped in a `<script>` tag. Defaults to `true`.
-     * @return string|false The JS code that was included in the active JS buffer, or `false` if there isn’t one
+     * @param bool $scriptTag Whether the JavaScript code should be wrapped in a `<script>` tag.
+     * @param bool $combine Whether the individually registered code snippets should be combined, losing the positions and keys
+     * @return string|array|false The JS code that was registered in the active JS buffer, or `false` if there isn’t one
      */
-    public function clearJsBuffer(bool $scriptTag = true)
+    public function clearJsBuffer(bool $scriptTag = true, $combine = true)
     {
         if (empty($this->_jsBuffers)) {
             return false;
         }
 
-        // Combine the JS
-        $js = '';
-
-        foreach ([self::POS_HEAD, self::POS_BEGIN, self::POS_END, self::POS_LOAD, self::POS_READY] as $pos) {
-            if (!empty($this->js[$pos])) {
-                $js .= implode("\n", $this->js[$pos]) . "\n";
-            }
-        }
+        $bufferedJs = $this->js;
 
         // Set the active queue to the last one
         $this->js = array_pop($this->_jsBuffers);
 
-        if ($scriptTag === true && !empty($js)) {
-            return Html::script($js, ['type' => 'text/javascript']);
+        if ($combine) {
+            $js = '';
+
+            foreach ([self::POS_HEAD, self::POS_BEGIN, self::POS_END, self::POS_LOAD, self::POS_READY] as $pos) {
+                if (!empty($bufferedJs[$pos])) {
+                    $js .= implode("\n", $bufferedJs[$pos]) . "\n";
+                }
+            }
+
+            if ($scriptTag && !empty($js)) {
+                return Html::script($js, ['type' => 'text/javascript']);
+            }
+
+            return $js;
         }
 
-        return $js;
+        if ($scriptTag) {
+            foreach ($bufferedJs as $pos => $js) {
+                $bufferedJs[$pos] = Html::script(implode("\n", $js), ['type' => 'text/javascript']);
+            }
+        }
+
+        return $bufferedJs;
+    }
+
+    /**
+     * Starts a buffer for any `<script>` tags registered with [[registerScript()]].
+     *
+     * @return void
+     * @since 3.7.0
+     */
+    public function startScriptBuffer(): void
+    {
+        // Save any currently queued <script> tags into a new buffer, and reset the active <script> queue
+        $this->_scriptBuffers[] = $this->_scripts;
+        $this->_scripts = [];
+    }
+
+    /**
+     * Clears and ends a `<script>` buffer, returning whatever `<script>` tags were registered while the buffer was active.
+     *
+     * @return array|false The `<script>` tags that were registered in the active buffer, grouped by position, or `false` if there isn’t one
+     * @since 3.7.0
+     */
+    public function clearScriptBuffer()
+    {
+        if (empty($this->_scriptBuffers)) {
+            return false;
+        }
+
+        $bufferedScripts = $this->_scripts;
+        $this->_scripts = array_pop($this->_scriptBuffers);
+        return $bufferedScripts;
+    }
+
+    /**
+     * Starts a buffer for any `<style>` tags registered with [[registerCss()]].
+     *
+     * @return void
+     * @since 3.7.0
+     */
+    public function startCssBuffer(): void
+    {
+        // Save any currently queued <style> tags into a new buffer, and reset the active <style> queue
+        $this->_cssBuffers[] = $this->css;
+        $this->css = [];
+    }
+
+    /**
+     * Clears and ends a `<style>` buffer, returning whatever `<style>` tags were registered while the buffer was active.
+     *
+     * @return array|false The `<style>` tags that were registered in the active buffer, grouped by position, or `false` if there isn’t one
+     * @since 3.7.0
+     */
+    public function clearCssBuffer()
+    {
+        if (empty($this->_cssBuffers)) {
+            return false;
+        }
+
+        $bufferedStyles = $this->css;
+        $this->css = array_pop($this->_cssBuffers);
+        return $bufferedStyles;
     }
 
     /**
@@ -1234,8 +1317,21 @@ JS;
     /**
      * Returns the initial values of delta inputs.
      *
-     * @return mixed[]
+     * @return array
      * @see setInitialDeltaValue()
+     * @since 3.7.0
+     */
+    public function getInitialDeltaValues(): array
+    {
+        return $this->_initialDeltaValues;
+    }
+
+    /**
+     * Returns the initial values of delta inputs.
+     *
+     * @return array
+     * @see setInitialDeltaValue()
+     * @deprecated in 3.7.0. Use [[getInitialDeltaValues()]] instead.
      * @since 3.4.6
      */
     public function getInitialDeltaValue()
@@ -1248,7 +1344,7 @@ JS;
      *
      * @param string $inputName
      * @param mixed $value
-     * @see getInitialDeltaValue()
+     * @see getInitialDeltaValues()
      * @since 3.4.6
      */
     public function setInitialDeltaValue(string $inputName, $value)
@@ -1392,7 +1488,7 @@ JS;
      *
      * ```html
      * <label for="bar-title">Title</label>
-     * <input type="text" name="bar[title]" id="title">
+     * <input type="text" name="bar[title]" id="bar-title">
      * ```
      *
      * would become:
@@ -1402,15 +1498,39 @@ JS;
      * <input type="text" name="foo[bar][title]" id="foo-bar-title">
      * ```
      *
-     * @param string $html The HTML code
+     * When a callable is passed to `$html` (supported as of Craft 3.7), the namespace will be set via
+     * [[setNamespace()]] before the callable is executed, in time for any JavaScript code that needs to be
+     * registered by the callable.
+     *
+     * ```php
+     * $settingsHtml = Craft::$app->view->namespaceInputs(function() use ($widget) {
+     *     return $widget->getSettingsHtml();
+     * }, 'widget-settings');
+     * ```
+     *
+     * @param string|callable $html The HTML code, or a callable that returns the HTML code
      * @param string|null $namespace The namespace. Defaults to the [[getNamespace()|active namespace]].
      * @param bool $otherAttributes Whether `id`, `for`, and other attributes should be namespaced (in addition to `name`)
      * @param bool $withClasses Whether class names should be namespaced as well (affects both `class` attributes and
      * class name CSS selectors within `<style>` tags). This will only have an effect if `$otherAttributes` is `true`.
      * @return string The HTML with namespaced attributes
      */
-    public function namespaceInputs(string $html, string $namespace = null, bool $otherAttributes = true, bool $withClasses = false): string
+    public function namespaceInputs($html, string $namespace = null, bool $otherAttributes = true, bool $withClasses = false): string
     {
+        if (is_callable($html)) {
+            // If no namespace was passed in, just return the callable response directly.
+            // No need to namespace it via the currently-set namespace in this case; if there is one, it should get applied later on.
+            if ($namespace === null) {
+                return $html();
+            }
+
+            $oldNamespace = $this->getNamespace();
+            $this->setNamespace($this->namespaceInputName($namespace));
+            $response = $this->namespaceInputs($html(), $namespace, $otherAttributes, $withClasses);
+            $this->setNamespace($oldNamespace);
+            return $response;
+        }
+
         if ($html === '') {
             return $html;
         }
@@ -1847,7 +1967,7 @@ JS;
         }
 
         if (Path::ensurePathIsContained($name) === false) {
-            Craft::error('Someone tried to load a template outside the templates folder: ' . $name);
+            Craft::warning('Someone tried to load a template outside the templates folder: ' . $name);
             throw new TwigLoaderError(Craft::t('app', 'Looks like you are trying to load a template outside the template folder.'));
         }
     }
@@ -1989,10 +2109,10 @@ JS;
     /**
      * Returns the HTML for an element in the control panel.
      *
-     * @param array &$context
+     * @param array $context
      * @return string|null
      */
-    private function _getCpElementHtml(array &$context)
+    private function _getCpElementHtml(array &$context): ?string
     {
         if (!isset($context['element'])) {
             return null;
@@ -2008,7 +2128,29 @@ JS;
             $context['element'],
             $context['context'] ?? 'index',
             $size,
-            $context['name'] ?? null
+            $context['name'] ?? null,
+            true,
+            true,
+            true,
+            true,
+            $context['single'] ?? false
         );
+    }
+
+    /**
+     * Returns the HTML for an element in the control panel.
+     *
+     * @param array $context
+     * @return void
+     */
+    private function _prepEditElementVariables(array &$context): void
+    {
+        /** @var ElementInterface $element */
+        $element = $context['element'];
+
+        [$docTitle, $title] = Cp::editElementTitles($element);
+
+        $context['docTitle'] = $docTitle;
+        $context['title'] = $title;
     }
 }

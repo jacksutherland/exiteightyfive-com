@@ -51,16 +51,26 @@ class FileDownloader implements DownloaderInterface, ChangeReportInterface
     protected $httpDownloader;
     /** @var Filesystem */
     protected $filesystem;
-    /** @var Cache */
+    /** @var ?Cache */
     protected $cache;
-    /** @var EventDispatcher */
+    /** @var ?EventDispatcher */
     protected $eventDispatcher;
     /** @var ProcessExecutor */
     protected $process;
     /**
+     * @var array<string, int|string>
+     * @private
+     * @internal
+     */
+    public static $downloadMetadata = array();
+
+    /**
      * @private this is only public for php 5.3 support in closures
+     *
+     * @var array<string, string> Map of package name to cache key
      */
     public $lastCacheWrites = array();
+    /** @var array<string, string[]> Map of package name to list of paths */
     private $additionalCleanupPaths = array();
 
     /**
@@ -84,12 +94,13 @@ class FileDownloader implements DownloaderInterface, ChangeReportInterface
         $this->filesystem = $filesystem ?: new Filesystem($this->process);
 
         if ($this->cache && $this->cache->gcIsNecessary()) {
-            $this->cache->gc($config->get('cache-files-ttl'), $config->get('cache-files-maxsize'));
+            $this->io->writeError('Running cache garbage collection', true, IOInterface::VERY_VERBOSE);
+            $this->cache->gc((int) $config->get('cache-files-ttl'), (int) $config->get('cache-files-maxsize'));
         }
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function getInstallationSource()
     {
@@ -97,7 +108,9 @@ class FileDownloader implements DownloaderInterface, ChangeReportInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
+     *
+     * @param bool $output
      */
     public function download(PackageInterface $package, $path, PackageInterface $prevPackage = null, $output = true)
     {
@@ -112,8 +125,10 @@ class FileDownloader implements DownloaderInterface, ChangeReportInterface
         };
 
         $retries = 3;
-        $urls = $package->getDistUrls();
-        foreach ($urls as $index => $url) {
+        $distUrls = $package->getDistUrls();
+        /** @var array<array{base: string, processed: string, cacheKey: string}> $urls */
+        $urls = array();
+        foreach ($distUrls as $index => $url) {
             $processedUrl = $this->processUrl($package, $url);
             $urls[$index] = array(
                 'base' => $url,
@@ -139,7 +154,8 @@ class FileDownloader implements DownloaderInterface, ChangeReportInterface
 
         $accept = null;
         $reject = null;
-        $download = function () use ($io, $output, $httpDownloader, $cache, $cacheKeyGenerator, $eventDispatcher, $package, $fileName, &$urls, &$accept, &$reject) {
+        $download = function () use ($io, $output, $httpDownloader, $cache, $cacheKeyGenerator, $eventDispatcher, $package, $fileName, &$urls, &$accept, &$reject, $self) {
+            /** @var array{base: string, processed: string, cacheKey: string} $url */
             $url = reset($urls);
             $index = key($urls);
 
@@ -163,6 +179,12 @@ class FileDownloader implements DownloaderInterface, ChangeReportInterface
             if ($cache && (!$checksum || $checksum === $cache->sha1($cacheKey)) && $cache->copyTo($cacheKey, $fileName)) {
                 if ($output) {
                     $io->writeError("  - Loading <info>" . $package->getName() . "</info> (<comment>" . $package->getFullPrettyVersion() . "</comment>) from cache", true, IOInterface::VERY_VERBOSE);
+                }
+                // mark the file as having been written in cache even though it is only read from cache, so that if
+                // the cache is corrupt the archive will be deleted and the next attempt will re-download it
+                // see https://github.com/composer/composer/issues/10028
+                if (!$cache->isReadOnly()) {
+                    $self->lastCacheWrites[$package->getName()] = $cacheKey;
                 }
                 $result = \React\Promise\resolve($fileName);
             } else {
@@ -192,7 +214,7 @@ class FileDownloader implements DownloaderInterface, ChangeReportInterface
                 }
 
                 if ($eventDispatcher) {
-                    $postFileDownloadEvent = new PostFileDownloadEvent(PluginEvents::POST_FILE_DOWNLOAD, $fileName, $checksum, $url['processed'], $package);
+                    $postFileDownloadEvent = new PostFileDownloadEvent(PluginEvents::POST_FILE_DOWNLOAD, $fileName, $checksum, $url['processed'], 'package', $package);
                     $eventDispatcher->dispatch($postFileDownloadEvent->getName(), $postFileDownloadEvent);
                 }
 
@@ -203,6 +225,7 @@ class FileDownloader implements DownloaderInterface, ChangeReportInterface
         $accept = function ($response) use ($cache, $package, $fileName, $self, &$urls) {
             $url = reset($urls);
             $cacheKey = $url['cacheKey'];
+            FileDownloader::$downloadMetadata[$package->getName()] = @filesize($fileName) ?: $response->getHeader('Content-Length') ?: '?';
 
             if ($cache && !$cache->isReadOnly()) {
                 $self->lastCacheWrites[$package->getName()] = $cacheKey;
@@ -271,14 +294,15 @@ class FileDownloader implements DownloaderInterface, ChangeReportInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function prepare($type, PackageInterface $package, $path, PackageInterface $prevPackage = null)
     {
+        return \React\Promise\resolve();
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function cleanup($type, PackageInterface $package, $path, PackageInterface $prevPackage = null)
     {
@@ -301,13 +325,17 @@ class FileDownloader implements DownloaderInterface, ChangeReportInterface
 
         foreach ($dirsToCleanUp as $dir) {
             if (is_dir($dir) && $this->filesystem->isDirEmpty($dir) && realpath($dir) !== getcwd()) {
-                $this->filesystem->removeDirectory($dir);
+                $this->filesystem->removeDirectoryPhp($dir);
             }
         }
+
+        return \React\Promise\resolve();
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
+     *
+     * @param bool $output
      */
     public function install(PackageInterface $package, $path, $output = true)
     {
@@ -328,11 +356,15 @@ class FileDownloader implements DownloaderInterface, ChangeReportInterface
                 }
             }
         }
+
+        return \React\Promise\resolve();
     }
 
     /**
      * TODO mark private in v3
      * @protected This is public due to PHP 5.3
+     *
+     * @return void
      */
     public function clearLastCacheWrite(PackageInterface $package)
     {
@@ -345,6 +377,10 @@ class FileDownloader implements DownloaderInterface, ChangeReportInterface
     /**
      * TODO mark private in v3
      * @protected This is public due to PHP 5.3
+     *
+     * @param string $path
+     *
+     * @return void
      */
     public function addCleanupPath(PackageInterface $package, $path)
     {
@@ -354,6 +390,10 @@ class FileDownloader implements DownloaderInterface, ChangeReportInterface
     /**
      * TODO mark private in v3
      * @protected This is public due to PHP 5.3
+     *
+     * @param string $path
+     *
+     * @return void
      */
     public function removeCleanupPath(PackageInterface $package, $path)
     {
@@ -366,38 +406,43 @@ class FileDownloader implements DownloaderInterface, ChangeReportInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function update(PackageInterface $initial, PackageInterface $target, $path)
     {
-        $this->io->writeError("  - " . UpdateOperation::format($initial, $target) . ": ", false);
+        $this->io->writeError("  - " . UpdateOperation::format($initial, $target) . $this->getInstallOperationAppendix($target, $path));
 
         $promise = $this->remove($initial, $path, false);
-        if ($promise === null || !$promise instanceof PromiseInterface) {
+        if (!$promise instanceof PromiseInterface) {
             $promise = \React\Promise\resolve();
         }
         $self = $this;
         $io = $this->io;
 
-        return $promise->then(function () use ($self, $target, $path, $io) {
+        return $promise->then(function () use ($self, $target, $path) {
             $promise = $self->install($target, $path, false);
-            $io->writeError('');
 
             return $promise;
         });
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
+     *
+     * @param bool $output
      */
     public function remove(PackageInterface $package, $path, $output = true)
     {
         if ($output) {
             $this->io->writeError("  - " . UninstallOperation::format($package));
         }
-        if (!$this->filesystem->removeDirectory($path)) {
-            throw new \RuntimeException('Could not completely delete '.$path.', aborting.');
-        }
+        $promise = $this->filesystem->removeDirectoryAsync($path);
+
+        return $promise->then(function ($result) use ($path) {
+            if (!$result) {
+                throw new \RuntimeException('Could not completely delete '.$path.', aborting.');
+            }
+        });
     }
 
     /**
@@ -410,6 +455,18 @@ class FileDownloader implements DownloaderInterface, ChangeReportInterface
     protected function getFileName(PackageInterface $package, $path)
     {
         return rtrim($this->config->get('vendor-dir').'/composer/tmp-'.md5($package.spl_object_hash($package)).'.'.pathinfo(parse_url($package->getDistUrl(), PHP_URL_PATH), PATHINFO_EXTENSION), '.');
+    }
+
+    /**
+     * Gets appendix message to add to the "- Upgrading x" string being output on update
+     *
+     * @param  PackageInterface $package package instance
+     * @param  string           $path    download path
+     * @return string
+     */
+    protected function getInstallOperationAppendix(PackageInterface $package, $path)
+    {
+        return '';
     }
 
     /**
@@ -434,7 +491,7 @@ class FileDownloader implements DownloaderInterface, ChangeReportInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      * @throws \RuntimeException
      */
     public function getLocalChanges(PackageInterface $package, $targetDir)

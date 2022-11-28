@@ -36,9 +36,9 @@ class ConsoleIO extends BaseIO
     /** @var HelperSet */
     protected $helperSet;
     /** @var string */
-    protected $lastMessage;
+    protected $lastMessage = '';
     /** @var string */
-    protected $lastMessageErr;
+    protected $lastMessageErr = '';
 
     /** @var float */
     private $startTime;
@@ -68,6 +68,8 @@ class ConsoleIO extends BaseIO
 
     /**
      * @param float $startTime
+     *
+     * @return void
      */
     public function enableDebugging($startTime)
     {
@@ -75,7 +77,7 @@ class ConsoleIO extends BaseIO
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function isInteractive()
     {
@@ -83,7 +85,7 @@ class ConsoleIO extends BaseIO
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function isDecorated()
     {
@@ -91,7 +93,7 @@ class ConsoleIO extends BaseIO
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function isVerbose()
     {
@@ -99,7 +101,7 @@ class ConsoleIO extends BaseIO
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function isVeryVerbose()
     {
@@ -107,7 +109,7 @@ class ConsoleIO extends BaseIO
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function isDebug()
     {
@@ -115,7 +117,7 @@ class ConsoleIO extends BaseIO
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function write($messages, $newline = true, $verbosity = self::NORMAL)
     {
@@ -123,7 +125,7 @@ class ConsoleIO extends BaseIO
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function writeError($messages, $newline = true, $verbosity = self::NORMAL)
     {
@@ -131,7 +133,7 @@ class ConsoleIO extends BaseIO
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function writeRaw($messages, $newline = true, $verbosity = self::NORMAL)
     {
@@ -139,7 +141,7 @@ class ConsoleIO extends BaseIO
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function writeErrorRaw($messages, $newline = true, $verbosity = self::NORMAL)
     {
@@ -147,23 +149,19 @@ class ConsoleIO extends BaseIO
     }
 
     /**
-     * @param array|string $messages
-     * @param bool         $newline
-     * @param bool         $stderr
-     * @param int          $verbosity
+     * @param string[]|string $messages
+     * @param bool                 $newline
+     * @param bool                 $stderr
+     * @param int                  $verbosity
+     * @param bool                 $raw
+     *
+     * @return void
      */
     private function doWrite($messages, $newline, $stderr, $verbosity, $raw = false)
     {
         $sfVerbosity = $this->verbosityMap[$verbosity];
         if ($sfVerbosity > $this->output->getVerbosity()) {
             return;
-        }
-
-        // hack to keep our usage BC with symfony<2.8 versions
-        // this removes the quiet output but there is no way around it
-        // see https://github.com/composer/composer/pull/4913
-        if (OutputInterface::VERBOSITY_QUIET === 0) {
-            $sfVerbosity = OutputInterface::OUTPUT_NORMAL;
         }
 
         if ($raw) {
@@ -194,7 +192,7 @@ class ConsoleIO extends BaseIO
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function overwrite($messages, $newline = true, $size = null, $verbosity = self::NORMAL)
     {
@@ -202,7 +200,7 @@ class ConsoleIO extends BaseIO
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function overwriteError($messages, $newline = true, $size = null, $verbosity = self::NORMAL)
     {
@@ -210,11 +208,13 @@ class ConsoleIO extends BaseIO
     }
 
     /**
-     * @param array|string $messages
+     * @param string[]|string $messages
      * @param bool         $newline
      * @param int|null     $size
      * @param bool         $stderr
      * @param int          $verbosity
+     *
+     * @return void
      */
     private function doOverwrite($messages, $newline, $size, $stderr, $verbosity)
     {
@@ -264,7 +264,7 @@ class ConsoleIO extends BaseIO
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function ask($question, $default = null)
     {
@@ -276,7 +276,7 @@ class ConsoleIO extends BaseIO
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function askConfirmation($question, $default = true)
     {
@@ -288,7 +288,7 @@ class ConsoleIO extends BaseIO
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function askAndValidate($question, $validator, $attempts = null, $default = null)
     {
@@ -302,7 +302,7 @@ class ConsoleIO extends BaseIO
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function askAndHideAnswer($question)
     {
@@ -315,7 +315,7 @@ class ConsoleIO extends BaseIO
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function select($question, $choices, $default, $attempts = false, $errorMessage = 'Value "%s" is invalid', $multiselect = false)
     {

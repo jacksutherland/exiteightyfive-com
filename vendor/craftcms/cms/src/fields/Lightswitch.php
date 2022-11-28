@@ -17,7 +17,7 @@ use craft\elements\db\ElementQueryInterface;
 use craft\helpers\ArrayHelper;
 use craft\helpers\Cp;
 use craft\helpers\Db;
-use craft\helpers\Html;
+use craft\helpers\ElementHelper;
 use GraphQL\Type\Definition\Type;
 use yii\db\Schema;
 
@@ -111,18 +111,18 @@ class Lightswitch extends Field implements PreviewableFieldInterface, SortableFi
                 'on' => $this->default,
             ]) .
             Cp::textFieldHtml([
-                'label' => Craft::t('app', 'ON Label'),
-                'instructions' => Craft::t('app', 'The label text to display beside the lightswitch’s enabled state.'),
-                'id' => 'on-label',
-                'name' => 'onLabel',
-                'value' => $this->onLabel,
-            ]) .
-            Cp::textFieldHtml([
                 'label' => Craft::t('app', 'OFF Label'),
                 'instructions' => Craft::t('app', 'The label text to display beside the lightswitch’s disabled state.'),
                 'id' => 'off-label',
                 'name' => 'offLabel',
                 'value' => $this->offLabel,
+            ]) .
+            Cp::textFieldHtml([
+                'label' => Craft::t('app', 'ON Label'),
+                'instructions' => Craft::t('app', 'The label text to display beside the lightswitch’s enabled state.'),
+                'id' => 'on-label',
+                'name' => 'onLabel',
+                'value' => $this->onLabel,
             ]);
     }
 
@@ -131,11 +131,11 @@ class Lightswitch extends Field implements PreviewableFieldInterface, SortableFi
      */
     protected function inputHtml($value, ElementInterface $element = null): string
     {
-        $id = Html::id($this->handle);
+        $id = $this->getInputId();
         return Craft::$app->getView()->renderTemplate('_includes/forms/lightswitch', [
             'id' => $id,
             'labelId' => "$id-label",
-            'instructionsId' => "$id-instructions",
+            'describedBy' => $this->describedBy,
             'name' => $this->handle,
             'on' => (bool)$value,
             'onLabel' => $this->onLabel,
@@ -173,13 +173,13 @@ class Lightswitch extends Field implements PreviewableFieldInterface, SortableFi
      */
     public function modifyElementsQuery(ElementQueryInterface $query, $value)
     {
+        /** @var ElementQuery $query */
         if ($value === null) {
             return null;
         }
 
-        $column = 'content.' . Craft::$app->getContent()->fieldColumnPrefix . $this->handle;
-        /* @var ElementQuery $query */
-        $query->subQuery->andWhere(Db::parseBooleanParam($column, $value, (bool)$this->default));
+        $column = ElementHelper::fieldColumnFromField($this);
+        $query->subQuery->andWhere(Db::parseBooleanParam("content.$column", $value, (bool)$this->default));
         return null;
     }
 

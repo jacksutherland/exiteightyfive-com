@@ -1,0 +1,275 @@
+field: 53caff22-2ce8-4149-83e4-74b104ad4bb6 # Module
+fieldLayouts:
+  0be4e34e-05eb-47dc-8439-213a5122e571:
+    tabs:
+      -
+        elements:
+          -
+            fieldUid: f7fd0309-f150-4c01-8a40-40dbac72f0d0 # Image
+            instructions: null
+            label: null
+            required: '1'
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
+          -
+            fieldUid: 5ed32af1-673e-4be3-bd0b-7ff45f08e4fb # Image Alignment
+            instructions: null
+            label: null
+            required: '0'
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
+          -
+            fieldUid: cb0e3dab-78d4-405b-8132-5bef8b778f77 # Icon
+            instructions: null
+            label: null
+            required: '0'
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
+          -
+            fieldUid: a627f3be-ac3a-4f1e-92e2-8c0efc307e0b # Header
+            instructions: null
+            label: null
+            required: '0'
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
+          -
+            fieldUid: 7861dd6b-590b-4cab-be23-a9cbd1384e2b # Text
+            instructions: null
+            label: null
+            required: '0'
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
+          -
+            fieldUid: 08d717c8-3d2d-47c4-ba90-69e091596fa4 # Button Text
+            instructions: null
+            label: null
+            required: '0'
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
+          -
+            fieldUid: 4682f4b1-e94a-4694-ad6f-5dd0f7fcd8c8 # Button Entry
+            instructions: null
+            label: null
+            required: '0'
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
+          -
+            fieldUid: 8bb4c1f0-0870-4430-be62-deec5bd45f2c # Button External URL
+            instructions: null
+            label: null
+            required: '0'
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
+        name: Content
+        sortOrder: 1
+fields:
+  5ed32af1-673e-4be3-bd0b-7ff45f08e4fb: # Image Alignment
+    columnSuffix: null
+    contentColumnType: string
+    fieldGroup: null
+    handle: imageAlignment
+    instructions: ''
+    name: 'Image Alignment'
+    searchable: true
+    settings:
+      options:
+        -
+          __assoc__:
+            -
+              - label
+              - Left
+            -
+              - value
+              - left
+            -
+              - default
+              - '1'
+        -
+          __assoc__:
+            -
+              - label
+              - Right
+            -
+              - value
+              - right
+            -
+              - default
+              - ''
+    translationKeyFormat: null
+    translationMethod: none
+    type: craft\fields\RadioButtons
+  8bb4c1f0-0870-4430-be62-deec5bd45f2c: # Button External URL
+    columnSuffix: null
+    contentColumnType: text
+    fieldGroup: null
+    handle: buttonExternalUrl
+    instructions: ''
+    name: 'Button External URL'
+    searchable: true
+    settings:
+      byteLimit: null
+      charLimit: null
+      code: ''
+      columnType: text
+      initialRows: '4'
+      multiline: ''
+      placeholder: null
+      uiMode: normal
+    translationKeyFormat: null
+    translationMethod: none
+    type: craft\fields\PlainText
+  08d717c8-3d2d-47c4-ba90-69e091596fa4: # Button Text
+    columnSuffix: null
+    contentColumnType: text
+    fieldGroup: null
+    handle: buttonText
+    instructions: ''
+    name: 'Button Text'
+    searchable: true
+    settings:
+      byteLimit: null
+      charLimit: null
+      code: ''
+      columnType: text
+      initialRows: '4'
+      multiline: ''
+      placeholder: null
+      uiMode: normal
+    translationKeyFormat: null
+    translationMethod: none
+    type: craft\fields\PlainText
+  4682f4b1-e94a-4694-ad6f-5dd0f7fcd8c8: # Button Entry
+    columnSuffix: null
+    contentColumnType: string
+    fieldGroup: null
+    handle: buttonEntry
+    instructions: ''
+    name: 'Button Entry'
+    searchable: true
+    settings:
+      allowSelfRelations: false
+      limit: '1'
+      localizeRelations: false
+      selectionLabel: ''
+      showSiteMenu: true
+      source: null
+      sources: '*'
+      targetSiteId: null
+      validateRelatedElements: false
+      viewMode: null
+    translationKeyFormat: null
+    translationMethod: site
+    type: craft\fields\Entries
+  7861dd6b-590b-4cab-be23-a9cbd1384e2b: # Text
+    columnSuffix: null
+    contentColumnType: text
+    fieldGroup: null
+    handle: text
+    instructions: ''
+    name: Text
+    searchable: true
+    settings:
+      byteLimit: null
+      charLimit: null
+      code: ''
+      columnType: text
+      initialRows: '2'
+      multiline: '1'
+      placeholder: null
+      uiMode: normal
+    translationKeyFormat: null
+    translationMethod: none
+    type: craft\fields\PlainText
+  a627f3be-ac3a-4f1e-92e2-8c0efc307e0b: # Header
+    columnSuffix: null
+    contentColumnType: text
+    fieldGroup: null
+    handle: header
+    instructions: ''
+    name: Header
+    searchable: true
+    settings:
+      byteLimit: null
+      charLimit: null
+      code: ''
+      columnType: text
+      initialRows: '4'
+      multiline: ''
+      placeholder: null
+      uiMode: normal
+    translationKeyFormat: null
+    translationMethod: none
+    type: craft\fields\PlainText
+  cb0e3dab-78d4-405b-8132-5bef8b778f77: # Icon
+    columnSuffix: null
+    contentColumnType: text
+    fieldGroup: null
+    handle: icon
+    instructions: 'Icons can be found at https://fontawesome.com/icons'
+    name: Icon
+    searchable: true
+    settings:
+      byteLimit: null
+      charLimit: null
+      code: ''
+      columnType: text
+      initialRows: '4'
+      multiline: ''
+      placeholder: null
+      uiMode: normal
+    translationKeyFormat: null
+    translationMethod: none
+    type: craft\fields\PlainText
+  f7fd0309-f150-4c01-8a40-40dbac72f0d0: # Image
+    columnSuffix: null
+    contentColumnType: string
+    fieldGroup: null
+    handle: image
+    instructions: ''
+    name: Image
+    searchable: true
+    settings:
+      allowSelfRelations: false
+      allowUploads: true
+      allowedKinds:
+        - image
+      defaultUploadLocationSource: 'volume:2d5ef627-3d40-4895-8113-2ccae0a01303' # Hero Images
+      defaultUploadLocationSubpath: ''
+      limit: '1'
+      localizeRelations: false
+      previewMode: full
+      restrictFiles: '1'
+      selectionLabel: ''
+      showSiteMenu: true
+      showUnpermittedFiles: false
+      showUnpermittedVolumes: true
+      singleUploadLocationSource: 'volume:dfb05c32-10bd-4f04-99e3-775e23080203' # Site Images
+      singleUploadLocationSubpath: ''
+      source: null
+      sources: '*'
+      targetSiteId: null
+      useSingleFolder: true
+      validateRelatedElements: false
+      viewMode: list
+    translationKeyFormat: null
+    translationMethod: site
+    type: craft\fields\Assets
+handle: zPattern
+name: Z-Pattern
+sortOrder: 9

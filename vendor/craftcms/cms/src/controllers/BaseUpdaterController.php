@@ -19,6 +19,7 @@ use craft\web\Response as CraftResponse;
 use yii\base\Exception;
 use yii\base\Exception as YiiException;
 use yii\web\BadRequestHttpException;
+use yii\web\JsonResponseFormatter;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 
@@ -139,7 +140,7 @@ abstract class BaseUpdaterController extends Controller
                 return $this->send([
                     'error' => $error,
                     'options' => [
-                        ['label' => Craft::t('app', 'Learn how'), 'url' => 'https://craftcms.com/guides/php-ini'],
+                        ['label' => Craft::t('app', 'Learn how'), 'url' => 'https://craftcms.com/knowledge-base/php-ini'],
                         $this->actionOption(Craft::t('app', 'Check again'), self::ACTION_PRECHECK),
                         $this->actionOption(Craft::t('app', 'Continue anyway'), $postState['nextAction'], $postState),
                     ],
@@ -167,6 +168,9 @@ abstract class BaseUpdaterController extends Controller
      */
     public function actionComposerInstall(): Response
     {
+        // Preload JsonResponseFormatter because the Yii 2.0.44 version requires a newer version of yii\helper\BaseJson
+        class_exists(JsonResponseFormatter::class);
+
         $io = new BufferIO();
 
         try {
@@ -311,6 +315,25 @@ abstract class BaseUpdaterController extends Controller
     abstract protected function postComposerInstallState(): array;
 
     /**
+     * Returns the return URL provided by the `return` body param, if it’s a valid URL.
+     *
+     * @return string|null
+     * @throws BadRequestHttpException if the `return` body param isn’t a valid URL.
+     * @since 3.7.17
+     */
+    protected function findReturnUrl(): ?string
+    {
+        $returnUrl = $this->request->getBodyParam('return');
+        if ($returnUrl === null) {
+            return null;
+        }
+        if (strpos($returnUrl, '{') !== false) {
+            throw new BadRequestHttpException("Invalid return URL: $returnUrl");
+        }
+        return $returnUrl;
+    }
+
+    /**
      * Returns the return URL that should be passed with a finished state.
      *
      * @return string
@@ -405,7 +428,7 @@ abstract class BaseUpdaterController extends Controller
         $state['options'] = [
             [
                 'label' => Craft::t('app', 'Troubleshoot'),
-                'url' => 'https://craftcms.com/guides/failed-updates',
+                'url' => 'https://craftcms.com/knowledge-base/failed-updates',
             ],
             [
                 'label' => Craft::t('app', 'Send for help'),
@@ -510,11 +533,11 @@ abstract class BaseUpdaterController extends Controller
         } catch (MigrateException $e) {
             $ownerName = $e->ownerName;
             $ownerHandle = $e->ownerHandle;
-            /* @var \Throwable $e */
+            /** @var \Throwable $e */
             $e = $e->getPrevious();
 
             if ($e instanceof MigrationException) {
-                /* @var \Throwable|null $previous */
+                /** @var \Throwable|null $previous */
                 $previous = $e->getPrevious();
                 $migration = $e->migration;
                 $output = $e->output;
@@ -542,7 +565,7 @@ abstract class BaseUpdaterController extends Controller
 
             $options[] = [
                 'label' => Craft::t('app', 'Troubleshoot'),
-                'url' => 'https://craftcms.com/guides/failed-updates',
+                'url' => 'https://craftcms.com/knowledge-base/failed-updates',
             ];
 
             if ($ownerHandle !== 'craft' && ($plugin = Craft::$app->getPlugins()->getPlugin($ownerHandle)) !== null) {
@@ -596,10 +619,10 @@ abstract class BaseUpdaterController extends Controller
             $migration = $output = null;
 
             if ($e instanceof MigrateException) {
-                /* @var \Throwable $e */
+                /** @var \Throwable $e */
                 $e = $e->getPrevious();
                 if ($e instanceof MigrationException) {
-                    /* @var \Throwable|null $previous */
+                    /** @var \Throwable|null $previous */
                     $previous = $e->getPrevious();
                     $migration = $e->migration;
                     $output = $e->output;

@@ -60,9 +60,9 @@ abstract class Api
         // Craft license
         if ($licenseKey = App::licenseKey()) {
             $headers['X-Craft-License'] = $licenseKey;
-        } else if (defined('CRAFT_LICENSE_KEY')) {
+        } elseif (defined('CRAFT_LICENSE_KEY')) {
             $headers['X-Craft-License'] = '__INVALID__';
-        } else if ($user) {
+        } elseif ($user) {
             $headers['X-Craft-License'] = '__REQUEST__';
         }
 
@@ -107,6 +107,12 @@ abstract class Api
         $versions = [];
         foreach ($repo->getPackages() as $package) {
             $versions[$package->getName()] = $package->getPrettyVersion();
+        }
+
+        // Also include the Composer PHP requirement
+        $composerConfig = Craft::$app->getComposer()->getConfig();
+        if (isset($composerConfig['config']['platform']['php'])) {
+            $versions['composer-php'] = $composerConfig['config']['platform']['php'];
         }
 
         // Also include the DB driver/version

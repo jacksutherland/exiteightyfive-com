@@ -18,7 +18,6 @@ use craft\errors\InvalidSubpathException;
 use craft\errors\UserNotFoundException;
 use craft\errors\VolumeException;
 use craft\events\ConfigEvent;
-use craft\events\FieldEvent;
 use craft\events\UserAssignGroupEvent;
 use craft\events\UserEvent;
 use craft\events\UserGroupsAssignEvent;
@@ -41,7 +40,8 @@ use yii\db\Exception as DbException;
 
 /**
  * The Users service provides APIs for managing users.
- * An instance of the Users service is globally accessible in Craft via [[\craft\base\ApplicationTrait::getUsers()|`Craft::$app->users`]].
+ *
+ * An instance of the service is available via [[\craft\base\ApplicationTrait::getUsers()|`Craft::$app->users`]].
  *
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
@@ -61,7 +61,7 @@ class Users extends Component
     /**
      * @event UserEvent The event that is triggered before a user is activated.
      *
-     * You may set [[UserEvent::isValid]] to `false` to prevent the user from getting activated.
+     * You may set [[\craft\events\CancelableEvent::$isValid]] to `false` to prevent the user from getting activated.
      */
     const EVENT_BEFORE_ACTIVATE_USER = 'beforeActivateUser';
 
@@ -78,7 +78,7 @@ class Users extends Component
     /**
      * @event UserEvent The event that is triggered before a user is unlocked.
      *
-     * You may set [[UserEvent::isValid]] to `false` to prevent the user from getting unlocked.
+     * You may set [[\craft\events\CancelableEvent::$isValid]] to `false` to prevent the user from getting unlocked.
      */
     const EVENT_BEFORE_UNLOCK_USER = 'beforeUnlockUser';
 
@@ -90,7 +90,7 @@ class Users extends Component
     /**
      * @event UserEvent The event that is triggered before a user is suspended.
      *
-     * You may set [[UserEvent::isValid]] to `false` to prevent the user from getting suspended.
+     * You may set [[\craft\events\CancelableEvent::$isValid]] to `false` to prevent the user from getting suspended.
      */
     const EVENT_BEFORE_SUSPEND_USER = 'beforeSuspendUser';
 
@@ -102,7 +102,7 @@ class Users extends Component
     /**
      * @event UserEvent The event that is triggered before a user is unsuspended.
      *
-     * You may set [[UserEvent::isValid]] to `false` to prevent the user from getting unsuspended.
+     * You may set [[\craft\events\CancelableEvent::isValid]] to `false` to prevent the user from getting unsuspended.
      */
     const EVENT_BEFORE_UNSUSPEND_USER = 'beforeUnsuspendUser';
 
@@ -114,7 +114,7 @@ class Users extends Component
     /**
      * @event UserGroupsAssignEvent The event that is triggered before a user is assigned to some user groups.
      *
-     * You may set [[UserGroupsAssignEvent::isValid]] to `false` to prevent the user from getting assigned to the groups.
+     * You may set [[\craft\events\CancelableEvent::$isValid]] to `false` to prevent the user from getting assigned to the groups.
      */
     const EVENT_BEFORE_ASSIGN_USER_TO_GROUPS = 'beforeAssignUserToGroups';
 
@@ -126,7 +126,7 @@ class Users extends Component
     /**
      * @event UserAssignGroupEvent The event that is triggered before a user is assigned to the default user group.
      *
-     * You may set [[UserAssignGroupEvent::isValid]] to `false` to prevent the user from getting assigned to the default
+     * You may set [[\craft\events\CancelableEvent::$isValid]] to `false` to prevent the user from getting assigned to the default
      * user group.
      */
     const EVENT_BEFORE_ASSIGN_USER_TO_DEFAULT_GROUP = 'beforeAssignUserToDefaultGroup';
@@ -147,6 +147,12 @@ class Users extends Component
     const CONFIG_USERLAYOUT_KEY = self::CONFIG_USERS_KEY . '.' . 'fieldLayouts';
 
     /**
+     * @var array Cached user preferences.
+     * @see getUserPreferences()
+     */
+    private $_userPreferences = [];
+
+    /**
      * Returns a user by their ID.
      *
      * ```php
@@ -158,7 +164,7 @@ class Users extends Component
      */
     public function getUserById(int $userId)
     {
-        /* @noinspection PhpIncompatibleReturnTypeInspection */
+        /** @noinspection PhpIncompatibleReturnTypeInspection */
         return Craft::$app->getElements()->getElementById($userId, User::class);
     }
 
@@ -278,23 +284,27 @@ class Users extends Component
     /**
      * Returns a user’s preferences.
      *
-     * @param int|null $userId The user’s ID
+     * @param int $userId The user’s ID
      * @return array The user’s preferences
      */
-    public function getUserPreferences(int $userId = null): array
+    public function getUserPreferences(int $userId): array
     {
-        // TODO: Remove try/catch after next breakpoint
-        try {
-            $preferences = (new Query())
-                ->select(['preferences'])
-                ->from([Table::USERPREFERENCES])
-                ->where(['userId' => $userId])
-                ->scalar();
+        if (!isset($this->_userPreferences[$userId])) {
+            // TODO: Remove try/catch after next breakpoint
+            try {
+                $preferences = (new Query())
+                    ->select(['preferences'])
+                    ->from([Table::USERPREFERENCES])
+                    ->where(['userId' => $userId])
+                    ->scalar();
 
-            return $preferences ? Json::decode($preferences) : [];
-        } catch (DbException $e) {
-            return [];
+                $this->_userPreferences[$userId] = $preferences ? Json::decode($preferences) : [];
+            } catch (DbException $e) {
+                $this->_userPreferences[$userId] = [];
+            }
         }
+
+        return $this->_userPreferences[$userId];
     }
 
     /**
@@ -305,24 +315,27 @@ class Users extends Component
      */
     public function saveUserPreferences(User $user, array $preferences)
     {
-        $preferences = $user->mergePreferences($preferences);
+        // Merge in any other saved preferences
+        $preferences += $this->getUserPreferences($user->id);
 
         Db::upsert(Table::USERPREFERENCES, [
             'userId' => $user->id,
         ], [
             'preferences' => Json::encode($preferences),
         ], [], false);
+
+        $this->_userPreferences[$user->id] = $preferences;
     }
 
     /**
      * Returns one of a user’s preferences by its key.
      *
-     * @param int|null $userId The user’s ID
+     * @param int $userId The user’s ID
      * @param string $key The preference’s key
      * @param mixed $default The default value, if the preference hasn’t been set
      * @return mixed The user’s preference
      */
-    public function getUserPreference(int $userId = null, string $key, $default = null)
+    public function getUserPreference(int $userId, string $key, $default = null)
     {
         $preferences = $this->getUserPreferences($userId);
         return $preferences[$key] ?? $default;
@@ -338,12 +351,7 @@ class Users extends Component
      */
     public function sendActivationEmail(User $user): bool
     {
-        // If the user doesn't have a password yet, use a Password Reset URL
-        if (!$user->password) {
-            $url = $this->getPasswordResetUrl($user);
-        } else {
-            $url = $this->getEmailVerifyUrl($user);
-        }
+        $url = $this->getActivationUrl($user);
 
         return Craft::$app->getMailer()
             ->composeFromKey('account_activation', ['link' => Template::raw($url)])
@@ -385,6 +393,22 @@ class Users extends Component
             ->composeFromKey('forgot_password', ['link' => Template::raw($url)])
             ->setTo($user)
             ->send();
+    }
+
+    /**
+     * Sets a new verification code on a user, and returns their activation URL.
+     *
+     * @param User $user
+     * @return string
+     */
+    public function getActivationUrl(User $user): string
+    {
+        // If the user doesn't have a password yet, use a Password Reset URL
+        if (!$user->password) {
+            return $this->getPasswordResetUrl($user);
+        }
+
+        return $this->getEmailVerifyUrl($user);
     }
 
     /**
@@ -473,7 +497,7 @@ class Users extends Component
             return;
         }
 
-        $photo->setScenario(Asset::SCENARIO_FILEOPS);
+        $photo->setScenario(Asset::SCENARIO_MOVE);
         $photo->avoidFilenameConflicts = true;
         $photo->newFolderId = $folderId;
         Craft::$app->getElements()->saveElement($photo);
@@ -565,6 +589,9 @@ class Users extends Component
         // Update the User model too
         $user->lastLoginDate = $now;
         $user->invalidLoginCount = null;
+
+        // Invalidate caches
+        Craft::$app->getElements()->invalidateCachesForElement($user);
     }
 
     /**
@@ -622,6 +649,9 @@ class Users extends Component
                 'user' => $user,
             ]));
         }
+
+        // Invalidate caches
+        Craft::$app->getElements()->invalidateCachesForElement($user);
     }
 
     /**
@@ -668,6 +698,9 @@ class Users extends Component
                 'user' => $user,
             ]));
         }
+
+        // Invalidate caches
+        Craft::$app->getElements()->invalidateCachesForElement($user);
 
         return true;
     }
@@ -753,6 +786,9 @@ class Users extends Component
             ]));
         }
 
+        // Invalidate caches
+        Craft::$app->getElements()->invalidateCachesForElement($user);
+
         return true;
     }
 
@@ -775,18 +811,13 @@ class Users extends Component
             return false;
         }
 
-        $transaction = Craft::$app->getDb()->beginTransaction();
-        try {
-            $userRecord = $this->_getUserRecordById($user->id);
-            $userRecord->suspended = true;
-            $user->suspended = true;
-            $userRecord->save();
+        $userRecord = $this->_getUserRecordById($user->id);
+        $userRecord->suspended = true;
+        $user->suspended = true;
+        $userRecord->save();
 
-            $transaction->commit();
-        } catch (\Throwable $e) {
-            $transaction->rollBack();
-            throw $e;
-        }
+        // Destroy all sessions for this user
+        Db::delete(Table::SESSIONS, ['userId' => $user->id]);
 
         // Fire an 'afterSuspendUser' event
         if ($this->hasEventHandlers(self::EVENT_AFTER_SUSPEND_USER)) {
@@ -794,6 +825,9 @@ class Users extends Component
                 'user' => $user,
             ]));
         }
+
+        // Invalidate caches
+        Craft::$app->getElements()->invalidateCachesForElement($user);
 
         return true;
     }
@@ -840,6 +874,9 @@ class Users extends Component
                 'user' => $user,
             ]));
         }
+
+        // Invalidate caches
+        Craft::$app->getElements()->invalidateCachesForElement($user);
 
         return true;
     }
@@ -945,7 +982,8 @@ class Users extends Component
 
         $elementsService = Craft::$app->getElements();
 
-        foreach ($query->each() as $user) {
+        foreach (Db::each($query) as $user) {
+            /** @var User $user */
             $elementsService->deleteElement($user);
             Craft::info("Just deleted pending user {$user->username} ({$user->id}), because they took too long to activate their account.", __METHOD__);
         }
@@ -1122,7 +1160,7 @@ class Users extends Component
         $layout->id = $fieldsService->getLayoutByType(User::class)->id;
         $layout->type = User::class;
         $layout->uid = key($data);
-        $fieldsService->saveLayout($layout);
+        $fieldsService->saveLayout($layout, false);
 
         // Invalidate user caches
         Craft::$app->getElements()->invalidateCachesForElementType(User::class);
@@ -1132,10 +1170,16 @@ class Users extends Component
      * Save the user field layout
      *
      * @param FieldLayout $layout
+     * @param bool $runValidation Whether the layout should be validated
      * @return bool
      */
-    public function saveLayout(FieldLayout $layout)
+    public function saveLayout(FieldLayout $layout, bool $runValidation = true)
     {
+        if ($runValidation && !$layout->validate()) {
+            Craft::info('Field layout not saved due to validation error.', __METHOD__);
+            return false;
+        }
+
         $projectConfig = Craft::$app->getProjectConfig();
         $fieldLayoutConfig = $layout->getConfig();
         $uid = StringHelper::UUID();
@@ -1184,39 +1228,32 @@ class Users extends Component
     }
 
     /**
-     * Prune a deleted field from user group layout.
+     * Returns whether the user can suspend the given user
      *
-     * @param FieldEvent $event
+     * @param User $suspender
+     * @param User $suspendee
+     * @return bool
+     * @since 3.7.32
      */
-    public function pruneDeletedField(FieldEvent $event)
+    public function canSuspend(User $suspender, User $suspendee): bool
     {
-        $field = $event->field;
-        $fieldUid = $field->uid;
-
-        $projectConfig = Craft::$app->getProjectConfig();
-        $fieldLayouts = $projectConfig->get(self::CONFIG_USERLAYOUT_KEY);
-
-        // Engage stealth mode
-        $projectConfig->muteEvents = true;
-
-        // Prune the user field layout.
-        if (is_array($fieldLayouts)) {
-            foreach ($fieldLayouts as $layoutUid => $layout) {
-                if (!empty($layout['tabs'])) {
-                    foreach ($layout['tabs'] as $tabUid => $tab) {
-                        $projectConfig->remove(self::CONFIG_USERLAYOUT_KEY . '.' . $layoutUid . '.tabs.' . $tabUid . '.fields.' . $fieldUid, 'Prune deleted field');
-                    }
-                }
-            }
+        if (!$suspender->can('moderateUsers')) {
+            return false;
         }
 
-        // Nuke all the layout fields from the DB
-        Db::delete(Table::FIELDLAYOUTFIELDS, [
-            'fieldId' => $field->id,
-        ]);
+        // Even if you have moderateUsers permissions, only and admin should be able to suspend another admin.
+        if (!$suspender->admin && $suspendee->admin) {
+            return false;
+        }
 
-        // Allow events again
-        $projectConfig->muteEvents = false;
+        return true;
+    }
+
+    /**
+     * @deprecated in 3.7.51. Unused fields will be pruned automatically as field layouts are resaved.
+     */
+    public function pruneDeletedField()
+    {
     }
 
     /**
@@ -1311,9 +1348,9 @@ class Users extends Component
             return UrlHelper::siteUrl($fePath, $params, $scheme);
         }
 
-        // Only use cpUrl() if the base CP URL has been explicitly set,
+        // Only use cpUrl() if this is a CP request, or the base CP URL has been explicitly set,
         // so UrlHelper won't use HTTP_HOST
-        if ($generalConfig->baseCpUrl) {
+        if ($generalConfig->baseCpUrl || Craft::$app->getRequest()->getIsCpRequest()) {
             return UrlHelper::cpUrl($cpPath, $params, $scheme);
         }
 

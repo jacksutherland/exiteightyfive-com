@@ -17,6 +17,7 @@ use craft\gql\types\QueryArgument;
 use craft\helpers\DateTimeHelper;
 use craft\helpers\Db;
 use craft\helpers\ElementHelper;
+use craft\helpers\FieldHelper;
 use craft\helpers\Html;
 use craft\helpers\StringHelper;
 use craft\models\GqlSchema;
@@ -26,6 +27,7 @@ use craft\validators\UniqueValidator;
 use GraphQL\Type\Definition\Type;
 use yii\base\Arrayable;
 use yii\base\ErrorHandler;
+use yii\base\NotSupportedException;
 use yii\db\Schema;
 
 /**
@@ -42,42 +44,46 @@ abstract class Field extends SavableComponent implements FieldInterface
     // -------------------------------------------------------------------------
 
     /**
-     * @event FieldElementEvent The event that is triggered before the element is saved
-     * You may set [[FieldElementEvent::isValid]] to `false` to prevent the element from getting saved.
+     * @event FieldElementEvent The event that is triggered before the element is saved.
+     *
+     * You may set [[\yii\base\ModelEvent::$isValid]] to `false` to prevent the element from getting saved.
      */
     const EVENT_BEFORE_ELEMENT_SAVE = 'beforeElementSave';
 
     /**
-     * @event FieldElementEvent The event that is triggered after the element is saved
+     * @event FieldElementEvent The event that is triggered after the element is saved.
      */
     const EVENT_AFTER_ELEMENT_SAVE = 'afterElementSave';
 
     /**
-     * @event FieldElementEvent The event that is triggered after the element is fully saved and propagated to other sites
+     * @event FieldElementEvent The event that is triggered after the element is fully saved and propagated to other sites.
      * @since 3.2.0
      */
     const EVENT_AFTER_ELEMENT_PROPAGATE = 'afterElementPropagate';
 
     /**
-     * @event FieldElementEvent The event that is triggered before the element is deleted
-     * You may set [[FieldElementEvent::isValid]] to `false` to prevent the element from getting deleted.
+     * @event FieldElementEvent The event that is triggered before the element is deleted.
+     *
+     * You may set [[\yii\base\ModelEvent::$isValid]] to `false` to prevent the element from getting deleted.
      */
     const EVENT_BEFORE_ELEMENT_DELETE = 'beforeElementDelete';
 
     /**
-     * @event FieldElementEvent The event that is triggered after the element is deleted
+     * @event FieldElementEvent The event that is triggered after the element is deleted.
      */
     const EVENT_AFTER_ELEMENT_DELETE = 'afterElementDelete';
 
     /**
-     * @event FieldElementEvent The event that is triggered before the element is restored
-     * You may set [[FieldElementEvent::isValid]] to `false` to prevent the element from getting restored.
+     * @event FieldElementEvent The event that is triggered before the element is restored.
+     *
+     * You may set [[\yii\base\ModelEvent::$isValid]] to `false` to prevent the element from getting restored.
+     *
      * @since 3.1.0
      */
     const EVENT_BEFORE_ELEMENT_RESTORE = 'beforeElementRestore';
 
     /**
-     * @event FieldElementEvent The event that is triggered after the element is restored
+     * @event FieldElementEvent The event that is triggered after the element is restored.
      * @since 3.1.0
      */
     const EVENT_AFTER_ELEMENT_RESTORE = 'afterElementRestore';
@@ -203,12 +209,32 @@ abstract class Field extends SavableComponent implements FieldInterface
     /**
      * @inheritdoc
      */
+    public function attributeLabels()
+    {
+        return [
+            'handle' => Craft::t('app', 'Handle'),
+            'name' => Craft::t('app', 'Name'),
+        ];
+    }
+
+    /**
+     * @inheritdoc
+     */
     protected function defineRules(): array
     {
         $rules = parent::defineRules();
 
-        // Make sure the column name is under the databases maximum column length allowed.
-        $maxHandleLength = Craft::$app->getDb()->getSchema()->maxObjectNameLength - strlen(Craft::$app->getContent()->fieldColumnPrefix);
+        // Make sure the column name is under the database’s maximum allowed column length, including the column prefix/suffix lengths
+        $maxHandleLength = Craft::$app->getDb()->getSchema()->maxObjectNameLength;
+
+        if (static::hasContentColumn()) {
+            $maxHandleLength -= strlen(Craft::$app->getContent()->fieldColumnPrefix);
+
+            FieldHelper::ensureColumnSuffix($this);
+            if ($this->columnSuffix) {
+                $maxHandleLength -= strlen($this->columnSuffix) + 1;
+            }
+        }
 
         $rules[] = [['name'], 'string', 'max' => 255];
         $rules[] = [['handle'], 'string', 'max' => $maxHandleLength];
@@ -235,6 +261,8 @@ abstract class Field extends SavableComponent implements FieldInterface
                 'attributes',
                 'behavior',
                 'behaviors',
+                'canSetProperties',
+                'canonical',
                 'children',
                 'contentTable',
                 'dateCreated',
@@ -247,6 +275,7 @@ abstract class Field extends SavableComponent implements FieldInterface
                 'errorSummary',
                 'fieldValue',
                 'fieldValues',
+                'hasMethods',
                 'id',
                 'language',
                 'level',
@@ -303,7 +332,7 @@ abstract class Field extends SavableComponent implements FieldInterface
     /**
      * @inheritdoc
      */
-    public function getContentColumnType(): string
+    public function getContentColumnType()
     {
         return Schema::TYPE_STRING;
     }
@@ -311,8 +340,30 @@ abstract class Field extends SavableComponent implements FieldInterface
     /**
      * @inheritdoc
      */
+    public function getOrientation(?ElementInterface $element): string
+    {
+        if (!Craft::$app->getIsMultiSite()) {
+            // Only one site so use its language
+            $locale = Craft::$app->getSites()->getPrimarySite()->getLocale();
+        } elseif (!$element || !$this->getIsTranslatable($element)) {
+            // Not translatable, so use the user’s language
+            $locale = Craft::$app->getLocale();
+        } else {
+            // Use the site’s language
+            $locale = $element->getSite()->getLocale();
+        }
+
+        return $locale->getOrientation();
+    }
+
+    /**
+     * @inheritdoc
+     */
     public function getIsTranslatable(ElementInterface $element = null): bool
     {
+        if ($this->translationMethod === self::TRANSLATION_METHOD_CUSTOM) {
+            return $element === null || $this->getTranslationKey($element) !== '';
+        }
         return $this->translationMethod !== self::TRANSLATION_METHOD_NONE;
     }
 
@@ -334,6 +385,36 @@ abstract class Field extends SavableComponent implements FieldInterface
     public function getTranslationKey(ElementInterface $element): string
     {
         return ElementHelper::translationKey($element, $this->translationMethod, $this->translationKeyFormat);
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function getStatus(ElementInterface $element): ?array
+    {
+        if ($element->isFieldModified($this->handle)) {
+            return [
+                Element::ATTR_STATUS_MODIFIED,
+                Craft::t('app', 'This field has been modified.'),
+            ];
+        }
+
+        if ($element->isFieldOutdated($this->handle)) {
+            return [
+                Element::ATTR_STATUS_OUTDATED,
+                Craft::t('app', 'This field was updated in the Current revision.'),
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function getInputId(): string
+    {
+        return Html::id($this->handle);
     }
 
     /**
@@ -490,9 +571,15 @@ abstract class Field extends SavableComponent implements FieldInterface
      */
     public function getSortOption(): array
     {
+        $column = ElementHelper::fieldColumnFromField($this);
+
+        if ($column === null) {
+            throw new NotSupportedException('getSortOption() not supported by ' . $this->name);
+        }
+
         return [
             'label' => Craft::t('site', $this->name),
-            'orderBy' => ($this->columnPrefix ?: 'field_') . $this->handle . ', elements.id',
+            'orderBy' => [$column, 'elements.id'],
             'attribute' => 'field:' . $this->id,
         ];
     }
@@ -523,17 +610,28 @@ abstract class Field extends SavableComponent implements FieldInterface
     /**
      * @inheritdoc
      */
+    public function copyValue(ElementInterface $from, ElementInterface $to): void
+    {
+        $value = $this->serializeValue($from->getFieldValue($this->handle), $from);
+        $to->setFieldValue($this->handle, $value);
+    }
+
+    /**
+     * @inheritdoc
+     */
     public function modifyElementsQuery(ElementQueryInterface $query, $value)
     {
+        /** @var ElementQuery $query */
         if ($value !== null) {
+            $column = ElementHelper::fieldColumnFromField($this);
+
             // If the field type doesn't have a content column, it *must* override this method
             // if it wants to support a custom query criteria attribute
-            if (!static::hasContentColumn()) {
+            if ($column === null) {
                 return false;
             }
 
-            /* @var ElementQuery $query */
-            $query->subQuery->andWhere(Db::parseParam('content.' . Craft::$app->getContent()->fieldColumnPrefix . $this->handle, $value));
+            $query->subQuery->andWhere(Db::parseParam("content.$column", $value, '=', false, $this->getContentColumnType()));
         }
 
         return null;
@@ -740,16 +838,7 @@ abstract class Field extends SavableComponent implements FieldInterface
      */
     protected function requestParamName(ElementInterface $element)
     {
-        if (!$element) {
-            return null;
-        }
-
         $namespace = $element->getFieldParamNamespace();
-
-        if (!$namespace === null) {
-            return null;
-        }
-
         return ($namespace ? $namespace . '.' : '') . $this->handle;
     }
 
@@ -766,7 +855,7 @@ abstract class Field extends SavableComponent implements FieldInterface
         }
 
         if ($element) {
-            return $element->getHasFreshContent();
+            return $element->getIsFresh();
         }
 
         return true;

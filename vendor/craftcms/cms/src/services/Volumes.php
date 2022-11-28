@@ -1,4 +1,9 @@
 <?php
+/**
+ * @link https://craftcms.com/
+ * @copyright Copyright (c) Pixel & Tonic, Inc.
+ * @license https://craftcms.github.io/license/
+ */
 
 namespace craft\services;
 
@@ -11,7 +16,6 @@ use craft\db\Table;
 use craft\elements\Asset;
 use craft\errors\MissingComponentException;
 use craft\events\ConfigEvent;
-use craft\events\FieldEvent;
 use craft\events\RegisterComponentTypesEvent;
 use craft\events\VolumeEvent;
 use craft\helpers\ArrayHelper;
@@ -29,13 +33,11 @@ use yii\base\Component;
 use yii\base\UnknownPropertyException;
 
 /**
- * Class AssetVolumesService
+ * Volumes service.
+ *
+ * An instance of the service is available via [[\craft\base\ApplicationTrait::getVolumes()|`Craft::$app->volumes()`]].
  *
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
- * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license http://craftcms.com/license Craft License Agreement
- * @see http://craftcms.com
- * @package craft.app.services
  * @since 3.0.0
  */
 class Volumes extends Component
@@ -91,7 +93,7 @@ class Volumes extends Component
     const CONFIG_VOLUME_KEY = 'volumes';
 
     /**
-     * @var MemoizableArray|null
+     * @var MemoizableArray<VolumeInterface>|null
      * @see _volumes()
      */
     private $_volumes;
@@ -216,7 +218,7 @@ class Volumes extends Component
     /**
      * Returns a memoizable array of all volumes.
      *
-     * @return MemoizableArray
+     * @return MemoizableArray<VolumeInterface>
      */
     private function _volumes(): MemoizableArray
     {
@@ -275,7 +277,7 @@ class Volumes extends Component
     }
 
     /**
-     * Returns the field layout config for the given volume.
+     * Returns the config for the given volume.
      *
      * @param VolumeInterface $volume
      * @return array
@@ -362,7 +364,7 @@ class Volumes extends Component
             $volume->sortOrder = (new Query())
                     ->from([Table::VOLUMES])
                     ->max('[[sortOrder]]') + 1;
-        } else if (!$volume->uid) {
+        } elseif (!$volume->uid) {
             $volume->uid = Db::uidById(Table::VOLUMES, $volume->id);
         }
 
@@ -412,9 +414,9 @@ class Volumes extends Component
                 $layout->id = $volumeRecord->fieldLayoutId;
                 $layout->type = Asset::class;
                 $layout->uid = key($data['fieldLayouts']);
-                Craft::$app->getFields()->saveLayout($layout);
+                Craft::$app->getFields()->saveLayout($layout, false);
                 $volumeRecord->fieldLayoutId = $layout->id;
-            } else if ($volumeRecord->fieldLayoutId) {
+            } elseif ($volumeRecord->fieldLayoutId) {
                 // Delete the field layout
                 Craft::$app->getFields()->deleteLayoutById($volumeRecord->fieldLayoutId);
                 $volumeRecord->fieldLayoutId = null;
@@ -724,43 +726,10 @@ class Volumes extends Component
     }
 
     /**
-     * Prune a deleted field from volume layouts.
-     *
-     * @param FieldEvent $event
+     * @deprecated in 3.7.51. Unused fields will be pruned automatically as field layouts are resaved.
      */
-    public function pruneDeletedField(FieldEvent $event)
+    public function pruneDeletedField()
     {
-        $field = $event->field;
-        $fieldUid = $field->uid;
-
-        $projectConfig = Craft::$app->getProjectConfig();
-        $volumes = $projectConfig->get(self::CONFIG_VOLUME_KEY);
-
-        // Engage stealth mode
-        $projectConfig->muteEvents = true;
-
-        // Loop through the volumes and prune the UID from field layouts.
-        if (is_array($volumes)) {
-            foreach ($volumes as $volumeUid => $volume) {
-                if (!empty($volume['fieldLayouts'])) {
-                    foreach ($volume['fieldLayouts'] as $layoutUid => $layout) {
-                        if (!empty($layout['tabs'])) {
-                            foreach ($layout['tabs'] as $tabUid => $tab) {
-                                $projectConfig->remove(self::CONFIG_VOLUME_KEY . '.' . $volumeUid . '.fieldLayouts.' . $layoutUid . '.tabs.' . $tabUid . '.fields.' . $fieldUid, 'Prune deleted field');
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Nuke all the layout fields from the DB
-        Db::delete(Table::FIELDLAYOUTFIELDS, [
-            'fieldId' => $field->id,
-        ]);
-
-        // Allow events again
-        $projectConfig->muteEvents = false;
     }
 
     /**

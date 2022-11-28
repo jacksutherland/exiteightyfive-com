@@ -23,6 +23,7 @@ use yii\base\InvalidConfigException;
 /**
  * FieldLayoutTab model class.
  *
+ * @property FieldLayout|null $layout The tab’s layout
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
  */
@@ -67,7 +68,6 @@ class FieldLayoutTab extends Model
         unset($config['fields']);
     }
 
-
     /**
      * @var int|null ID
      */
@@ -101,11 +101,15 @@ class FieldLayoutTab extends Model
 
     /**
      * @var FieldLayout|null
+     * @see getLayout()
+     * @see setLayout()
      */
     private $_layout;
 
     /**
      * @var FieldInterface[]|null
+     * @see getFields()
+     * @see setFields()
      */
     private $_fields;
 
@@ -131,10 +135,10 @@ class FieldLayoutTab extends Model
                 $this->elements = Json::decode($this->elements);
             }
             $fieldsService = Craft::$app->getFields();
-            foreach ($this->elements as $i => $element) {
-                if (is_array($element)) {
+            foreach ($this->elements as $i => $layoutElement) {
+                if (is_array($layoutElement)) {
                     try {
-                        $this->elements[$i] = $fieldsService->createLayoutElement($element);
+                        $this->elements[$i] = $fieldsService->createLayoutElement($layoutElement);
                     } catch (InvalidArgumentException $e) {
                         Craft::warning('Invalid field layout element config: ' . $e->getMessage(), __METHOD__);
                         Craft::$app->getErrorHandler()->logException($e);
@@ -158,7 +162,7 @@ class FieldLayoutTab extends Model
     }
 
     /**
-     * Returns the field layout config for this field layout tab.
+     * Returns the field layout tab’s config.
      *
      * @return array|null
      * @since 3.5.0
@@ -177,7 +181,7 @@ class FieldLayoutTab extends Model
     }
 
     /**
-     * Returns the field layout configs for this field layout’s tabs.
+     * Returns the tab’s elements’ configs.
      *
      * @return array[]
      * @since 3.5.0
@@ -185,8 +189,8 @@ class FieldLayoutTab extends Model
     public function getElementConfigs(): array
     {
         $elementConfigs = [];
-        foreach ($this->elements as $element) {
-            $elementConfigs[] = ['type' => get_class($element)] + $element->toArray();
+        foreach ($this->elements as $layoutElement) {
+            $elementConfigs[] = ['type' => get_class($layoutElement)] + $layoutElement->toArray();
         }
         return $elementConfigs;
     }
@@ -195,7 +199,7 @@ class FieldLayoutTab extends Model
      * Returns the tab’s layout.
      *
      * @return FieldLayout|null The tab’s layout.
-     * @throws InvalidConfigException if [[groupId]] is set but invalid
+     * @throws InvalidConfigException if [[layoutId]] is set but invalid
      */
     public function getLayout()
     {
@@ -263,9 +267,7 @@ class FieldLayoutTab extends Model
             $this->elements[] = Craft::createObject([
                 'class' => CustomField::class,
                 'required' => $field->required,
-            ], [
-                $field,
-            ]);
+            ], [$field]);
         }
 
         // Clear the field layout's field cache
@@ -281,7 +283,8 @@ class FieldLayoutTab extends Model
      */
     public function getHtmlId(): string
     {
-        return 'tab-' . StringHelper::toKebabCase($this->name);
+        // Use two dashes here in case a tab name starts with “Tab”
+        return 'tab--' . StringHelper::toKebabCase($this->name);
     }
 
     /**

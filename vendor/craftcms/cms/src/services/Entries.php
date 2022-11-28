@@ -15,7 +15,8 @@ use yii\base\Component;
 
 /**
  * The Entries service provides APIs for managing entries in Craft.
- * An instance of the Entries service is globally accessible in Craft via [[\craft\base\ApplicationTrait::getEntries()|`Craft::$app->entries`]].
+ *
+ * An instance of the service is available via [[\craft\base\ApplicationTrait::getEntries()|`Craft::$app->entries`]].
  *
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
@@ -51,7 +52,7 @@ class Entries extends Component
                 ->scalar();
         }
 
-        /* @noinspection PhpIncompatibleReturnTypeInspection */
+        /** @noinspection PhpIncompatibleReturnTypeInspection */
         return Craft::$app->getElements()->getElementById($entryId, Entry::class, $siteId, $criteria);
     }
 }

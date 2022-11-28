@@ -31,14 +31,14 @@ class PluginStoreOauthAsset extends AssetBundle
      * @inheritdoc
      */
     public $css = [
-        'pluginstore-oauth-callback.css',
+        'css/PluginStoreOauthCallback.css',
     ];
 
     /**
      * @inheritdoc
      */
     public $js = [
-        'parseFragmentString.min.js',
-        'PluginStoreOauthCallback.min.js',
+        'parseFragmentString.js',
+        'PluginStoreOauthCallback.js',
     ];
 }

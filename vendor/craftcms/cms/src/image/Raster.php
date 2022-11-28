@@ -47,7 +47,7 @@ class Raster extends Image
     /**
      * @var bool
      */
-    private $_isAnimatedGif = false;
+    private $_isAnimated = false;
 
     /**
      * @var int
@@ -185,9 +185,9 @@ class Raster extends Image
         $this->_imageSourcePath = $path;
         $this->_extension = pathinfo($path, PATHINFO_EXTENSION);
 
-        if ($this->_extension === 'gif') {
+        if (in_array($this->_extension, ['gif', 'webp'])) {
             if (!$imageService->getIsGd() && $this->_image->layers()) {
-                $this->_isAnimatedGif = true;
+                $this->_isAnimated = true;
             }
         }
 
@@ -202,13 +202,14 @@ class Raster extends Image
         $width = $x2 - $x1;
         $height = $y2 - $y1;
 
-        if ($this->_isAnimatedGif) {
+        if ($this->_isAnimated) {
             // Create a new image instance to avoid object references messing up our dimensions.
             $newSize = new Box($width, $height);
             $startingPoint = new Point($x1, $y1);
             $gif = $this->_instance->create($newSize);
             $gif->layers()->remove(0);
 
+            $this->_image->layers()->coalesce();
             foreach ($this->_image->layers() as $layer) {
                 $croppedLayer = $layer->crop($startingPoint, $newSize);
                 $gif->layers()->add($croppedLayer);
@@ -259,8 +260,8 @@ class Raster extends Image
             $newWidth = round($this->getWidth() / $factor);
 
             $this->resize($newWidth, $newHeight);
-            // If we need to upscale AND that's ok
-        } else if (($targetWidth > $this->getWidth() || $targetHeight > $this->getHeight()) && !$scaleIfSmaller) {
+        // If we need to upscale AND that's ok
+        } elseif (($targetWidth > $this->getWidth() || $targetHeight > $this->getHeight()) && !$scaleIfSmaller) {
             // Figure the crop size reductions
             $factor = max($targetWidth / $this->getWidth(), $targetHeight / $this->getHeight());
             $newHeight = $this->getHeight();
@@ -319,7 +320,7 @@ class Raster extends Image
 
                 $y1 = 0;
                 $y2 = $y1 + $targetHeight;
-            } else if ($newHeight - $targetHeight > 0) {
+            } elseif ($newHeight - $targetHeight > 0) {
                 switch ($verticalPosition) {
                     case 'top':
                         $y1 = 0;
@@ -357,12 +358,13 @@ class Raster extends Image
     {
         $this->normalizeDimensions($targetWidth, $targetHeight);
 
-        if ($this->_isAnimatedGif) {
+        if ($this->_isAnimated) {
             // Create a new image instance to avoid object references messing up our dimensions.
             $newSize = new Box($targetWidth, $targetHeight);
             $gif = $this->_instance->create($newSize);
             $gif->layers()->remove(0);
 
+            $this->_image->layers()->coalesce();
             foreach ($this->_image->layers() as $layer) {
                 $resizedLayer = $layer->resize($newSize, $this->_getResizeFilter());
                 $gif->layers()->add($resizedLayer);
@@ -612,7 +614,7 @@ class Raster extends Image
      */
     public function disableAnimation()
     {
-        $this->_isAnimatedGif = false;
+        $this->_isAnimated = false;
 
         if ($this->_image->layers()->count() > 1) {
             // Fetching the first layer returns the built-in Imagick object
@@ -703,7 +705,8 @@ class Raster extends Image
                 return ['jpeg_quality' => $quality, 'flatten' => true];
 
             case 'gif':
-                return ['animated' => $this->_isAnimatedGif];
+            case 'webp':
+                return ['animated' => $this->_isAnimated];
 
             case 'png':
                 // Valid PNG quality settings are 0-9, so normalize and flip, because we're talking about compression

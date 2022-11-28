@@ -21,10 +21,11 @@ use craft\models\Site;
 use craft\web\assets\installer\InstallerAsset;
 use craft\web\Controller;
 use yii\base\Exception;
+use yii\base\InvalidConfigException;
 use yii\base\Response;
 use yii\web\BadRequestHttpException;
 
-/* @noinspection ClassOverridesFieldOfSuperClassInspection */
+/** @noinspection ClassOverridesFieldOfSuperClassInspection */
 
 /**
  * The InstallController class is a controller that directs all installation related tasks such as creating the database
@@ -67,13 +68,11 @@ class InstallController extends Controller
             return $response;
         }
 
-        $isNitro = App::isNitro();
-
         // Can we establish a DB connection?
         try {
-            Craft::$app->getDb()->open();
+            $this->_checkDbConfig();
             $showDbScreen = false;
-        } catch (DbConnectException $e) {
+        } catch (InvalidConfigException $e) {
             // Can we control the settings?
             if ($this->_canControlDbConfig()) {
                 $showDbScreen = true;
@@ -99,7 +98,6 @@ class InstallController extends Controller
         $worldIcon = file_get_contents($iconsPath . DIRECTORY_SEPARATOR . 'world.svg');
 
         return $this->renderTemplate('_special/install', compact(
-            'isNitro',
             'showDbScreen',
             'license',
             'defaultSystemName',
@@ -143,13 +141,13 @@ class InstallController extends Controller
 
         if (empty($errors)) {
             // Test the connection
-            /* @var Connection $db */
+            /** @var Connection $db */
             $db = Craft::createObject(App::dbConfig($dbConfig));
 
             try {
                 $db->open();
             } catch (DbConnectException $e) {
-                /* @var \PDOException $pdoException */
+                /** @var \PDOException $pdoException */
                 $pdoException = $e->getPrevious()->getPrevious();
                 switch ($pdoException->getCode()) {
                     case 1045:
@@ -183,7 +181,8 @@ class InstallController extends Controller
         $this->requirePostRequest();
         $this->requireAcceptsJson();
 
-        $user = new User(['scenario' => User::SCENARIO_REGISTRATION]);
+        $user = new User();
+        $user->setScenario(User::SCENARIO_REGISTRATION);
         $user->email = $this->request->getBodyParam('email');
         $user->username = $this->request->getBodyParam('username', $user->email);
         $user->newPassword = $this->request->getBodyParam('password');
@@ -312,6 +311,24 @@ class InstallController extends Controller
     }
 
     /**
+     * @throws InvalidConfigException
+     */
+    private function _checkDbConfig(): void
+    {
+        // If no database is set yet, definitely show it
+        if (!Craft::$app->getConfig()->getDb()->database) {
+            throw new InvalidConfigException('No database has been selected yet.');
+        }
+
+        // Can we establish a DB connection?
+        try {
+            Craft::$app->getDb()->open();
+        } catch (DbConnectException $e) {
+            throw new InvalidConfigException('A database connection couldn’t be established.', 0, $e);
+        }
+    }
+
+    /**
      * Returns whether it looks like we have control over the DB config settings.
      *
      * @return bool
@@ -329,12 +346,10 @@ class InstallController extends Controller
         }
 
         // Map the DB settings we definitely care about to their environment variable names
-        $vars = [];
-
-        if (!App::isNitro()) {
-            $vars['user'] = 'DB_USER';
-            $vars['password'] = 'DB_PASSWORD';
-        }
+        $vars = [
+            'user' => 'DB_USER',
+            'password' => 'DB_PASSWORD',
+        ];
 
         // If there's a DB_DSN environment variable, go with that
         if (App::env('DB_DSN') !== false) {
@@ -403,7 +418,6 @@ class InstallController extends Controller
         $dbConfig->dsn = "{$driver}:host={$server};port={$port};dbname={$database}";
         $dbConfig->user = $this->request->getBodyParam("{$prefix}user") ?: 'root';
         $dbConfig->password = $this->request->getBodyParam("{$prefix}password");
-        $dbConfig->schema = $this->request->getBodyParam("{$prefix}schema") ?: 'public';
         $dbConfig->tablePrefix = $this->request->getBodyParam("{$prefix}tablePrefix");
     }
 }

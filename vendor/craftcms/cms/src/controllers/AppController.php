@@ -10,8 +10,11 @@ namespace craft\controllers;
 use Craft;
 use craft\base\UtilityInterface;
 use craft\enums\LicenseKeyStatus;
+use craft\errors\BusyResourceException;
 use craft\errors\InvalidPluginException;
+use craft\errors\StaleResourceException;
 use craft\helpers\Api;
+use craft\helpers\App;
 use craft\helpers\ArrayHelper;
 use craft\helpers\Cp;
 use craft\helpers\DateTimeHelper;
@@ -260,7 +263,12 @@ class AppController extends Controller
 
             // Sync project.yaml?
             if ($applyProjectConfigChanges) {
-                $projectConfigService->applyYamlChanges();
+                try {
+                    $projectConfigService->applyYamlChanges();
+                } catch (BusyResourceException|StaleResourceException $e) {
+                    Craft::$app->getErrorHandler()->logException($e);
+                    Craft::warning("Couldn’t apply project config YAML changes: {$e->getMessage()}", __METHOD__);
+                }
             }
 
             $transaction->commit();
@@ -285,7 +293,7 @@ class AppController extends Controller
             $error = 'An error occurred running new migrations.';
             if ($restored) {
                 $error .= ' The database has been restored to its previous state.';
-            } else if (isset($restoreException)) {
+            } elseif (isset($restoreException)) {
                 $error .= ' The database could not be restored due to a separate error: ' . $restoreException->getMessage();
             } else {
                 $error .= ' The database has not been restored.';
@@ -312,7 +320,7 @@ class AppController extends Controller
         $utilities = Craft::$app->getUtilities()->getAuthorizedUtilityTypes();
 
         foreach ($utilities as $class) {
-            /* @var UtilityInterface $class */
+            /** @var UtilityInterface $class */
             $badgeCount += $class::badgeCount();
         }
 
@@ -495,7 +503,7 @@ class AppController extends Controller
                         'name' => $update->replacementName,
                     ]);
             }
-        } else if ($update->status === Update::STATUS_EXPIRED) {
+        } elseif ($update->status === Update::STATUS_EXPIRED) {
             $arr['statusText'] = Craft::t('app', '<strong>Your license has expired!</strong> Renew your {name} license for another year of amazing updates.', [
                 'name' => $name,
             ]);
@@ -559,7 +567,7 @@ class AppController extends Controller
                     if (
                         !isset($allPluginInfo[$handle]) ||
                         !$allPluginInfo[$handle]['licenseKey'] ||
-                        $pluginsService->normalizePluginLicenseKey(Craft::parseEnv($allPluginInfo[$handle]['licenseKey'])) === $pluginLicenseInfo['key']
+                        $pluginsService->normalizePluginLicenseKey(App::parseEnv($allPluginInfo[$handle]['licenseKey'])) === $pluginLicenseInfo['key']
                     ) {
                         $result[$handle] = [
                             'edition' => null,
@@ -598,7 +606,7 @@ class AppController extends Controller
                 'version' => $pluginInfo['version'],
                 'hasMultipleEditions' => $pluginInfo['hasMultipleEditions'],
                 'edition' => $pluginInfo['edition'],
-                'licenseKey' => $pluginsService->normalizePluginLicenseKey(Craft::parseEnv($pluginInfo['licenseKey'])),
+                'licenseKey' => $pluginsService->normalizePluginLicenseKey(App::parseEnv($pluginInfo['licenseKey'])),
                 'licensedEdition' => $pluginInfo['licensedEdition'],
                 'licenseKeyStatus' => $pluginInfo['licenseKeyStatus'],
                 'licenseIssues' => $pluginInfo['licenseIssues'],
@@ -627,7 +635,7 @@ class AppController extends Controller
 
         $statusCode = $this->response->getStatusCode();
         return $this->response
-            ->sendFile($imagePath, ['inline' => true])
+            ->sendFile($imagePath, null, ['inline' => true])
             ->setStatusCode($statusCode);
     }
 }

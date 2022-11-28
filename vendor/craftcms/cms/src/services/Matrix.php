@@ -21,7 +21,6 @@ use craft\helpers\Db;
 use craft\helpers\ElementHelper;
 use craft\helpers\Html;
 use craft\helpers\MigrationHelper;
-use craft\helpers\StringHelper;
 use craft\migrations\CreateMatrixContentTable;
 use craft\models\FieldLayout;
 use craft\models\MatrixBlockType;
@@ -34,7 +33,8 @@ use yii\base\Exception;
 
 /**
  * The Matrix service provides APIs for managing Matrix fields.
- * An instance of the Matrix service is globally accessible in Craft via [[\craft\base\ApplicationTrait::getMatrix()|`Craft::$app->matrix`]].
+ *
+ * An instance of the service is available via [[\craft\base\ApplicationTrait::getMatrix()|`Craft::$app->matrix`]].
  *
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
@@ -149,11 +149,9 @@ class Matrix extends Component
      * If the block type doesn’t validate, any validation errors will be stored on the block type.
      *
      * @param MatrixBlockType $blockType The block type.
-     * @param bool $validateUniques Whether the Name and Handle attributes should be validated to
-     * ensure they’re unique. Defaults to `true`.
      * @return bool Whether the block type validated.
      */
-    public function validateBlockType(MatrixBlockType $blockType, bool $validateUniques = true): bool
+    public function validateBlockType(MatrixBlockType $blockType): bool
     {
         $validates = true;
 
@@ -163,24 +161,10 @@ class Matrix extends Component
         $blockTypeRecord->name = $blockType->name;
         $blockTypeRecord->handle = $blockType->handle;
 
-        $blockTypeRecord->validateUniques = $validateUniques;
-
         if (!$blockTypeRecord->validate()) {
             $validates = false;
             $blockType->addErrors($blockTypeRecord->getErrors());
         }
-
-        $blockTypeRecord->validateUniques = true;
-
-        // Can't validate multiple new rows at once so we'll need to give these temporary context to avoid false unique
-        // handle validation errors, and just validate those manually. Also apply the future fieldColumnPrefix so that
-        // field handle validation takes its length into account.
-        $contentService = Craft::$app->getContent();
-        $originalFieldContext = $contentService->fieldContext;
-        $originalFieldColumnPrefix = $contentService->fieldColumnPrefix;
-
-        $contentService->fieldContext = StringHelper::randomString(10);
-        $contentService->fieldColumnPrefix = 'field_' . $blockType->handle . '_';
 
         foreach ($blockType->getFields() as $field) {
             // Hack to allow blank field names
@@ -216,9 +200,6 @@ class Matrix extends Component
                 $validates = false;
             }
         }
-
-        $contentService->fieldContext = $originalFieldContext;
-        $contentService->fieldColumnPrefix = $originalFieldColumnPrefix;
 
         return $validates;
     }
@@ -300,7 +281,7 @@ class Matrix extends Component
             // Make sure that alterations, if any, occur in the correct context.
             $contentService->fieldContext = 'matrixBlockType:' . $blockTypeUid;
             $contentService->fieldColumnPrefix = 'field_' . $blockTypeRecord->handle . '_';
-            /* @var MatrixField $matrixField */
+            /** @var MatrixField $matrixField */
             $matrixField = $fieldsService->getFieldById($blockTypeRecord->fieldId);
 
             // Ignore it, if the parent field is not a Matrix field.
@@ -335,9 +316,9 @@ class Matrix extends Component
                     $layout->id = $blockTypeRecord->fieldLayoutId;
                     $layout->type = MatrixBlock::class;
                     $layout->uid = key($data['fieldLayouts']);
-                    $fieldsService->saveLayout($layout);
+                    $fieldsService->saveLayout($layout, false);
                     $blockTypeRecord->fieldLayoutId = $layout->id;
-                } else if ($blockTypeRecord->fieldLayoutId) {
+                } elseif ($blockTypeRecord->fieldLayoutId) {
                     // Delete the field layout
                     $fieldsService->deleteLayoutById($blockTypeRecord->fieldLayoutId);
                     $blockTypeRecord->fieldLayoutId = null;
@@ -427,25 +408,29 @@ class Matrix extends Component
             $fieldsService = Craft::$app->getFields();
             $originalContentTable = $contentService->contentTable;
 
-            /* @var MatrixField $matrixField */
+            /** @var MatrixField $matrixField */
             $matrixField = $fieldsService->getFieldById($blockType->fieldId);
 
             // Ignore it, if the parent field is not a Matrix field.
             if ($matrixField instanceof MatrixField) {
                 $contentService->contentTable = $matrixField->contentTable;
 
-                // Set the new fieldColumnPrefix
-                $originalFieldColumnPrefix = Craft::$app->getContent()->fieldColumnPrefix;
-                Craft::$app->getContent()->fieldColumnPrefix = 'field_' . $blockType->handle . '_';
+                // Set the new fieldColumnPrefix + oldFieldColumnPrefix
+                $originalFieldColumnPrefix = $contentService->fieldColumnPrefix;
+                $originalOldFieldColumnPrefix = $fieldsService->oldFieldColumnPrefix;
+
+                $contentService->fieldColumnPrefix = "field_{$blockType->handle}_";
+                $fieldsService->oldFieldColumnPrefix = "field_{$blockType->handle}_";
 
                 // Now delete the block type fields
                 foreach ($blockType->getFields() as $field) {
-                    Craft::$app->getFields()->deleteField($field);
+                    $fieldsService->deleteField($field);
                 }
 
                 // Restore the contentTable and the fieldColumnPrefix to original values.
-                Craft::$app->getContent()->fieldColumnPrefix = $originalFieldColumnPrefix;
                 $contentService->contentTable = $originalContentTable;
+                $contentService->fieldColumnPrefix = $originalFieldColumnPrefix;
+                $fieldsService->oldFieldColumnPrefix = $originalOldFieldColumnPrefix;
 
                 // Delete the field layout
                 $fieldLayoutId = (new Query())
@@ -455,7 +440,7 @@ class Matrix extends Component
                     ->scalar();
 
                 // Delete the field layout
-                Craft::$app->getFields()->deleteLayoutById($fieldLayoutId);
+                $fieldsService->deleteLayoutById($fieldLayoutId);
 
                 // Finally delete the actual block type
                 Db::delete(Table::MATRIXBLOCKTYPES, [
@@ -499,7 +484,7 @@ class Matrix extends Component
         $uniqueAttributeValues = [];
 
         foreach ($matrixField->getBlockTypes() as $blockType) {
-            if (!$this->validateBlockType($blockType, false)) {
+            if (!$this->validateBlockType($blockType)) {
                 // Don't break out of the loop because we still want to get validation errors for the remaining block
                 // types.
                 $validates = false;
@@ -691,7 +676,7 @@ class Matrix extends Component
      */
     public function getBlockById(int $blockId, int $siteId = null)
     {
-        /* @noinspection PhpIncompatibleReturnTypeInspection */
+        /** @noinspection PhpIncompatibleReturnTypeInspection */
         return Craft::$app->getElements()->getElementById($blockId, MatrixBlock::class, $siteId);
     }
 
@@ -705,9 +690,9 @@ class Matrix extends Component
     public function saveField(MatrixField $field, ElementInterface $owner)
     {
         $elementsService = Craft::$app->getElements();
-        /* @var MatrixBlockQuery $query */
+        /** @var MatrixBlockQuery $query */
         $query = $owner->getFieldValue($field->handle);
-        /* @var MatrixBlock[] $blocks */
+        /** @var MatrixBlock[] $blocks */
         if (($blocks = $query->getCachedResult()) !== null) {
             $saveAll = false;
         } else {
@@ -727,7 +712,7 @@ class Matrix extends Component
                     $block->ownerId = $owner->id;
                     $block->sortOrder = $sortOrder;
                     $elementsService->saveElement($block, false);
-                } else if ((int)$block->sortOrder !== $sortOrder) {
+                } elseif ((int)$block->sortOrder !== $sortOrder) {
                     // Just update its sortOrder
                     $block->sortOrder = $sortOrder;
                     Db::update(Table::MATRIXBLOCKS, [
@@ -755,7 +740,7 @@ class Matrix extends Component
             ) {
                 // Find the owner's site IDs that *aren't* supported by this site's Matrix blocks
                 $ownerSiteIds = ArrayHelper::getColumn(ElementHelper::supportedSitesForElement($owner), 'siteId');
-                $fieldSiteIds = $this->getSupportedSiteIds($field->propagationMethod, $owner);
+                $fieldSiteIds = $this->getSupportedSiteIds($field->propagationMethod, $owner, $field->propagationKeyFormat);
                 $otherSiteIds = array_diff($ownerSiteIds, $fieldSiteIds);
 
                 // If propagateAll isn't set, only deal with sites that the element was just propagated to for the first time
@@ -770,6 +755,7 @@ class Matrix extends Component
                     // Get the owner element across each of those sites
                     $localizedOwners = $owner::find()
                         ->drafts($owner->getIsDraft())
+                        ->provisionalDrafts($owner->isProvisionalDraft)
                         ->revisions($owner->getIsRevision())
                         ->id($owner->id)
                         ->siteId($otherSiteIds)
@@ -791,7 +777,7 @@ class Matrix extends Component
                         }
 
                         // Find all of the field’s supported sites shared with this target
-                        $sourceSupportedSiteIds = $this->getSupportedSiteIds($field->propagationMethod, $localizedOwner);
+                        $sourceSupportedSiteIds = $this->getSupportedSiteIds($field->propagationMethod, $localizedOwner, $field->propagationKeyFormat);
 
                         // Do blocks in this target happen to share supported sites with a preexisting site?
                         if (
@@ -799,6 +785,7 @@ class Matrix extends Component
                             !empty($sharedPreexistingOtherSiteIds = array_intersect($preexistingOtherSiteIds, $sourceSupportedSiteIds)) &&
                             $preexistingLocalizedOwner = $owner::find()
                                 ->drafts($owner->getIsDraft())
+                                ->provisionalDrafts($owner->isProvisionalDraft)
                                 ->revisions($owner->getIsRevision())
                                 ->id($owner->id)
                                 ->siteId($sharedPreexistingOtherSiteIds)
@@ -808,7 +795,9 @@ class Matrix extends Component
                             // Just resave Matrix blocks for that one site, and let them propagate over to the new site(s) from there
                             $this->saveField($field, $preexistingLocalizedOwner);
                         } else {
-                            $this->duplicateBlocks($field, $owner, $localizedOwner);
+                            // Duplicate the blocks, but **don't track** the duplications, so the edit page doesn’t think
+                            // its blocks have been replaced by the other sites’ blocks
+                            $this->duplicateBlocks($field, $owner, $localizedOwner, false, false);
                         }
 
                         // Make sure we don't duplicate blocks for any of the sites that were just propagated to
@@ -842,15 +831,22 @@ class Matrix extends Component
      * @param ElementInterface $source The source element blocks should be duplicated from
      * @param ElementInterface $target The target element blocks should be duplicated to
      * @param bool $checkOtherSites Whether to duplicate blocks for the source element's other supported sites
+     * @param bool $trackDuplications whether to keep track of the duplications from [[\craft\services\Elements::$duplicatedElementIds]]
+     * and [[\craft\services\Elements::$duplicatedElementSourceIds]]
      * @throws \Throwable if reasons
      * @since 3.2.0
      */
-    public function duplicateBlocks(MatrixField $field, ElementInterface $source, ElementInterface $target, bool $checkOtherSites = false)
-    {
+    public function duplicateBlocks(
+        MatrixField $field,
+        ElementInterface $source,
+        ElementInterface $target,
+        bool $checkOtherSites = false,
+        bool $trackDuplications = true
+    ) {
         $elementsService = Craft::$app->getElements();
-        /* @var MatrixBlockQuery $query */
+        /** @var MatrixBlockQuery $query */
         $query = $source->getFieldValue($field->handle);
-        /* @var MatrixBlock[] $blocks */
+        /** @var MatrixBlock[] $blocks */
         if (($blocks = $query->getCachedResult()) === null) {
             $blocksQuery = clone $query;
             $blocks = $blocksQuery->anyStatus()->all();
@@ -860,14 +856,34 @@ class Matrix extends Component
         $transaction = Craft::$app->getDb()->beginTransaction();
         try {
             foreach ($blocks as $block) {
-                /* @var MatrixBlock $newBlock */
-                $newBlock = $elementsService->duplicateElement($block, [
+                $newAttributes = [
+                    // Only set the canonicalId if the target owner element is a derivative
+                    'canonicalId' => $target->getIsDerivative() ? $block->id : null,
                     'ownerId' => $target->id,
                     'owner' => $target,
                     'siteId' => $target->siteId,
                     'propagating' => false,
-                ]);
-                $newBlockIds[] = $newBlock->id;
+                ];
+
+                if ($target->updatingFromDerivative && $block->getIsDerivative()) {
+                    if (
+                        ElementHelper::isRevision($source) ||
+                        !empty($target->newSiteIds) ||
+                        $source->isFieldModified($field->handle, true)
+                    ) {
+                        /** @var MatrixBlock $newBlock */
+                        $newBlock = $elementsService->updateCanonicalElement($block, $newAttributes);
+                        $newBlockId = $newBlock->id;
+                    } else {
+                        $newBlockId = $block->getCanonicalId();
+                    }
+                } else {
+                    /** @var MatrixBlock $newBlock */
+                    $newBlock = $elementsService->duplicateElement($block, $newAttributes, true, $trackDuplications);
+                    $newBlockId = $newBlock->id;
+                }
+
+                $newBlockIds[] = $newBlockId;
             }
 
             // Delete any blocks that shouldn't be there anymore
@@ -883,13 +899,14 @@ class Matrix extends Component
         if ($checkOtherSites && $field->propagationMethod !== MatrixField::PROPAGATION_METHOD_ALL) {
             // Find the target's site IDs that *aren't* supported by this site's Matrix blocks
             $targetSiteIds = ArrayHelper::getColumn(ElementHelper::supportedSitesForElement($target), 'siteId');
-            $fieldSiteIds = $this->getSupportedSiteIds($field->propagationMethod, $target);
+            $fieldSiteIds = $this->getSupportedSiteIds($field->propagationMethod, $target, $field->propagationKeyFormat);
             $otherSiteIds = array_diff($targetSiteIds, $fieldSiteIds);
 
             if (!empty($otherSiteIds)) {
                 // Get the original element and duplicated element for each of those sites
                 $otherSources = $target::find()
                     ->drafts($source->getIsDraft())
+                    ->provisionalDrafts($source->isProvisionalDraft)
                     ->revisions($source->getIsRevision())
                     ->id($source->id)
                     ->siteId($otherSiteIds)
@@ -897,6 +914,7 @@ class Matrix extends Component
                     ->all();
                 $otherTargets = $target::find()
                     ->drafts($target->getIsDraft())
+                    ->provisionalDrafts($target->isProvisionalDraft)
                     ->revisions($target->getIsRevision())
                     ->id($target->id)
                     ->siteId($otherSiteIds)
@@ -918,12 +936,107 @@ class Matrix extends Component
                         continue;
                     }
 
+                    $otherTargets[$otherSource->siteId]->updatingFromDerivative = $target->updatingFromDerivative;
                     $this->duplicateBlocks($field, $otherSource, $otherTargets[$otherSource->siteId]);
 
                     // Make sure we don't duplicate blocks for any of the sites that were just propagated to
-                    $sourceSupportedSiteIds = $this->getSupportedSiteIds($field->propagationMethod, $otherSource);
+                    $sourceSupportedSiteIds = $this->getSupportedSiteIds($field->propagationMethod, $otherSource, $field->propagationKeyFormat);
                     $handledSiteIds = array_merge($handledSiteIds, $sourceSupportedSiteIds);
                 }
+            }
+        }
+    }
+
+    /**
+     * Merges recent canonical Matrix block changes into the given Matrix field’s blocks.
+     *
+     * @param MatrixField $field The Matrix field
+     * @param ElementInterface $owner The element the field is associated with
+     * @return void
+     * @since 3.7.0
+     */
+    public function mergeCanonicalChanges(MatrixField $field, ElementInterface $owner): void
+    {
+        // Get the owner across all sites
+        $localizedOwners = $owner::find()
+            ->id($owner->id ?: false)
+            ->siteId(['not', $owner->siteId])
+            ->drafts($owner->getIsDraft())
+            ->provisionalDrafts($owner->isProvisionalDraft)
+            ->revisions($owner->getIsRevision())
+            ->anyStatus()
+            ->ignorePlaceholders()
+            ->indexBy('siteId')
+            ->all();
+        $localizedOwners[$owner->siteId] = $owner;
+
+        // Get the canonical owner across all sites
+        $canonicalOwners = $owner::find()
+            ->id($owner->getCanonicalId())
+            ->siteId(array_keys($localizedOwners))
+            ->anyStatus()
+            ->ignorePlaceholders()
+            ->all();
+
+        $elementsService = Craft::$app->getElements();
+        $handledSiteIds = [];
+
+        foreach ($canonicalOwners as $canonicalOwner) {
+            if (isset($handledSiteIds[$canonicalOwner->siteId])) {
+                continue;
+            }
+
+            // Get all the canonical owner’s blocks, including soft-deleted ones
+            $canonicalBlocks = MatrixBlock::find()
+                ->fieldId($field->id)
+                ->ownerId($canonicalOwner->id)
+                ->siteId($canonicalOwner->siteId)
+                ->status(null)
+                ->trashed(null)
+                ->ignorePlaceholders()
+                ->all();
+
+            // Get all the derivative owner’s blocks, so we can compare
+            $derivativeBlocks = MatrixBlock::find()
+                ->fieldId($field->id)
+                ->ownerId($owner->id)
+                ->siteId($canonicalOwner->siteId)
+                ->status(null)
+                ->trashed(null)
+                ->ignorePlaceholders()
+                ->indexBy('canonicalId')
+                ->all();
+
+            foreach ($canonicalBlocks as $canonicalBlock) {
+                if (isset($derivativeBlocks[$canonicalBlock->id])) {
+                    $derivativeBlock = $derivativeBlocks[$canonicalBlock->id];
+
+                    // Has it been soft-deleted?
+                    if ($canonicalBlock->trashed) {
+                        // Delete the derivative block too, unless any changes were made to it
+                        if ($derivativeBlock->dateUpdated == $derivativeBlock->dateCreated) {
+                            $elementsService->deleteElement($derivativeBlock);
+                        }
+                    } elseif (!$derivativeBlock->trashed && ElementHelper::isOutdated($derivativeBlock)) {
+                        // Merge the upstream changes into the derivative block
+                        $elementsService->mergeCanonicalChanges($derivativeBlock);
+                    }
+                } elseif (!$canonicalBlock->trashed && $canonicalBlock->dateCreated > $owner->dateCreated) {
+                    // This is a new block, so duplicate it into the derivative owner
+                    $elementsService->duplicateElement($canonicalBlock, [
+                        'canonicalId' => $canonicalBlock->id,
+                        'ownerId' => $owner->id,
+                        'owner' => $localizedOwners[$canonicalBlock->siteId],
+                        'siteId' => $canonicalBlock->siteId,
+                        'propagating' => false,
+                    ]);
+                }
+            }
+
+            // Keep track of the sites we've already covered
+            $siteIds = $this->getSupportedSiteIds($field->propagationMethod, $canonicalOwner, $field->propagationKeyFormat);
+            foreach ($siteIds as $siteId) {
+                $handledSiteIds[$siteId] = true;
             }
         }
     }
@@ -939,7 +1052,7 @@ class Matrix extends Component
      */
     public function getSupportedSiteIdsForField(MatrixField $field, ElementInterface $owner): array
     {
-        return $this->getSupportedSiteIds($field->propagationMethod, $owner);
+        return $this->getSupportedSiteIds($field->propagationMethod, $owner, $field->propagationKeyFormat);
     }
 
     /**
@@ -947,15 +1060,23 @@ class Matrix extends Component
      *
      * @param string $propagationMethod
      * @param ElementInterface $owner
+     * @param string|null $propagationKeyFormat
      * @return int[]
      * @since 3.3.18
      */
-    public function getSupportedSiteIds(string $propagationMethod, ElementInterface $owner): array
+    public function getSupportedSiteIds(string $propagationMethod, ElementInterface $owner, ?string $propagationKeyFormat = null): array
     {
-        /* @var Site[] $allSites */
+        /** @var Site[] $allSites */
         $allSites = ArrayHelper::index(Craft::$app->getSites()->getAllSites(), 'id');
         $ownerSiteIds = ArrayHelper::getColumn(ElementHelper::supportedSitesForElement($owner), 'siteId');
         $siteIds = [];
+
+        $view = Craft::$app->getView();
+        $elementsService = Craft::$app->getElements();
+
+        if ($propagationMethod === MatrixField::PROPAGATION_METHOD_CUSTOM && $propagationKeyFormat !== null) {
+            $propagationKey = $view->renderObjectTemplate($propagationKeyFormat, $owner);
+        }
 
         foreach ($ownerSiteIds as $siteId) {
             switch ($propagationMethod) {
@@ -967,6 +1088,14 @@ class Matrix extends Component
                     break;
                 case MatrixField::PROPAGATION_METHOD_LANGUAGE:
                     $include = $allSites[$siteId]->language == $allSites[$owner->siteId]->language;
+                    break;
+                case MatrixField::PROPAGATION_METHOD_CUSTOM:
+                    if (!isset($propagationKey)) {
+                        $include = true;
+                    } else {
+                        $siteOwner = $elementsService->getElementById($owner->id, get_class($owner), $siteId);
+                        $include = $siteOwner && $propagationKey === $view->renderObjectTemplate($propagationKeyFormat, $siteOwner);
+                    }
                     break;
                 default:
                     $include = true;

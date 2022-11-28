@@ -33,14 +33,14 @@ class GzipDownloader extends ArchiveDownloader
             $command = 'gzip -cd -- ' . ProcessExecutor::escape($file) . ' > ' . ProcessExecutor::escape($targetFilepath);
 
             if (0 === $this->process->execute($command, $ignoredOutput)) {
-                return;
+                return \React\Promise\resolve();
             }
 
             if (extension_loaded('zlib')) {
                 // Fallback to using the PHP extension.
                 $this->extractUsingExt($file, $targetFilepath);
 
-                return;
+                return \React\Promise\resolve();
             }
 
             $processError = 'Failed to execute ' . $command . "\n\n" . $this->process->getErrorOutput();
@@ -49,8 +49,16 @@ class GzipDownloader extends ArchiveDownloader
 
         // Windows version of PHP has built-in support of gzip functions
         $this->extractUsingExt($file, $targetFilepath);
+
+        return \React\Promise\resolve();
     }
 
+    /**
+     * @param string $file
+     * @param string $targetFilepath
+     *
+     * @return void
+     */
     private function extractUsingExt($file, $targetFilepath)
     {
         $archiveFile = gzopen($file, 'rb');

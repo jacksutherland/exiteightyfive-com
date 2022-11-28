@@ -9,6 +9,7 @@ namespace craft\web\assets\sites;
 
 use craft\web\AssetBundle;
 use craft\web\assets\cp\CpAsset;
+use craft\web\assets\vue\VueAsset;
 
 /**
  * Asset bundle for the Sites page
@@ -25,12 +26,13 @@ class SitesAsset extends AssetBundle
      */
     public $depends = [
         CpAsset::class,
+        VueAsset::class,
     ];
 
     /**
      * @inheritdoc
      */
     public $js = [
-        'sites.min.js',
+        'sites.js',
     ];
 }

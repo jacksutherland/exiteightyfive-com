@@ -21,7 +21,8 @@ use yii\base\Exception;
 
 /**
  * Structures service.
- * An instance of the Structures service is globally accessible in Craft via [[\craft\base\ApplicationTrait::getStructures()|`Craft::$app->structures`]].
+ *
+ * An instance of the service is available via [[\craft\base\ApplicationTrait::getStructures()|`Craft::$app->structures`]].
  *
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
@@ -55,7 +56,7 @@ class Structures extends Component
      * @var int The timeout to pass to [[\yii\mutex\Mutex::acquire()]] when acquiring a lock on the structure.
      * @since 3.0.19
      */
-    public $mutexTimeout = 0;
+    public $mutexTimeout = 3;
 
     /**
      * @var
@@ -126,7 +127,7 @@ class Structures extends Component
      */
     public function fillGapsInElements(array &$elements): void
     {
-        /* @var ElementInterface|null $prevElement */
+        /** @var ElementInterface|null $prevElement */
         $prevElement = null;
         $patchedElements = [];
 
@@ -258,7 +259,7 @@ class Structures extends Component
     public function getElementLevelDelta(int $structureId, ElementInterface $element): int
     {
         $elementRecord = $this->_getElementRecord($structureId, $element);
-        /* @var StructureElement $deepestDescendant */
+        /** @var StructureElement $deepestDescendant */
         $deepestDescendant = $elementRecord
             ->children()
             ->orderBy(['level' => SORT_DESC])
@@ -399,6 +400,31 @@ class Structures extends Component
     }
 
     /**
+     * Removes an element from a given structure.
+     *
+     * @param int $structureId
+     * @param ElementInterface $element
+     * @return bool
+     * @throws Exception
+     * @since 3.7.19
+     */
+    public function remove(int $structureId, ElementInterface $element): bool
+    {
+        $elementRecord = $this->_getElementRecord($structureId, $element);
+
+        if ($elementRecord && !$elementRecord->delete()) {
+            return false;
+        }
+
+        $element->root = null;
+        $element->lft = null;
+        $element->rgt = null;
+        $element->level = null;
+
+        return true;
+    }
+
+    /**
      * Returns a structure element record from given structure and element IDs.
      *
      * @param int $structureId
@@ -508,6 +534,8 @@ class Structures extends Component
                 return false;
             }
 
+            $mutex->release($lockName);
+
             // Update the element with the latest values.
             // todo: we should be able to pull these from $elementRecord - https://github.com/creocoder/yii2-nested-sets/issues/114
             $values = (new Query())
@@ -533,8 +561,6 @@ class Structures extends Component
             $mutex->release($lockName);
             throw $e;
         }
-
-        $mutex->release($lockName);
 
         if ($mode === self::MODE_UPDATE && $this->hasEventHandlers(self::EVENT_AFTER_MOVE_ELEMENT)) {
             // Fire an 'afterMoveElement' event

@@ -12,9 +12,6 @@
 
 namespace Composer\DependencyResolver;
 
-use Composer\Package\PackageInterface;
-use Composer\Package\Link;
-
 /**
  * @author Nils Adermann <naderman@naderman.de>
  *
@@ -22,12 +19,11 @@ use Composer\Package\Link;
  */
 class MultiConflictRule extends Rule
 {
+    /** @var int[] */
     protected $literals;
 
     /**
-     * @param array                 $literals
-     * @param int                   $reason     A RULE_* constant describing the reason for generating this rule
-     * @param Link|PackageInterface $reasonData
+     * @param int[] $literals
      */
     public function __construct(array $literals, $reason, $reasonData)
     {
@@ -43,11 +39,17 @@ class MultiConflictRule extends Rule
         $this->literals = $literals;
     }
 
+    /**
+     * @return int[]
+     */
     public function getLiterals()
     {
         return $this->literals;
     }
 
+    /**
+     * @inheritDoc
+     */
     public function getHash()
     {
         $data = unpack('ihash', md5('c:'.implode(',', $this->literals), true));
@@ -72,11 +74,18 @@ class MultiConflictRule extends Rule
         return false;
     }
 
+    /**
+     * @return bool
+     */
     public function isAssertion()
     {
         return false;
     }
 
+    /**
+     * @return never
+     * @throws \RuntimeException
+     */
     public function disable()
     {
         throw new \RuntimeException("Disabling multi conflict rules is not possible. Please contact composer at https://github.com/composer/composer to let us debug what lead to this situation.");

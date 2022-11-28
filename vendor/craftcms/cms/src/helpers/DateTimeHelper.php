@@ -67,11 +67,12 @@ class DateTimeHelper
      *  - MySQL DATE and DATETIME formats (http://dev.mysql.com/doc/refman/5.1/en/datetime.html)
      *  - Relaxed versions of W3C and MySQL formats (single-digit months, days, and hours)
      *  - Unix timestamps
+     * - `now`
      *  - An array with at least one of these keys defined: `datetime`, `date`, or `time`. Supported keys include:
      *      - `date` – a date string in `YYYY-MM-DD` or `YYYY-MM-DD HH:MM:SS.MU` formats or the current locale’s short date format
      *      - `time` – a time string in `HH:MM` or `HH:MM:SS` (24-hour) format or the current locale’s short time format
      *      - `datetime` – A timestamp in any of the non-array formats supported by this method
-     *      - `timezone` – A [valid PHP timezone](http://php.net/manual/en/timezones.php). If set, this will override
+     *      - `timezone` – A [valid PHP timezone](https://php.net/manual/en/timezones.php). If set, this will override
      *        the assumed timezone per `$assumeSystemTimeZone`.
      *
      * @param string|int|array|null $value The value that should be converted to a DateTime object.
@@ -107,8 +108,8 @@ class DateTimeHelper
 
             // Did they specify a full timestamp ?
             if (!empty($value['datetime'])) {
-                [$date, $format] = self::_parseDateTime($value['datetime'], $timeZone);
-                if ($format === false) {
+                $dt = self::_parseDateTime($value['datetime'], $timeZone);
+                if ($dt === null) {
                     return false;
                 }
             } else {
@@ -131,17 +132,20 @@ class DateTimeHelper
                 // Add the timezone
                 $format .= ' e';
                 $date .= ' ' . $timeZone;
+
+                $dt = DateTime::createFromFormat("!$format", $date);
+                if ($dt === false) {
+                    return false;
+                }
             }
         } else {
-            [$date, $format] = self::_parseDateTime($value, $defaultTimeZone);
-            if ($format === false) {
+            $dt = self::_parseDateTime($value, $defaultTimeZone);
+            if ($dt === null) {
                 return false;
             }
         }
 
-        $dt = DateTime::createFromFormat('!' . $format, $date);
-
-        if ($dt !== false && $setToSystemTimeZone) {
+        if ($setToSystemTimeZone) {
             $dt->setTimezone(new DateTimeZone(Craft::$app->getTimeZone()));
         }
 
@@ -218,8 +222,8 @@ class DateTimeHelper
 
     /**
      * Determines whether the given value is an ISO-8601-formatted date, as formatted by either
-     * [DateTime::ATOM](http://php.net/manual/en/class.datetime.php#datetime.constants.atom) or
-     * [DateTime::ISO8601](http://php.net/manual/en/class.datetime.php#datetime.constants.iso8601) (with or without
+     * [DateTime::ATOM](https://php.net/manual/en/class.datetime.php#datetime.constants.atom) or
+     * [DateTime::ISO8601](https://php.net/manual/en/class.datetime.php#datetime.constants.iso8601) (with or without
      * the colon between the hours and minutes of the timezone).
      *
      * @param mixed $value The timestamp to check
@@ -252,7 +256,7 @@ class DateTimeHelper
      */
     public static function currentUTCDateTime(): DateTime
     {
-        return new DateTime(null, new DateTimeZone('UTC'));
+        return new DateTime('now', new DateTimeZone('UTC'));
     }
 
     /**
@@ -555,7 +559,7 @@ class DateTimeHelper
         if (!$showSeconds) {
             if ($minutes && round($dateInterval->s / 60)) {
                 $minutes++;
-            } else if (!$dateInterval->y && !$dateInterval->m && !$dateInterval->d && !$dateInterval->h && !$minutes) {
+            } elseif (!$dateInterval->y && !$dateInterval->m && !$dateInterval->d && !$dateInterval->h && !$minutes) {
                 return Craft::t('app', 'less than a minute');
             }
         }
@@ -610,7 +614,7 @@ class DateTimeHelper
         // Valid separators are either '-', '.' or '/'.
         if (StringHelper::contains($format, '.')) {
             $separator = '.';
-        } else if (StringHelper::contains($format, '-')) {
+        } elseif (StringHelper::contains($format, '-')) {
             $separator = '-';
         } else {
             $separator = '/';
@@ -667,15 +671,17 @@ class DateTimeHelper
     }
 
     /**
-     * Normalizes and returns a date & time string along with the format it was set in.
-     *
      * @param string $value
      * @param string $defaultTimeZone
-     * @return array
+     * @return DateTime|null
      */
-    private static function _parseDateTime(string $value, string $defaultTimeZone): array
+    private static function _parseDateTime(string $value, string $defaultTimeZone): ?DateTime
     {
         $value = trim($value);
+
+        if ($value === 'now') {
+            return new DateTime();
+        }
 
         if (preg_match('/^
                 (?P<year>\d{4})                                  # YYYY (four digit year)
@@ -723,14 +729,15 @@ class DateTimeHelper
                 $date .= $defaultTimeZone;
             }
 
-            return [$date, $format];
+            return DateTime::createFromFormat("!$format", $date) ?: null;
         }
 
+        // This must go after the preg_match(), b/c isValidTimeStamp() will return true for years ("2021")
         if (static::isValidTimeStamp($value)) {
-            return [$value, 'U'];
+            return new DateTime("@$value");
         }
 
-        return [$value, false];
+        return null;
     }
 
     /**

@@ -9,6 +9,7 @@ namespace craft\gql;
 
 use Craft;
 use craft\base\Component;
+use craft\errors\GqlException;
 use craft\events\RegisterGqlArgumentHandlersEvent;
 use craft\gql\base\ArgumentHandlerInterface;
 use craft\gql\handlers\RelatedAssets;
@@ -17,6 +18,8 @@ use craft\gql\handlers\RelatedEntries;
 use craft\gql\handlers\RelatedTags;
 use craft\gql\handlers\RelatedUsers;
 use craft\gql\handlers\Site;
+use craft\gql\handlers\SiteId;
+use craft\helpers\StringHelper;
 
 /**
  * Class ArgumentManager
@@ -60,6 +63,7 @@ class ArgumentManager extends Component
             'relatedToTags' => RelatedTags::class,
             'relatedToUsers' => RelatedUsers::class,
             'site' => Site::class,
+            'siteId' => SiteId::class,
         ];
 
         $event = new RegisterGqlArgumentHandlersEvent([
@@ -111,10 +115,26 @@ class ArgumentManager extends Component
      *
      * @param $arguments
      * @return array
-     * @throws \yii\base\InvalidConfigException
+     * @throws GqlException
      */
     public function prepareArguments($arguments): array
     {
+        $orderBy = $arguments['orderBy'] ?? null;
+        if ($orderBy) {
+            foreach (StringHelper::split($orderBy) as $chunk) {
+                // Special case for rand()/random()
+                if (in_array(strtolower($chunk), ['rand()', 'random()'], true)) {
+                    continue;
+                }
+                if (
+                    StringHelper::containsAny($orderBy, ['(', ')']) ||
+                    !preg_match('/^\w+(\.\w+)?( (asc|desc))?$/i', $chunk)
+                ) {
+                    throw new GqlException('Illegal value for `orderBy` argument: `' . $orderBy . '`');
+                }
+            }
+        }
+
         $this->createHandlers();
 
         // TODO remove in Craft 4.1
@@ -144,7 +164,7 @@ class ArgumentManager extends Component
     protected function createHandler(string $handler)
     {
         if (is_a($handler, ArgumentHandlerInterface::class, true)) {
-            /* @var ArgumentHandlerInterface $handler */
+            /** @var ArgumentHandlerInterface $handler */
             $handler = new $handler();
             $handler->setArgumentManager($this);
         }

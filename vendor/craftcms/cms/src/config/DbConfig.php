@@ -35,8 +35,8 @@ class DbConfig extends BaseObject
     /**
      * @var array An array of key => value pairs of PDO attributes to pass into the PDO constructor.
      *
-     * For example, when using the [MySQL PDO driver](http://php.net/manual/en/ref.pdo-mysql.php), if you wanted to enable a SSL database connection
-     * (assuming [SSL is enabled in MySQL](https://dev.mysql.com/doc/refman/5.5/en/using-secure-connections.html) and `'user'` can connect via SSL,
+     * For example, when using the [MySQL PDO driver](https://php.net/manual/en/ref.pdo-mysql.php), if you wanted to enable a SSL database connection
+     * (assuming [SSL is enabled in MySQL](https://dev.mysql.com/doc/mysql-secure-deployment-guide/5.7/en/secure-deployment-secure-connections.html) and `'user'` can connect via SSL,
      * you’d set these:
      *
      * ```php
@@ -85,7 +85,7 @@ class DbConfig extends BaseObject
     public $collation;
 
     /**
-     * @var string The Data Source Name (“DSN”) that tells Craft how to connect to the database.
+     * @var string|null The Data Source Name (“DSN”) that tells Craft how to connect to the database.
      *
      * DSNs should begin with a driver prefix (`mysql:` or `pgsql:`), followed by driver-specific parameters.
      * For example, `mysql:host=127.0.0.1;port=3306;dbname=acme_corp`.
@@ -102,9 +102,27 @@ class DbConfig extends BaseObject
 
     /**
      * @var string The schema that Postgres is configured to use by default (PostgreSQL only).
+     *
+     * ::: tip
+     * To force Craft to use the specified schema regardless of PostgreSQL’s `search_path` setting, you must enable
+     * the [[setSchemaOnConnect]] setting.
+     * :::
+     *
      * @see https://www.postgresql.org/docs/8.2/static/ddl-schemas.html
      */
     public $schema = 'public';
+
+    /**
+     * @var bool Whether the [[schema]] should be explicitly used for database queries (PostgreSQL only).
+     *
+     * ::: warning
+     * This will cause an extra `SET search_path` SQL query to be executed per database connection. Ideally,
+     * PostgreSQL’s `search_path` setting should be configured to prioritize the desired schema.
+     * :::
+     *
+     * @since 3.7.27
+     */
+    public $setSchemaOnConnect = false;
 
     /**
      * @var string If you’re sharing Craft installs in a single database (MySQL) or a single database and using a shared schema (PostgreSQL),
@@ -117,8 +135,17 @@ class DbConfig extends BaseObject
      */
     public $user = 'root';
 
-    // Deprecated Properties
-    // -------------------------------------------------------------------------
+    /**
+     * @var bool Whether batched queries should be executed on a separate, unbuffered database connection.
+     *
+     * This setting only applies to MySQL. It can be enabled when working with high volume content, to prevent
+     * PHP from running out of memory when querying too much data at once. (See
+     * <https://www.yiiframework.com/doc/guide/2.0/en/db-query-builder#batch-query-mysql> for an explanation
+     * of MySQL’s batch query limitations.)
+     *
+     * @since 3.7.0
+     */
+    public $useUnbufferedConnections = false;
 
     /**
      * @var string|null The database connection URL, if one was provided by your hosting environment.
@@ -128,17 +155,17 @@ class DbConfig extends BaseObject
     public $url;
 
     /**
-     * @var string The database driver to use. Either 'mysql' for MySQL or 'pgsql' for PostgreSQL.
+     * @var string|null The database driver to use. Either `mysql` for MySQL or `pgsql` for PostgreSQL.
      */
     public $driver;
 
     /**
-     * @var string The database server name or IP address. Usually `localhost` or `127.0.0.1`.
+     * @var string|null The database server name or IP address. Usually `localhost` or `127.0.0.1`.
      */
     public $server;
 
     /**
-     * @var int The database server port. Defaults to 3306 for MySQL and 5432 for PostgreSQL.
+     * @var int|null The database server port. Defaults to 3306 for MySQL and 5432 for PostgreSQL.
      */
     public $port;
 
@@ -149,7 +176,7 @@ class DbConfig extends BaseObject
     public $unixSocket;
 
     /**
-     * @var string The name of the database to select.
+     * @var string|null The name of the database to select.
      */
     public $database;
 

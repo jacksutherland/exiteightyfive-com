@@ -77,11 +77,11 @@ class IndexAssetsController extends Controller
     }
 
     /**
-     * Re-indexes assets from the given volume handle ($startAt = 0).
+     * Re-indexes assets from the given volume handle.
      *
      * @param string $handle The handle of the volume to index.
-     * It is also possible to provide a volume sub-path to index, e.g. `./craft index-assets/one volume-handle/path/to/folder`.
-     * @param int $startAt
+     * You can optionally provide a volume sub-path, e.g. `php craft index-assets/one volume-handle/path/to/folder`.
+     * @param int $startAt Index of the asset to start with, which defaults to `0`.
      * @return int
      * @since 3.1.4
      */
@@ -134,7 +134,7 @@ class IndexAssetsController extends Controller
             $startAt = (is_numeric($startAt) && $startAt < count($fileList)) ? (int)$startAt : 0;
 
             $index = 0;
-            /* @var MissingAssetException[] $missingRecords */
+            /** @var MissingAssetException[] $missingRecords */
             $missingRecords = [];
             $missingRecordsByFilename = [];
 
@@ -196,7 +196,7 @@ class IndexAssetsController extends Controller
                     $maybes = true;
                     $maybePaths = [];
                     foreach ($missingRecordsByFilename[$filename] as $e) {
-                        /* @var MissingAssetException $e */
+                        /** @var MissingAssetException $e */
                         $maybePaths[] = "{$e->volume->name}/{$e->indexEntry->uri}";
                     }
                     $this->stdout(' (maybe ' . implode(', ', $maybePaths) . ')');

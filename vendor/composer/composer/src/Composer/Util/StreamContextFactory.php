@@ -15,6 +15,7 @@ namespace Composer\Util;
 use Composer\Composer;
 use Composer\CaBundle\CaBundle;
 use Composer\Downloader\TransportException;
+use Composer\Repository\PlatformRepository;
 use Composer\Util\Http\ProxyManager;
 use Psr\Log\LoggerInterface;
 
@@ -30,9 +31,9 @@ final class StreamContextFactory
      * Creates a context supporting HTTP proxies
      *
      * @param string $url URL the context is to be used for
-     * @psalm-param array{http: array{follow_location?: int, max_redirects?: int, header?: string|array<string, string|int>}} $defaultOptions
-     * @param  array             $defaultOptions Options to merge with the default
-     * @param  array             $defaultParams  Parameters to specify on the context
+     * @phpstan-param array{http?: array{follow_location?: int, max_redirects?: int, header?: string|array<string>}} $defaultOptions
+     * @param  mixed[]           $defaultOptions Options to merge with the default
+     * @param  mixed[]           $defaultParams  Parameters to specify on the context
      * @throws \RuntimeException if https proxy required and OpenSSL uninstalled
      * @return resource          Default context
      */
@@ -56,10 +57,10 @@ final class StreamContextFactory
     }
 
     /**
-     * @param string $url
-     * @param array  $options
-     * @param bool   $forCurl When true, will not add proxy values as these are handled separately
-     * @psalm-return array{http:{header: string[], proxy?: string, request_fulluri: bool}, ssl: array}
+     * @param string  $url
+     * @param mixed[] $options
+     * @param bool    $forCurl When true, will not add proxy values as these are handled separately
+     * @phpstan-return array{http: array{header: string[], proxy?: string, request_fulluri: bool}, ssl?: mixed[]}
      * @return array formatted as a stream context array
      */
     public static function initOptions($url, array $options, $forCurl = false)
@@ -112,14 +113,16 @@ final class StreamContextFactory
         }
 
         if (!isset($options['http']['header']) || false === stripos(implode('', $options['http']['header']), 'user-agent')) {
+            $platformPhpVersion = PlatformRepository::getPlatformPhpVersion();
             $options['http']['header'][] = sprintf(
-                'User-Agent: Composer/%s (%s; %s; %s; %s%s)',
+                'User-Agent: Composer/%s (%s; %s; %s; %s%s%s)',
                 Composer::getVersion(),
                 function_exists('php_uname') ? php_uname('s') : 'Unknown',
                 function_exists('php_uname') ? php_uname('r') : 'Unknown',
                 $phpVersion,
                 $httpVersion,
-                getenv('CI') ? '; CI' : ''
+                $platformPhpVersion ? '; Platform-PHP '.$platformPhpVersion : '',
+                Platform::getEnv('CI') ? '; CI' : ''
             );
         }
 
@@ -127,9 +130,9 @@ final class StreamContextFactory
     }
 
     /**
-     * @param array $options
+     * @param mixed[] $options
      *
-     * @return array
+     * @return mixed[]
      */
     public static function getTlsDefaults(array $options, LoggerInterface $logger = null)
     {
@@ -211,11 +214,11 @@ final class StreamContextFactory
             }
         }
 
-        if (isset($defaults['ssl']['cafile']) && (!is_readable($defaults['ssl']['cafile']) || !CaBundle::validateCaFile($defaults['ssl']['cafile'], $logger))) {
+        if (isset($defaults['ssl']['cafile']) && (!Filesystem::isReadable($defaults['ssl']['cafile']) || !CaBundle::validateCaFile($defaults['ssl']['cafile'], $logger))) {
             throw new TransportException('The configured cafile was not valid or could not be read.');
         }
 
-        if (isset($defaults['ssl']['capath']) && (!is_dir($defaults['ssl']['capath']) || !is_readable($defaults['ssl']['capath']))) {
+        if (isset($defaults['ssl']['capath']) && (!is_dir($defaults['ssl']['capath']) || !Filesystem::isReadable($defaults['ssl']['capath']))) {
             throw new TransportException('The configured capath was not valid or could not be read.');
         }
 
@@ -236,8 +239,8 @@ final class StreamContextFactory
      * This method fixes the array by moving the content-type header to the end
      *
      * @link https://bugs.php.net/bug.php?id=61548
-     * @param  string|array $header
-     * @return array
+     * @param  string|string[] $header
+     * @return string[]
      */
     private static function fixHttpHeaderField($header)
     {

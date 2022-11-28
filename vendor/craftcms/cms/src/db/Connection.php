@@ -201,10 +201,10 @@ class Connection extends \yii\db\Connection
         ]));
         $filename = ($systemName ? $systemName . '--' : '') . gmdate('Y-m-d-His') . '--v' . Craft::$app->getVersion();
         $backupPath = Craft::$app->getPath()->getDbBackupPath();
-        $path = $backupPath . '/' . $filename . '.sql';
+        $path = $backupPath . DIRECTORY_SEPARATOR . $filename . '.sql';
         $i = 0;
         while (file_exists($path)) {
-            $path = $backupPath . '/' . $filename . '--' . ++$i . '.sql';
+            $path = $backupPath . DIRECTORY_SEPARATOR . $filename . '--' . ++$i . '.sql';
         }
         return $path;
     }
@@ -219,6 +219,7 @@ class Connection extends \yii\db\Connection
         return [
             Table::ASSETINDEXDATA,
             Table::ASSETTRANSFORMINDEX,
+            Table::RESOURCEPATHS,
             Table::SESSIONS,
             Table::TEMPLATECACHES,
             Table::TEMPLATECACHEQUERIES,
@@ -522,7 +523,7 @@ class Connection extends \yii\db\Connection
             '{port}' => $parsed['port'] ?? '',
             '{server}' => $parsed['host'] ?? '',
             '{user}' => $username,
-            '{password}' => addslashes(str_replace('$', '\\$', $password)),
+            '{password}' => str_replace('$', '\\$', addslashes($password)),
             '{database}' => $parsed['dbname'] ?? '',
             '{schema}' => $this->getSchema()->defaultSchema ?? '',
         ];

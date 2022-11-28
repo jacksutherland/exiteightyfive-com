@@ -32,14 +32,14 @@ class UpdaterAsset extends AssetBundle
      * @inheritdoc
      */
     public $css = [
-        'update.css',
+        'css/Updater.css',
     ];
 
     /**
      * @inheritdoc
      */
     public $js = [
-        'Updater.min.js',
+        'Updater.js',
     ];
 
     /**

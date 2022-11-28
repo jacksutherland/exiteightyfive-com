@@ -31,7 +31,8 @@ use yii\base\Exception;
 
 /**
  * Dashboard service.
- * An instance of the Dashboard service is globally accessible in Craft via [[\craft\base\ApplicationTrait::getDashboard()|`Craft::$app->dashboard`]].
+ *
+ * An instance of the service is available via [[\craft\base\ApplicationTrait::getDashboard()|`Craft::$app->dashboard`]].
  *
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
@@ -252,7 +253,7 @@ class Dashboard extends Component
     }
 
     /**
-     * Soft-deletes a widget by its ID.
+     * Deletes a widget by its ID.
      *
      * @param int $widgetId The widget’s ID
      * @return bool Whether the widget was deleted successfully
@@ -269,7 +270,7 @@ class Dashboard extends Component
     }
 
     /**
-     * Soft-deletes a widget.
+     * Deletes a widget.
      *
      * @param WidgetInterface $widget The widget to be deleted
      * @return bool Whether the widget was deleted successfully

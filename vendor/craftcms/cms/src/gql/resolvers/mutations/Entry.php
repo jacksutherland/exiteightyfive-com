@@ -8,6 +8,7 @@
 namespace craft\gql\resolvers\mutations;
 
 use Craft;
+use craft\base\Element;
 use craft\db\Table;
 use craft\elements\db\EntryQuery;
 use craft\elements\Entry as EntryElement;
@@ -29,7 +30,7 @@ class Entry extends ElementMutationResolver
 {
     use StructureMutationTrait;
 
-    /* @inheritdoc */
+    /** @inheritdoc */
     protected $immutableAttributes = ['id', 'uid', 'draftId'];
 
     /**
@@ -46,16 +47,30 @@ class Entry extends ElementMutationResolver
     {
         $entry = $this->getEntryElement($arguments);
 
-        $entry = $this->populateElementWithData($entry, $arguments);
+        // TODO refactor saving draft to its own method in 4.0
+        if (array_key_exists('draftId', $arguments)) {
+            $entry->setScenario(Element::SCENARIO_ESSENTIALS);
+        }
 
+        $canIdentify = !empty($arguments['id']) || !empty($arguments['uid']) || !empty($arguments['draftId']);
+
+        $entry = $this->populateElementWithData($entry, $arguments, $resolveInfo);
         $entry = $this->saveElement($entry);
         $this->performStructureOperations($entry, $arguments);
 
-        return Craft::$app->getElements()->createElementQuery(EntryElement::class)
+        /** @var EntryQuery $query */
+        $query = Craft::$app->getElements()->createElementQuery(EntryElement::class)
             ->siteId($entry->siteId)
-            ->anyStatus()
-            ->id($entry->id)
-            ->one();
+            ->anyStatus();
+
+        // Refresh data from the DB
+        if ($canIdentify) {
+            $query = $this->identifyEntry($query, $arguments);
+        } else {
+            $query->id($entry->id);
+        }
+
+        return $query->one();
     }
 
     /**
@@ -102,7 +117,7 @@ class Entry extends ElementMutationResolver
     {
         $entryId = $arguments['id'];
 
-        /* @var EntryElement $entry */
+        /** @var EntryElement $entry */
         $entry = Craft::$app->getElements()->getElementById($entryId, EntryElement::class);
 
         if (!$entry) {
@@ -112,8 +127,12 @@ class Entry extends ElementMutationResolver
         $entryTypeUid = Db::uidById(Table::ENTRYTYPES, $entry->typeId);
         $this->requireSchemaAction('entrytypes.' . $entryTypeUid, 'save');
 
-        /* @var Entry $draft */
-        $draft = Craft::$app->getDrafts()->createDraft($entry, $entry->authorId);
+        $draftName = $arguments['name'] ?? '';
+        $draftNotes = $arguments['notes'] ?? '';
+        $provisional = $arguments['provisional'] ?? false;
+
+        /** @var Entry $draft */
+        $draft = Craft::$app->getDrafts()->createDraft($entry, $entry->authorId, $draftName, $draftNotes, [], $provisional);
 
         return $draft->draftId;
     }
@@ -130,7 +149,11 @@ class Entry extends ElementMutationResolver
      */
     public function publishDraft($source, array $arguments, $context, ResolveInfo $resolveInfo)
     {
-        $draft = Craft::$app->getElements()->createElementQuery(EntryElement::class)->anyStatus()->draftId($arguments['id'])->one();
+        $draft = Craft::$app->getElements()
+            ->createElementQuery(EntryElement::class)
+            ->anyStatus()
+            ->provisionalDrafts($arguments['provisional'] ?? false)
+            ->draftId($arguments['id'])->one();
 
         if (!$draft) {
             throw new Error('Unable to perform the action.');
@@ -139,8 +162,8 @@ class Entry extends ElementMutationResolver
         $entryTypeUid = Db::uidById(Table::ENTRYTYPES, $draft->typeId);
         $this->requireSchemaAction('entrytypes.' . $entryTypeUid, 'save');
 
-        /* @var Entry $draft */
-        $draft = Craft::$app->getDrafts()->publishDraft($draft);
+        /** @var Entry $draft */
+        $draft = Craft::$app->getDrafts()->applyDraft($draft);
 
         return $draft->id;
     }
@@ -154,15 +177,15 @@ class Entry extends ElementMutationResolver
      */
     protected function getEntryElement(array $arguments): EntryElement
     {
-        /* @var Section $section */
-        /* @var EntryType $entryType */
+        /** @var Section $section */
+        /** @var EntryType $entryType */
         $section = $this->getResolutionData('section');
         $entryType = $this->getResolutionData('entryType');
 
         $entry = null;
 
         // Figure out whether the mutation is about an already saved entry
-        $canIdentify = $section->type === Section::TYPE_SINGLE || !empty($arguments['id']) || !empty($arguments['uid']);
+        $canIdentify = $section->type === Section::TYPE_SINGLE || !empty($arguments['id']) || !empty($arguments['uid']) || !empty($arguments['draftId']);
 
         // Check if relevant schema is present
         $this->requireSchemaAction('entrytypes.' . $entryType->uid, $canIdentify ? 'save' : 'create');
@@ -209,18 +232,22 @@ class Entry extends ElementMutationResolver
      */
     protected function identifyEntry(EntryQuery $entryQuery, array $arguments): EntryQuery
     {
-        /* @var Section $section */
-        /* @var EntryType $entryType */
+        /** @var Section $section */
+        /** @var EntryType $entryType */
         $section = $this->getResolutionData('section');
         $entryType = $this->getResolutionData('entryType');
 
         if (!empty($arguments['draftId'])) {
             $entryQuery->draftId($arguments['draftId']);
-        } else if ($section->type === Section::TYPE_SINGLE) {
+
+            if (array_key_exists('provisional', $arguments)) {
+                $entryQuery->provisionalDrafts($arguments['provisional']);
+            }
+        } elseif ($section->type === Section::TYPE_SINGLE) {
             $entryQuery->typeId($entryType->id);
-        } else if (!empty($arguments['uid'])) {
+        } elseif (!empty($arguments['uid'])) {
             $entryQuery->uid($arguments['uid']);
-        } else if (!empty($arguments['id'])) {
+        } elseif (!empty($arguments['id'])) {
             $entryQuery->id($arguments['id']);
         } else {
             // Unable to identify, make sure nothing is returned.

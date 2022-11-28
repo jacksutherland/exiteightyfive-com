@@ -41,6 +41,33 @@ class PhpMessageSource extends \yii\i18n\PhpMessageSource
     /**
      * @inheritdoc
      */
+    protected function getMessageFilePath($category, $language): string
+    {
+        if ($category === 'yii') {
+            // Map Craft’s language IDs to Yii’s when necessary
+            switch ($language) {
+                case 'de-CH':
+                    $language = 'de';
+                    break;
+                case 'fr-CA':
+                    $language = 'fr';
+                    break;
+                case 'nb':
+                case 'nn':
+                    $language = 'nb-NO';
+                    break;
+                case 'zh':
+                    $language = 'zh-CN';
+                    break;
+            }
+        }
+
+        return parent::getMessageFilePath($category, $language);
+    }
+
+    /**
+     * @inheritdoc
+     */
     protected function loadMessagesFromFile($messageFile)
     {
         $messages = parent::loadMessagesFromFile($messageFile);
@@ -58,10 +85,10 @@ class PhpMessageSource extends \yii\i18n\PhpMessageSource
      *
      * @param string $category
      * @param string $language
-     * @return array|null
+     * @return array
      * @throws Exception
      */
-    private function _loadOverrideMessages(string $category, string $language)
+    private function _loadOverrideMessages(string $category, string $language): array
     {
         // Save the current base path to restore later.
         $oldBasePath = $this->basePath;
@@ -84,7 +111,7 @@ class PhpMessageSource extends \yii\i18n\PhpMessageSource
 
             if (empty($messages)) {
                 $messages = $fallbackMessages;
-            } else if (!empty($fallbackMessages)) {
+            } elseif (!empty($fallbackMessages)) {
                 foreach ($fallbackMessages as $key => $value) {
                     if (!empty($value) && empty($messages[$key])) {
                         $messages[$key] = $fallbackMessages[$key];

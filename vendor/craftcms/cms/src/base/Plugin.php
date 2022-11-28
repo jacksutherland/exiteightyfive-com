@@ -36,14 +36,14 @@ class Plugin extends Module implements PluginInterface
     /**
      * @event ModelEvent The event that is triggered before the plugin’s settings are saved.
      *
-     * You may set [[ModelEvent::isValid]] to `false` to prevent the plugin’s settings from saving.
+     * You may set [[\yii\base\ModelEvent::$isValid]] to `false` to prevent the plugin’s settings from saving.
      *
      * @since 3.0.16
      */
     const EVENT_BEFORE_SAVE_SETTINGS = 'beforeSaveSettings';
 
     /**
-     * @event \yii\base\Event The event that is triggered after the plugin’s settings are saved
+     * @event \yii\base\Event The event that is triggered after the plugin’s settings are saved.
      * @since 3.0.16
      */
     const EVENT_AFTER_SAVE_SETTINGS = 'afterSaveSettings';
@@ -62,7 +62,7 @@ class Plugin extends Module implements PluginInterface
      * @var Model|bool|null The model used to store the plugin’s settings
      * @see getSettings()
      */
-    private $_settingsModel;
+    private $_settings;
 
     /**
      * @inheritdoc
@@ -81,7 +81,7 @@ class Plugin extends Module implements PluginInterface
 
         // Translation category
         $i18n = Craft::$app->getI18n();
-        /* @noinspection UnSafeIsSetOverArrayInspection */
+        /** @noinspection UnSafeIsSetOverArrayInspection */
         if (!isset($i18n->translations[$this->t9nCategory]) && !isset($i18n->translations[$this->t9nCategory . '*'])) {
             $i18n->translations[$this->t9nCategory] = [
                 'class' => PhpMessageSource::class,
@@ -182,15 +182,11 @@ class Plugin extends Module implements PluginInterface
      */
     public function getSettings()
     {
-        if ($this->_settingsModel === null) {
-            $this->_settingsModel = $this->createSettingsModel() ?: false;
+        if ($this->_settings === null) {
+            $this->_settings = $this->createSettingsModel() ?: false;
         }
 
-        if ($this->_settingsModel !== false) {
-            return $this->_settingsModel;
-        }
-
-        return null;
+        return $this->_settings ?: null;
     }
 
     /**
@@ -212,12 +208,11 @@ class Plugin extends Module implements PluginInterface
     public function getSettingsResponse()
     {
         $view = Craft::$app->getView();
-        $namespace = $view->getNamespace();
-        $view->setNamespace('settings');
-        $settingsHtml = $this->settingsHtml();
-        $view->setNamespace($namespace);
+        $settingsHtml = $view->namespaceInputs(function() {
+            return (string)$this->settingsHtml();
+        }, 'settings');
 
-        /* @var Controller $controller */
+        /** @var Controller $controller */
         $controller = Craft::$app->controller;
 
         return $controller->renderTemplate('settings/plugins/_settings', [
@@ -231,7 +226,7 @@ class Plugin extends Module implements PluginInterface
      */
     public function getMigrator(): MigrationManager
     {
-        /* @noinspection PhpIncompatibleReturnTypeInspection */
+        /** @noinspection PhpIncompatibleReturnTypeInspection */
         return $this->get('migrator');
     }
 
@@ -347,7 +342,7 @@ class Plugin extends Module implements PluginInterface
         require_once $path;
         $class = $migrator->migrationNamespace . '\\Install';
 
-        return new $class;
+        return new $class();
     }
 
     /**

@@ -62,7 +62,7 @@ class Localization
         if (is_string($number)) {
             if ($localeId === null) {
                 $locale = Craft::$app->getFormattingLocale();
-            } else if ($localeId === Craft::$app->language) {
+            } elseif ($localeId === Craft::$app->language) {
                 $locale = Craft::$app->getLocale();
             } else {
                 $locale = Craft::$app->getI18n()->getLocaleById($localeId);
@@ -132,7 +132,7 @@ class Localization
 
             // We've loaded the translation file already, just check for the translation.
             if (isset(self::$_translations[$translationFile])) {
-                /* @noinspection PhpUnusedLocalVariableInspection */
+                /** @noinspection PhpUnusedLocalVariableInspection */
                 $loadedAlready = true;
 
                 if (isset(self::$_translations[$translationFile][$event->message])) {

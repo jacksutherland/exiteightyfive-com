@@ -19,6 +19,7 @@ use craft\helpers\UrlHelper;
 use craft\records\GlobalSet as GlobalSetRecord;
 use craft\validators\HandleValidator;
 use craft\validators\UniqueValidator;
+use yii\base\InvalidConfigException;
 
 /**
  * GlobalSet represents a global set element.
@@ -96,7 +97,7 @@ class GlobalSet extends Element
     /**
      * @inheritdoc
      */
-    public function getIsEditable(): bool
+    protected function isEditable(): bool
     {
         return Craft::$app->getUser()->checkPermission("editGlobalSet:$this->uid");
     }
@@ -116,7 +117,7 @@ class GlobalSet extends Element
      */
     public static function gqlTypeNameByContext($context): string
     {
-        /* @var self $context */
+        /** @var self $context */
         return $context->handle . '_GlobalSet';
     }
 
@@ -126,7 +127,7 @@ class GlobalSet extends Element
      */
     public static function gqlScopesByContext($context): array
     {
-        /* @var self $context */
+        /** @var self $context */
         return ['globalsets.' . $context->uid];
     }
 
@@ -136,7 +137,7 @@ class GlobalSet extends Element
      */
     public static function gqlMutationNameByContext($context): string
     {
-        /* @var self $context */
+        /** @var self $context */
         return 'save_' . $context->handle . '_GlobalSet';
     }
 
@@ -149,6 +150,12 @@ class GlobalSet extends Element
      * @var string|null Handle
      */
     public $handle;
+
+    /**
+     * @var int Sort order
+     * @since 3.7.0
+     */
+    public $sortOrder;
 
     /**
      * Use the global set's name as its string representation.
@@ -176,6 +183,17 @@ class GlobalSet extends Element
     /**
      * @inheritdoc
      */
+    public function attributeLabels()
+    {
+        return array_merge(parent::attributeLabels(), [
+            'handle' => Craft::t('app', 'Handle'),
+            'name' => Craft::t('app', 'Name'),
+        ]);
+    }
+
+    /**
+     * @inheritdoc
+     */
     protected function defineRules(): array
     {
         $rules = parent::defineRules();
@@ -187,12 +205,14 @@ class GlobalSet extends Element
             ['name', 'handle'],
             UniqueValidator::class,
             'targetClass' => GlobalSetRecord::class,
+            'except' => [self::SCENARIO_ESSENTIALS],
         ];
 
         $rules[] = [
             ['handle'],
             HandleValidator::class,
             'reservedWords' => ['id', 'dateCreated', 'dateUpdated', 'uid', 'title'],
+            'except' => [self::SCENARIO_ESSENTIALS],
         ];
 
         return $rules;
@@ -203,7 +223,7 @@ class GlobalSet extends Element
      */
     public function getFieldLayout()
     {
-        /* @var FieldLayoutBehavior $behavior */
+        /** @var FieldLayoutBehavior $behavior */
         $behavior = $this->getBehavior('fieldLayout');
         return $behavior->getFieldLayout();
     }
@@ -211,7 +231,7 @@ class GlobalSet extends Element
     /**
      * @inheritdoc
      */
-    public function getCpEditUrl()
+    protected function cpEditUrl(): ?string
     {
         if (Craft::$app->getIsMultiSite()) {
             return UrlHelper::cpUrl('globals/' . $this->getSite()->handle . '/' . $this->handle);
@@ -241,7 +261,13 @@ class GlobalSet extends Element
             return false;
         }
 
-        if (($fieldLayout = $this->getFieldLayout()) !== null) {
+        try {
+            $fieldLayout = $this->getFieldLayout();
+        } catch (InvalidConfigException $e) {
+            $fieldLayout = null;
+        }
+
+        if ($fieldLayout !== null) {
             Craft::$app->getFields()->deleteLayout($fieldLayout);
         }
 
@@ -265,7 +291,7 @@ class GlobalSet extends Element
     }
 
     /**
-     * Returns the field layout config for this global set.
+     * Returns the global set’s config.
      *
      * @return array
      * @since 3.5.0
@@ -275,6 +301,7 @@ class GlobalSet extends Element
         $config = [
             'name' => $this->name,
             'handle' => $this->handle,
+            'sortOrder' => (int)$this->sortOrder,
         ];
 
         $fieldLayout = $this->getFieldLayout();

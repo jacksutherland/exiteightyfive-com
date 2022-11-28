@@ -1,0 +1,183 @@
+field: 53caff22-2ce8-4149-83e4-74b104ad4bb6 # Module
+fieldLayouts:
+  885c5c3e-1437-4e8d-83e4-e7fa7c26a53d:
+    tabs:
+      -
+        elements:
+          -
+            fieldUid: dd369345-e0fd-48a8-a9ec-aaa6d7c5d8ba # Show Tree
+            instructions: null
+            label: null
+            required: '0'
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
+          -
+            fieldUid: 88c93d62-7146-47c4-a618-5c6373e86208 # Header
+            instructions: null
+            label: null
+            required: '0'
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
+          -
+            fieldUid: aea1eb4c-9c1e-47cf-b001-869cb75aba85 # Text
+            instructions: null
+            label: null
+            required: '0'
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
+          -
+            fieldUid: 54ae8317-e2b6-4c7c-b7d3-c765bc0e7c85 # Button Text
+            instructions: null
+            label: null
+            required: '0'
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
+          -
+            fieldUid: 3ad820fc-2bc8-4eec-a192-6f6bb857c7e0 # Button Entry
+            instructions: null
+            label: null
+            required: '0'
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
+          -
+            fieldUid: 734bf298-c9d9-4385-becf-5cea3b2c1e5b # Button Url
+            instructions: null
+            label: null
+            required: '0'
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
+        name: Content
+        sortOrder: 1
+fields:
+  3ad820fc-2bc8-4eec-a192-6f6bb857c7e0: # Button Entry
+    columnSuffix: null
+    contentColumnType: string
+    fieldGroup: null
+    handle: buttonEntry
+    instructions: ''
+    name: 'Button Entry'
+    searchable: true
+    settings:
+      allowSelfRelations: false
+      limit: '1'
+      localizeRelations: false
+      selectionLabel: ''
+      showSiteMenu: true
+      source: null
+      sources: '*'
+      targetSiteId: null
+      validateRelatedElements: false
+      viewMode: null
+    translationKeyFormat: null
+    translationMethod: site
+    type: craft\fields\Entries
+  54ae8317-e2b6-4c7c-b7d3-c765bc0e7c85: # Button Text
+    columnSuffix: null
+    contentColumnType: text
+    fieldGroup: null
+    handle: buttonText
+    instructions: ''
+    name: 'Button Text'
+    searchable: true
+    settings:
+      byteLimit: null
+      charLimit: null
+      code: ''
+      columnType: text
+      initialRows: '4'
+      multiline: ''
+      placeholder: null
+      uiMode: normal
+    translationKeyFormat: null
+    translationMethod: none
+    type: craft\fields\PlainText
+  88c93d62-7146-47c4-a618-5c6373e86208: # Header
+    columnSuffix: null
+    contentColumnType: text
+    fieldGroup: null
+    handle: header
+    instructions: ''
+    name: Header
+    searchable: true
+    settings:
+      byteLimit: null
+      charLimit: null
+      code: ''
+      columnType: text
+      initialRows: '4'
+      multiline: ''
+      placeholder: null
+      uiMode: normal
+    translationKeyFormat: null
+    translationMethod: none
+    type: craft\fields\PlainText
+  734bf298-c9d9-4385-becf-5cea3b2c1e5b: # Button Url
+    columnSuffix: null
+    contentColumnType: text
+    fieldGroup: null
+    handle: buttonUrl
+    instructions: ''
+    name: 'Button Url'
+    searchable: true
+    settings:
+      byteLimit: null
+      charLimit: null
+      code: ''
+      columnType: text
+      initialRows: '4'
+      multiline: ''
+      placeholder: null
+      uiMode: normal
+    translationKeyFormat: null
+    translationMethod: none
+    type: craft\fields\PlainText
+  aea1eb4c-9c1e-47cf-b001-869cb75aba85: # Text
+    columnSuffix: null
+    contentColumnType: text
+    fieldGroup: null
+    handle: text
+    instructions: ''
+    name: Text
+    searchable: true
+    settings:
+      byteLimit: null
+      charLimit: null
+      code: ''
+      columnType: text
+      initialRows: '4'
+      multiline: '1'
+      placeholder: null
+      uiMode: normal
+    translationKeyFormat: null
+    translationMethod: none
+    type: craft\fields\PlainText
+  dd369345-e0fd-48a8-a9ec-aaa6d7c5d8ba: # Show Tree
+    columnSuffix: null
+    contentColumnType: boolean
+    fieldGroup: null
+    handle: showTree
+    instructions: ''
+    name: 'Show Tree'
+    searchable: true
+    settings:
+      default: false
+      offLabel: null
+      onLabel: null
+    translationKeyFormat: null
+    translationMethod: none
+    type: craft\fields\Lightswitch
+handle: callout
+name: Callout
+sortOrder: 3

@@ -109,9 +109,9 @@ class Mailer extends \yii\swiftmailer\Mailer
             $settings = App::mailSettings();
             $variables = ($message->variables ?: []) + [
                     'emailKey' => $message->key,
-                    'fromEmail' => Craft::parseEnv($settings->fromEmail),
-                    'replyToEmail' => Craft::parseEnv($settings->replyToEmail),
-                    'fromName' => Craft::parseEnv($settings->fromName),
+                    'fromEmail' => App::parseEnv($settings->fromEmail),
+                    'replyToEmail' => App::parseEnv($settings->replyToEmail),
+                    'fromName' => App::parseEnv($settings->fromName),
                 ];
 
             // Temporarily disable lazy transform generation
@@ -180,6 +180,11 @@ class Mailer extends \yii\swiftmailer\Mailer
             // backlog in the exception message. :-/
             $eMessage = substr($eMessage, 0, strpos($eMessage, 'Stack trace:') - 1);
             Craft::warning('Error sending email: ' . $eMessage);
+
+            // Save the exception on the message, for plugins to make use of
+            if ($message instanceof Message) {
+                $message->error = $e;
+            }
 
             $this->afterSend($message, false);
             return false;

@@ -7,15 +7,20 @@
 
 namespace craft\helpers;
 
+use Closure;
 use Craft;
 use craft\base\Serializable;
 use craft\db\Connection;
 use craft\db\mysql\Schema as MysqlSchema;
 use craft\db\Query;
+use PDO;
 use yii\base\Exception;
 use yii\base\InvalidArgumentException;
 use yii\base\NotSupportedException;
+use yii\db\BatchQueryResult;
 use yii\db\Exception as DbException;
+use yii\db\ExpressionInterface;
+use yii\db\Query as YiiQuery;
 use yii\db\Schema;
 
 /**
@@ -28,6 +33,13 @@ class Db
 {
     const SIMPLE_TYPE_NUMERIC = 'numeric';
     const SIMPLE_TYPE_TEXTUAL = 'textual';
+
+    /** @since 3.7.40 */
+    const GLUE_AND = 'and';
+    /** @since 3.7.40 */
+    const GLUE_OR = 'or';
+    /** @since 3.7.40 */
+    const GLUE_NOT = 'not';
 
     /**
      * @var array
@@ -106,6 +118,11 @@ class Db
      */
     public static function prepareValueForDb($value)
     {
+        // Leave expressions alone
+        if ($value instanceof ExpressionInterface) {
+            return $value;
+        }
+
         // If the object explicitly defines its savable value, use that
         if ($value instanceof Serializable) {
             return $value->serialize();
@@ -385,7 +402,7 @@ class Db
      */
     public static function isNumericColumnType(string $columnType): bool
     {
-        return in_array(self::parseColumnLength($columnType), self::$_numericColumnTypes, true);
+        return in_array(self::parseColumnType($columnType), self::$_numericColumnTypes, true);
     }
 
     /**
@@ -396,7 +413,7 @@ class Db
      */
     public static function isTextualColumnType(string $columnType): bool
     {
-        return in_array(self::parseColumnLength($columnType), self::$_textualColumnTypes, true);
+        return in_array(self::parseColumnType($columnType), self::$_textualColumnTypes, true);
     }
 
     /**
@@ -428,8 +445,9 @@ class Db
      * string (via [[ArrayHelper::toArray()]]). If that is not desired behavior, you can escape the comma
      * with a backslash before it.
      *
-     * The first value can be set to either `'and'` or `'or'` to define whether *all* of the values must match, or
-     * *any*. If it’s neither `'and'` nor `'or'`, then `'or'` will be assumed.
+     * The first value can be set to either `and`, `or`, or `not` to define whether *all*, *any*, or *none* of the values must match.
+     * (`or` will be assumed by default.)
+     *
      * Values can begin with the operators `'not '`, `'!='`, `'<='`, `'>='`, `'<'`, `'>'`, or `'='`. If they don’t,
      * `'='` will be assumed.
      *
@@ -456,22 +474,14 @@ class Db
             return '';
         }
 
-        $firstVal = strtolower(reset($value));
-        $negate = false;
+        $parsedColumnType = $columnType ? static::parseColumnType($columnType) : null;
 
-        switch ($firstVal) {
-            case 'and':
-            case 'or':
-                $glue = $firstVal;
-                array_shift($value);
-                break;
-            case 'not':
-                $glue = 'and';
-                $negate = true;
-                array_shift($value);
-                break;
-            default:
-                $glue = 'or';
+        $glue = static::extractGlue($value) ?? self::GLUE_OR;
+        if ($glue === self::GLUE_NOT) {
+            $glue = self::GLUE_AND;
+            $negate = true;
+        } else {
+            $negate = false;
         }
 
         $condition = [$glue];
@@ -491,7 +501,7 @@ class Db
             self::_normalizeEmptyValue($val);
             $operator = self::_parseParamOperator($val, $defaultOperator, $negate);
 
-            if ($columnType === Schema::TYPE_BOOLEAN) {
+            if ($parsedColumnType === Schema::TYPE_BOOLEAN) {
                 // Convert val to a boolean
                 $val = ($val && $val !== ':empty:');
                 if ($operator === '!=') {
@@ -543,6 +553,10 @@ class Db
                     } else {
                         $operator = $operator === '=' ? 'like' : 'not like';
                     }
+
+                    // Escape underscores as they are treated as wildcards by LIKE in MySQL and PostgreSQL
+                    $val = preg_replace('/(?<!\\\)_/', '\\_', $val);
+
                     $condition[] = [$operator, $column, $val, false];
                     continue;
                 }
@@ -553,13 +567,13 @@ class Db
             }
 
             // ['or', 1, 2, 3] => IN (1, 2, 3)
-            if ($glue == 'or' && $operator === '=') {
+            if ($glue == self::GLUE_OR && $operator === '=') {
                 $inVals[] = $val;
                 continue;
             }
 
             // ['and', '!=1', '!=2', '!=3'] => NOT IN (1, 2, 3)
-            if ($glue == 'and' && $operator === '!=') {
+            if ($glue == self::GLUE_AND && $operator === '!=') {
                 $notInVals[] = $val;
                 continue;
             }
@@ -598,14 +612,14 @@ class Db
         $normalizedValues = [];
 
         $value = self::_toArray($value);
+        $glue = static::extractGlue($value);
 
-        if (!count($value)) {
+        if (empty($value)) {
             return '';
         }
 
-        if (in_array($value[0], ['and', 'or', 'not'], true)) {
-            $normalizedValues[] = $value[0];
-            array_shift($value);
+        if ($glue !== null) {
+            $normalizedValues[] = $glue;
         }
 
         foreach ($value as $val) {
@@ -648,7 +662,7 @@ class Db
      * @param string|bool $value The param value
      * @param bool|null $defaultValue How `null` values should be treated
      * @return mixed
-     * @since 3.4.15
+     * @since 3.4.14
      */
     public static function parseBooleanParam(string $column, $value, ?bool $defaultValue = null)
     {
@@ -666,6 +680,88 @@ class Db
     }
 
     /**
+     * Extracts a “glue” param from an a param value.
+     *
+     * Supported glue values are `and`, `or`, and `not`.
+     *
+     * @param mixed $value
+     * @return string|null
+     * @since 3.7.40
+     */
+    public static function extractGlue(&$value): ?string
+    {
+        if (!is_array($value)) {
+            return null;
+        }
+
+        $firstVal = reset($value);
+
+        if (!is_string($firstVal)) {
+            return null;
+        }
+
+        $firstVal = strtolower($firstVal);
+
+        if (!in_array($firstVal, [self::GLUE_AND, self::GLUE_OR, self::GLUE_NOT], true)) {
+            return null;
+        }
+
+        array_shift($value);
+        return $firstVal;
+    }
+
+    /**
+     * Normalizes a param value with a provided resolver function, unless the resolver function ever returns
+     * an empty value.
+     *
+     * If the original param value began with `and`, `or`, or `not`, that will be preserved.
+     *
+     * @param mixed $value The param value to be normalized
+     * @param callable $resolver Method to resolve non-model values to models
+     * @return bool Whether the value was normalized
+     * @since 3.7.40
+     */
+    public static function normalizeParam(&$value, callable $resolver): bool
+    {
+        if ($value === null) {
+            return true;
+        }
+
+        if (!is_array($value)) {
+            $testValue = [$value];
+            if (static::normalizeParam($testValue, $resolver)) {
+                $value = $testValue;
+                return true;
+            }
+            return false;
+        }
+
+        $normalized = [];
+
+        foreach ($value as $item) {
+            if (
+                empty($normalized) &&
+                is_string($item) &&
+                in_array(strtolower($item), [Db::GLUE_OR, Db::GLUE_AND, Db::GLUE_NOT], true)
+            ) {
+                $normalized[] = strtolower($item);
+                continue;
+            }
+
+            $item = $resolver($item);
+            if (!$item) {
+                // The value couldn't be normalized in full, so bail
+                return false;
+            }
+
+            $normalized[] = $item;
+        }
+
+        $value = $normalized;
+        return true;
+    }
+
+    /**
      * Returns whether a given DB connection’s schema supports a column type.
      *
      * @param string $type
@@ -679,7 +775,7 @@ class Db
             $db = self::db();
         }
 
-        /* @var \craft\db\mysql\Schema|\craft\db\pgsql\Schema $schema */
+        /** @var \craft\db\mysql\Schema|\craft\db\pgsql\Schema $schema */
         $schema = $db->getSchema();
 
         return isset($schema->typeMap[$type]);
@@ -987,7 +1083,7 @@ class Db
      * Parses a DSN string and returns an array with the `driver` and any driver params, or just a single key.
      *
      * @param string $dsn
-     * @param string|null $key The key that is needed from the DSN. If this is
+     * @param string|null $key The key that is needed from the DSN, if only one param is needed.
      * @return array|string|false The full array, or the specific key value, or `false` if `$key` is a param that
      * doesn’t exist in the DSN string.
      * @throws InvalidArgumentException if $dsn is invalid
@@ -1192,7 +1288,7 @@ class Db
 
         if ($lower === ':empty:') {
             $value = ':empty:';
-        } else if ($lower === ':notempty:' || $lower === 'not :empty:') {
+        } elseif ($lower === ':notempty:' || $lower === 'not :empty:') {
             $value = 'not :empty:';
         }
     }
@@ -1259,5 +1355,108 @@ class Db
         return [
             $column => count($values) === 1 ? $values[0] : $values,
         ];
+    }
+
+    /**
+     * Starts a batch query, similar to [[YiiQuery::batch()]].
+     *
+     * Each iteration will be a batch of rows.
+     *
+     * ```php
+     * foreach (Db::batch($query) as $batch) {
+     *     foreach ($batch as $row) {
+     *         // ...
+     *     }
+     * }
+     * ```
+     *
+     * If using MySQL and `$db` is null, a new [unbuffered](https://www.php.net/manual/en/mysqlinfo.concepts.buffering.php)
+     * DB connection will be created for the query so that the data can actually be retrieved in batches,
+     * to work around [limitations](https://www.yiiframework.com/doc/guide/2.0/en/db-query-builder#batch-query-mysql)
+     * with query batching in MySQL. Therefore keep in mind that the data retrieved by the batch query won’t
+     * reflect any changes that have been made over the main DB connection, if a transaction is currently
+     * active.
+     *
+     * @param YiiQuery $query The query that should be executed
+     * @param int $batchSize The number of rows to be fetched in each batch
+     * @return BatchQueryResult The batched query to be iterated on
+     * @since 3.7.0
+     */
+    public static function batch(YiiQuery $query, int $batchSize = 100): BatchQueryResult
+    {
+        return self::_batch($query, $batchSize, false);
+    }
+
+    /**
+     * Starts a batch query and retrieves data row by row.
+     *
+     * This method is similar to [[batch()]] except that in each iteration of the result,
+     * only one row of data is returned.
+     *
+     * ```php
+     * foreach (Db::each($query) as $row) {
+     *     // ...
+     * }
+     * ```
+     *
+     * If using MySQL and `$db` is null, a new [unbuffered](https://www.php.net/manual/en/mysqlinfo.concepts.buffering.php)
+     * DB connection will be created for the query so that the data can actually be retrieved in batches,
+     * to work around [limitations](https://www.yiiframework.com/doc/guide/2.0/en/db-query-builder#batch-query-mysql)
+     * with query batching in MySQL. Therefore keep in mind that the data retrieved by the batch query won’t
+     * reflect any changes that have been made over the main DB connection, if a transaction is currently
+     * active.
+     *
+     * @param YiiQuery $query The query that should be executed
+     * @param int $batchSize The number of rows to be fetched in each batch
+     * @return BatchQueryResult The batched query to be iterated on
+     * @since 3.7.0
+     */
+    public static function each(YiiQuery $query, int $batchSize = 100): BatchQueryResult
+    {
+        return self::_batch($query, $batchSize, true);
+    }
+
+    /**
+     * Starts a new batch query for batch() and each().
+     *
+     * @param YiiQuery $query
+     * @param int $batchSize
+     * @param bool $each
+     * @return BatchQueryResult
+     */
+    private static function _batch(YiiQuery $query, int $batchSize, bool $each): BatchQueryResult
+    {
+        $db = self::db();
+        $unbuffered = $db->getIsMysql() && Craft::$app->getConfig()->getDb()->useUnbufferedConnections;
+
+        if ($unbuffered) {
+            $db = Craft::$app->getComponents()['db'];
+            if (!is_object($db) || $db instanceof Closure) {
+                $db = Craft::createObject($db);
+            }
+            $db->on(Connection::EVENT_AFTER_OPEN, function() use ($db) {
+                $db->pdo->setAttribute(PDO::MYSQL_ATTR_USE_BUFFERED_QUERY, false);
+            });
+        }
+
+        /** @var BatchQueryResult $result */
+        $result = Craft::createObject([
+            'class' => BatchQueryResult::class,
+            'query' => $query,
+            'batchSize' => $batchSize,
+            'db' => $db,
+            'each' => $each,
+        ]);
+
+        if ($unbuffered) {
+            $result->on(BatchQueryResult::EVENT_FINISH, function() use ($db) {
+                $db->close();
+            });
+            $result->on(BatchQueryResult::EVENT_RESET, function() use ($db) {
+                $db->close();
+            });
+        }
+
+        return $result;
     }
 }

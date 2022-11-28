@@ -53,7 +53,7 @@ class Queue extends \yii\queue\cli\Queue implements QueueInterface
     /**
      * @var int The time (in seconds) to wait for mutex locks to be released when attempting to reserve new jobs.
      */
-    public $mutexTimeout = 3;
+    public $mutexTimeout = 5;
 
     /**
      * @var string The table name the queue is stored in.
@@ -131,9 +131,9 @@ class Queue extends \yii\queue\cli\Queue implements QueueInterface
                     if ($this->handleMessage($payload['id'], $payload['job'], $payload['ttr'], $payload['attempt'])) {
                         $this->release($payload['id']);
                     }
-                } else if (!$repeat) {
+                } elseif (!$repeat) {
                     break;
-                } else if ($timeout) {
+                } elseif ($timeout) {
                     sleep($timeout);
                 }
             }
@@ -458,6 +458,10 @@ class Queue extends \yii\queue\cli\Queue implements QueueInterface
         $info = [];
 
         foreach ($results as $result) {
+            if (!YII_DEBUG && !Craft::$app->getUser()->getIsAdmin()) {
+                $result['error'] = Craft::t('app', 'A server error occurred.');
+            }
+
             $info[] = [
                 'id' => $result['id'],
                 'delay' => max(0, $result['timePushed'] + $result['delay'] - time()),
@@ -483,6 +487,9 @@ class Queue extends \yii\queue\cli\Queue implements QueueInterface
         if (parent::handleError($event)) {
             // Mark the job as failed
             $this->_lock(function() use ($event) {
+                if ($event->error) {
+                    Craft::$app->getErrorHandler()->logException($event->error);
+                }
                 Db::update($this->tableName, [
                     'fail' => true,
                     'dateFailed' => Db::prepareDateForDb(new \DateTime()),

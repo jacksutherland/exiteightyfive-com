@@ -9,6 +9,7 @@ namespace craft\web\assets\cp;
 
 use Craft;
 use craft\base\ElementInterface;
+use craft\base\FieldInterface;
 use craft\config\GeneralConfig;
 use craft\elements\User;
 use craft\helpers\Assets;
@@ -73,15 +74,14 @@ class CpAsset extends AssetBundle
      * @inheritdoc
      */
     public $css = [
-        'css/craft.css',
-        'css/charts.css',
+        'css/cp.css',
     ];
 
     /**
      * @inheritdoc
      */
     public $js = [
-        'js/Craft.min.js',
+        'cp.js',
     ];
 
     /**
@@ -115,9 +115,9 @@ JS;
             'Apply this to the {number} remaining conflicts?',
             'Apply',
             'Are you sure you want to close the editor? Any changes will be lost.',
-            'Are you sure you want to delete this draft?',
             'Are you sure you want to delete this image?',
             'Are you sure you want to delete “{name}”?',
+            'Are you sure you want to discard your changes?',
             'Are you sure you want to transfer your license to this domain?',
             'Buy {name}',
             'Cancel',
@@ -136,10 +136,8 @@ JS;
             'Couldn’t delete “{name}”.',
             'Couldn’t save new order.',
             'Create',
-            'Delete draft',
             'Delete folder',
             'Delete heading',
-            'Delete it',
             'Delete their content',
             'Delete them',
             'Delete {num, plural, =1{user} other{users}} and content',
@@ -147,13 +145,14 @@ JS;
             'Delete',
             'Desktop',
             'Device type',
+            'Discard changes',
             'Display as thumbnails',
             'Display in a table',
             'Done',
             'Draft Name',
-            'Drafts',
             'Edit draft settings',
             'Edit',
+            'Edited',
             'Element',
             'Elements',
             'Enabled for {site}',
@@ -180,18 +179,22 @@ JS;
             'Information',
             'Instructions',
             'Keep both',
-            'Keep it',
             'Keep me logged in',
             'Keep them',
             'License transferred.',
             'Limit',
+            'Loading',
             'Log out now',
             'Login',
             'Make not required',
             'Make required',
+            'Matrix block could not be added. Maximum number of blocks reached.',
             'Merge the folder (any conflicting files will be replaced)',
             'More',
+            'More…',
             'Move down',
+            'Move to the left',
+            'Move to the right',
             'Move up',
             'Move',
             'Name',
@@ -209,6 +212,7 @@ JS;
             'Notes',
             'Notice',
             'OK',
+            'Open the full edit page in a new tab',
             'Options',
             'Password',
             'Past year',
@@ -217,9 +221,9 @@ JS;
             'Pending',
             'Phone',
             'Previous Page',
-            'Publish and add another',
-            'Publish draft',
             'Really delete folder “{folder}”?',
+            'Refresh',
+            'Remove {label}',
             'Remove',
             'Rename folder',
             'Rename',
@@ -227,15 +231,19 @@ JS;
             'Replace it',
             'Replace the folder (all existing files will be deleted)',
             'Rotate',
-            'Save and continue editing',
+            'Row could not be added. Maximum number of rows reached.',
+            'Row could not be deleted. Minimum number of rows reached.',
             'Save as a new asset',
-            'Save draft',
             'Save',
+            'Saved {timestamp} by {creator}',
+            'Saved {timestamp}',
             'Saving',
             'Score',
             'Search in subfolders',
             'Select all',
+            'Select element',
             'Select transform',
+            'Select {element}',
             'Select',
             'Settings',
             'Show nav',
@@ -243,6 +251,7 @@ JS;
             'Show sidebar',
             'Show',
             'Show/hide children',
+            'Showing your unsaved changes.',
             'Sort by {attribute}',
             'Source settings saved',
             'Structure',
@@ -253,9 +262,11 @@ JS;
             'The draft could not be saved.',
             'The draft has been saved.',
             'This can be left blank if you just want an unlabeled separator.',
+            'This field has been modified.',
             'This month',
             'This week',
             'This year',
+            'Tip',
             'To {date}',
             'To',
             'Today',
@@ -265,11 +276,14 @@ JS;
             'Upload a file',
             'Upload failed for {filename}',
             'Upload files',
+            'View',
+            'Warning',
             'What do you want to do with their content?',
             'What do you want to do?',
+            'Your changes could not be stored.',
+            'Your changes have been stored.',
             'Your session has ended.',
             'Your session will expire in {time}.',
-            'You’re now editing a draft.',
             'by {creator}',
             'day',
             'days',
@@ -277,10 +291,8 @@ JS;
             'hours',
             'minute',
             'minutes',
-            'saved {timestamp} by {creator}',
             'second',
             'seconds',
-            'updated {timestamp}',
             'week',
             'weeks',
             '{ctrl}C to copy.',
@@ -295,7 +307,7 @@ JS;
 
     private function _craftData(): array
     {
-        $upToDate = Craft::$app->getIsInstalled() && !Craft::$app->getUpdates()->getIsCraftDbMigrationNeeded();
+        $upToDate = Craft::$app->getIsInstalled() && !Craft::$app->getUpdates()->getAreMigrationsPending();
         $request = Craft::$app->getRequest();
         $generalConfig = Craft::$app->getConfig()->getGeneral();
         $sitesService = Craft::$app->getSites();
@@ -307,9 +319,55 @@ JS;
         $primarySite = $upToDate ? $sitesService->getPrimarySite() : null;
         $view = Craft::$app->getView();
 
+        $data = [
+            'actionTrigger' => $generalConfig->actionTrigger,
+            'actionUrl' => UrlHelper::actionUrl(),
+            'announcements' => $upToDate ? $this->_announcements() : [],
+            'asciiCharMap' => StringHelper::asciiCharMap(true, Craft::$app->language),
+            'baseApiUrl' => Craft::$app->baseApiUrl,
+            'baseCpUrl' => UrlHelper::cpUrl(),
+            'baseSiteUrl' => UrlHelper::siteUrl(),
+            'baseUrl' => UrlHelper::url(),
+            'clientOs' => $request->getClientOs(),
+            'cpTrigger' => $generalConfig->cpTrigger,
+            'datepickerOptions' => $this->_datepickerOptions($formattingLocale, $locale, $currentUser, $generalConfig),
+            'defaultCookieOptions' => $this->_defaultCookieOptions(),
+            'fileKinds' => Assets::getFileKinds(),
+            'language' => Craft::$app->language,
+            'left' => $orientation === 'ltr' ? 'left' : 'right',
+            'omitScriptNameInUrls' => (bool)$generalConfig->omitScriptNameInUrls,
+            'orientation' => $orientation,
+            'pageNum' => $request->getPageNum(),
+            'pageTrigger' => $generalConfig->getPageTrigger(),
+            'path' => $request->getPathInfo(),
+            'pathParam' => $generalConfig->pathParam,
+            'Pro' => Craft::Pro,
+            'registeredAssetBundles' => ['' => ''], // force encode as JS object
+            'registeredJsFiles' => ['' => ''], // force encode as JS object
+            'right' => $orientation === 'ltr' ? 'right' : 'left',
+            'scriptName' => basename($request->getScriptFile()),
+            'Solo' => Craft::Solo,
+            'systemUid' => Craft::$app->getSystemUid(),
+            'timepickerOptions' => $this->_timepickerOptions($formattingLocale, $orientation),
+            'timezone' => Craft::$app->getTimeZone(),
+            'tokenParam' => $generalConfig->tokenParam,
+            'translations' => ['' => ''], // force encode as JS object
+            'usePathInfo' => (bool)$generalConfig->usePathInfo,
+        ];
+
+        if ($generalConfig->enableCsrfProtection) {
+            $data['csrfTokenName'] = $request->csrfParam;
+            $data['csrfTokenValue'] = $request->getCsrfToken();
+        }
+
+        // If no one's logged in yet, leave it at that
+        if (!$currentUser) {
+            return $data;
+        }
+
         $elementTypeNames = [];
         foreach (Craft::$app->getElements()->getAllElementTypes() as $elementType) {
-            /* @var string|ElementInterface $elementType */
+            /** @var string|ElementInterface $elementType */
             $elementTypeNames[$elementType] = [
                 $elementType::displayName(),
                 $elementType::pluralDisplayName(),
@@ -318,80 +376,52 @@ JS;
             ];
         }
 
-        $data = [
-            'actionTrigger' => $generalConfig->actionTrigger,
-            'actionUrl' => UrlHelper::actionUrl(),
+        $data += [
             'allowAdminChanges' => $generalConfig->allowAdminChanges,
             'allowUpdates' => $generalConfig->allowUpdates,
             'allowUppercaseInSlug' => (bool)$generalConfig->allowUppercaseInSlug,
             'apiParams' => Craft::$app->apiParams,
-            'asciiCharMap' => StringHelper::asciiCharMap(true, Craft::$app->language),
             'autosaveDrafts' => (bool)$generalConfig->autosaveDrafts,
-            'baseApiUrl' => Craft::$app->baseApiUrl,
-            'baseCpUrl' => UrlHelper::cpUrl(),
-            'baseSiteUrl' => UrlHelper::siteUrl(),
-            'baseUrl' => UrlHelper::url(),
             'canAccessQueueManager' => $userSession->checkPermission('utility:queue-manager'),
-            'clientOs' => $request->getClientOs(),
-            'cpTrigger' => $generalConfig->cpTrigger,
-            'datepickerOptions' => $this->_datepickerOptions($formattingLocale, $locale, $currentUser, $generalConfig),
-            'defaultCookieOptions' => $this->_defaultCookieOptions(),
             'defaultIndexCriteria' => [],
             'deltaNames' => $view->getDeltaNames(),
             'editableCategoryGroups' => $upToDate ? $this->_editableCategoryGroups() : [],
             'edition' => Craft::$app->getEdition(),
             'elementTypeNames' => $elementTypeNames,
-            'fileKinds' => Assets::getFileKinds(),
+            'fieldsWithoutContent' => array_map(function(FieldInterface $field) {
+                return $field->handle;
+            }, Craft::$app->getFields()->getFieldsWithoutContent(false)),
             'handleCasing' => $generalConfig->handleCasing,
-            'initialDeltaValues' => $view->getInitialDeltaValue(),
+            'httpProxy' => $this->_httpProxy($generalConfig),
+            'initialDeltaValues' => $view->getInitialDeltaValues(),
             'isImagick' => Craft::$app->getImages()->getIsImagick(),
             'isMultiSite' => Craft::$app->getIsMultiSite(),
-            'language' => Craft::$app->language,
-            'left' => $orientation === 'ltr' ? 'left' : 'right',
             'limitAutoSlugsToAscii' => (bool)$generalConfig->limitAutoSlugsToAscii,
             'maxUploadSize' => Assets::getMaxUploadSize(),
             'modifiedDeltaNames' => $request->getBodyParam('modifiedDeltaNames', []),
-            'omitScriptNameInUrls' => (bool)$generalConfig->omitScriptNameInUrls,
-            'orientation' => $orientation,
-            'pageNum' => $request->getPageNum(),
-            'pageTrigger' => $generalConfig->getPageTrigger(),
-            'path' => $request->getPathInfo(),
-            'pathParam' => $generalConfig->pathParam,
             'previewIframeResizerOptions' => $this->_previewIframeResizerOptions($generalConfig),
             'primarySiteId' => $primarySite ? (int)$primarySite->id : null,
             'primarySiteLanguage' => $primarySite->language ?? null,
-            'Pro' => Craft::Pro,
-            'publishableSections' => $upToDate && $currentUser ? $this->_publishableSections($currentUser) : [],
-            'registeredAssetBundles' => ['' => ''], // force encode as JS object
-            'registeredJsFiles' => ['' => ''], // force encode as JS object
+            'publishableSections' => $upToDate ? $this->_publishableSections($currentUser) : [],
             'remainingSessionTime' => !in_array($request->getSegment(1), ['updates', 'manualupdate'], true) ? $userSession->getRemainingSessionTime() : 0,
-            'right' => $orientation === 'ltr' ? 'right' : 'left',
             'runQueueAutomatically' => (bool)$generalConfig->runQueueAutomatically,
-            'scriptName' => basename($request->getScriptFile()),
             'siteId' => $upToDate ? (int)$sitesService->currentSite->id : null,
             'sites' => $this->_sites($sitesService),
             'siteToken' => $generalConfig->siteToken,
             'slugWordSeparator' => $generalConfig->slugWordSeparator,
-            'Solo' => Craft::Solo,
-            'systemUid' => Craft::$app->getSystemUid(),
-            'timepickerOptions' => $this->_timepickerOptions($formattingLocale, $orientation),
-            'timezone' => Craft::$app->getTimeZone(),
-            'tokenParam' => $generalConfig->tokenParam,
-            'translations' => ['' => ''], // force encode as JS object
             'useCompressedJs' => (bool)$generalConfig->useCompressedJs,
-            'usePathInfo' => (bool)$generalConfig->usePathInfo,
-            'username' => $currentUser->username ?? null,
+            'username' => $currentUser->username,
         ];
-
-        if ($generalConfig->enableCsrfProtection) {
-            $data['csrfTokenName'] = $request->csrfParam;
-            $data['csrfTokenValue'] = $request->getCsrfToken();
-        }
 
         return $data;
     }
 
-    private function _datepickerOptions(Locale $formattingLocale, Locale $locale, User $currentUser = null, GeneralConfig $generalConfig): array
+    private function _announcements(): array
+    {
+        return Craft::$app->getAnnouncements()->get();
+    }
+
+    private function _datepickerOptions(Locale $formattingLocale, Locale $locale, ?User $currentUser, GeneralConfig $generalConfig): array
     {
         return [
             'constrainInput' => false,
@@ -427,11 +457,34 @@ JS;
                 'handle' => $group->handle,
                 'id' => (int)$group->id,
                 'name' => Craft::t('site', $group->name),
-                'uid' => Craft::t('site', $group->uid),
+                'uid' => $group->uid,
             ];
         }
 
         return $groups;
+    }
+
+    /**
+     * @param $generalConfig GeneralConfig
+     * @return array|null
+     */
+    private function _httpProxy(GeneralConfig $generalConfig): ?array
+    {
+        if (!$generalConfig->httpProxy) {
+            return null;
+        }
+
+        $parsed = parse_url($generalConfig->httpProxy);
+
+        return array_filter([
+            'host' => $parsed['host'],
+            'port' => $parsed['port'] ?? strtolower($parsed['scheme']) === 'http' ? 80 : 443,
+            'auth' => array_filter([
+                'username' => $parsed['user'] ?? null,
+                'password' => $parsed['pass'] ?? null,
+            ]),
+            'protocol' => $parsed['scheme'],
+        ]);
     }
 
     /**

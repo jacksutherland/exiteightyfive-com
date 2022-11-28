@@ -23,19 +23,17 @@ use yii\helpers\ArrayHelper;
  *
  * See [[\yii\db\ActiveRecord]] for a concrete implementation.
  *
- * @property-read array $dirtyAttributes The changed attribute values (name-value pairs). This property is
- * read-only.
+ * @property-read array $dirtyAttributes The changed attribute values (name-value pairs).
  * @property bool $isNewRecord Whether the record is new and should be inserted when calling [[save()]].
  * @property array $oldAttributes The old attribute values (name-value pairs). Note that the type of this
  * property differs in getter and setter. See [[getOldAttributes()]] and [[setOldAttributes()]] for details.
  * @property-read mixed $oldPrimaryKey The old primary key value. An array (column name => column value) is
  * returned if the primary key is composite. A string is returned otherwise (null will be returned if the key
- * value is null). This property is read-only.
+ * value is null).
  * @property-read mixed $primaryKey The primary key value. An array (column name => column value) is returned
  * if the primary key is composite. A string is returned otherwise (null will be returned if the key value is
- * null). This property is read-only.
- * @property-read array $relatedRecords An array of related records indexed by relation names. This property
- * is read-only.
+ * null).
+ * @property-read array $relatedRecords An array of related records indexed by relation names.
  *
  * @author Qiang Xue <qiang.xue@gmail.com>
  * @author Carsten Brandt <mail@cebe.cc>
@@ -226,7 +224,7 @@ abstract class BaseActiveRecord extends Model implements ActiveRecordInterface
      *    Or add [[\yii\behaviors\OptimisticLockBehavior|OptimisticLockBehavior]] to your model
      *    class in order to automate the process.
      * 3. In the Web form that collects the user input, add a hidden field that stores
-     *    the lock version of the recording being updated.
+     *    the lock version of the record being updated.
      * 4. In the controller action that does the data updating, try to catch the [[StaleObjectException]]
      *    and implement necessary business logic (e.g. merging the changes, prompting stated data)
      *    to resolve the conflict.
@@ -335,9 +333,9 @@ abstract class BaseActiveRecord extends Model implements ActiveRecordInterface
     {
         try {
             return $this->__get($name) !== null;
-        } catch (\Throwable $t) {
+        } catch (\Exception $t) {
             return false;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return false;
         }
     }
@@ -376,7 +374,7 @@ abstract class BaseActiveRecord extends Model implements ActiveRecordInterface
      * ```php
      * public function getCountry()
      * {
-     *     return $this->hasOne(Country::className(), ['id' => 'country_id']);
+     *     return $this->hasOne(Country::class, ['id' => 'country_id']);
      * }
      * ```
      *
@@ -411,7 +409,7 @@ abstract class BaseActiveRecord extends Model implements ActiveRecordInterface
      * ```php
      * public function getOrders()
      * {
-     *     return $this->hasMany(Order::className(), ['customer_id' => 'id']);
+     *     return $this->hasMany(Order::class, ['customer_id' => 'id']);
      * }
      * ```
      *
@@ -1221,6 +1219,7 @@ abstract class BaseActiveRecord extends Model implements ActiveRecordInterface
      * @param mixed $offset the offset to check on
      * @return bool whether there is an element at the specified offset.
      */
+    #[\ReturnTypeWillChange]
     public function offsetExists($offset)
     {
         return $this->__isset($offset);
@@ -1278,7 +1277,8 @@ abstract class BaseActiveRecord extends Model implements ActiveRecordInterface
      *
      * The relationship is established by setting the foreign key value(s) in one model
      * to be the corresponding primary key value(s) in the other model.
-     * The model with the foreign key will be saved into database without performing validation.
+     * The model with the foreign key will be saved into database **without** performing validation
+     * and **without** events/behaviors.
      *
      * If the relationship involves a junction table, a new row will be inserted into the
      * junction table which contains the primary key values from both models.
@@ -1294,6 +1294,7 @@ abstract class BaseActiveRecord extends Model implements ActiveRecordInterface
      */
     public function link($name, $model, $extraColumns = [])
     {
+        /* @var $relation ActiveQueryInterface|ActiveQuery */
         $relation = $this->getRelation($name);
 
         if ($relation->via !== null) {
@@ -1330,16 +1331,16 @@ abstract class BaseActiveRecord extends Model implements ActiveRecordInterface
                 $record->insert(false);
             } else {
                 /* @var $viaTable string */
-                static::getDb()->createCommand()
-                    ->insert($viaTable, $columns)->execute();
+                static::getDb()->createCommand()->insert($viaTable, $columns)->execute();
             }
         } else {
             $p1 = $model->isPrimaryKey(array_keys($relation->link));
             $p2 = static::isPrimaryKey(array_values($relation->link));
             if ($p1 && $p2) {
-                if ($this->getIsNewRecord() && $model->getIsNewRecord()) {
-                    throw new InvalidCallException('Unable to link models: at most one model can be newly created.');
-                } elseif ($this->getIsNewRecord()) {
+                if ($this->getIsNewRecord()) {
+                    if ($model->getIsNewRecord()) {
+                        throw new InvalidCallException('Unable to link models: at most one model can be newly created.');
+                    }
                     $this->bindModels(array_flip($relation->link), $this, $model);
                 } else {
                     $this->bindModels($relation->link, $model, $this);
@@ -1492,6 +1493,7 @@ abstract class BaseActiveRecord extends Model implements ActiveRecordInterface
      */
     public function unlinkAll($name, $delete = false)
     {
+        /* @var $relation ActiveQueryInterface|ActiveQuery */
         $relation = $this->getRelation($name);
 
         if ($relation->via !== null) {

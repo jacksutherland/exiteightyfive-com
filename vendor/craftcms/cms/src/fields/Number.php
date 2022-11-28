@@ -14,7 +14,6 @@ use craft\base\PreviewableFieldInterface;
 use craft\base\SortableFieldInterface;
 use craft\gql\types\Number as NumberType;
 use craft\helpers\Db;
-use craft\helpers\Html;
 use craft\helpers\Localization;
 use craft\i18n\Locale;
 use yii\base\InvalidArgumentException;
@@ -111,8 +110,8 @@ class Number extends Field implements PreviewableFieldInterface, SortableFieldIn
     {
         // Normalize number settings
         foreach (['defaultValue', 'min', 'max'] as $name) {
-            if (isset($config[$name]) && is_array($config[$name])) {
-                $config[$name] = Localization::normalizeNumber($config[$name]['value'], $config[$name]['locale']);
+            if (isset($config[$name])) {
+                $config[$name] = $this->_normalizeNumber($config[$name]);
             }
         }
 
@@ -221,6 +220,15 @@ class Number extends Field implements PreviewableFieldInterface, SortableFieldIn
             return null;
         }
 
+        return $this->_normalizeNumber($value);
+    }
+
+    /**
+     * @param mixed $value
+     * @return int|float|string|null
+     */
+    private function _normalizeNumber($value)
+    {
         // Was this submitted with a locale ID?
         if (isset($value['locale'], $value['value'])) {
             $value = Localization::normalizeNumber($value['value'], $value['locale']);
@@ -247,27 +255,75 @@ class Number extends Field implements PreviewableFieldInterface, SortableFieldIn
      */
     protected function inputHtml($value, ElementInterface $element = null): string
     {
-        if ($value !== null) {
-            if ($this->previewFormat !== self::FORMAT_NONE) {
-                try {
-                    $value = Craft::$app->getFormatter()->asDecimal($value, $this->decimals);
-                } catch (InvalidArgumentException $e) {
+        $view = Craft::$app->getView();
+        $formatter = Craft::$app->getFormatter();
+
+        try {
+            $formatNumber = !$formatter->willBeMisrepresented($value);
+        } catch (InvalidArgumentException $e) {
+            $formatNumber = false;
+        }
+
+        if ($formatNumber) {
+            if ($value !== null) {
+                if ($this->previewFormat !== self::FORMAT_NONE) {
+                    try {
+                        $value = Craft::$app->getFormatter()->asDecimal($value, $this->decimals);
+                    } catch (InvalidArgumentException $e) {
+                    }
+                } elseif ($this->decimals) {
+                    // Just make sure we're using the right decimal symbol
+                    $decimalSeparator = Craft::$app->getFormattingLocale()->getNumberSymbol(Locale::SYMBOL_DECIMAL_SEPARATOR);
+                    try {
+                        $value = number_format($value, $this->decimals, $decimalSeparator, '');
+                    } catch (\Throwable $e) {
+                        // NaN
+                    }
                 }
-            } else if ($this->decimals) {
-                // Just make sure we're using the right decimal symbol
-                $decimalSeparator = Craft::$app->getFormattingLocale()->getNumberSymbol(Locale::SYMBOL_DECIMAL_SEPARATOR);
-                try {
-                    $value = number_format($value, $this->decimals, $decimalSeparator, '');
-                } catch (\Throwable $e) {
-                    // NaN
-                }
+            } else {
+                // Override the initial value being set to null by CustomField::inputHtml()
+                $view->setInitialDeltaValue($this->handle, [
+                    'locale' => Craft::$app->getFormattingLocale()->id,
+                    'value' => '',
+                ]);
             }
         }
 
+        $id = $this->getInputId();
+        $namespacedId = $view->namespaceInputId($id);
+
+        $js = <<<JS
+(function() {
+    \$('#$namespacedId').on('keydown', ev => {
+        if (
+            !Garnish.isCtrlKeyPressed(ev) &&
+            ![
+                9, // tab,
+                13, // return / enter
+                27, // esc
+                8, 46, // backspace, delete
+                37, 38, 39, 40, // arrows
+                173, 189, 109, // minus, subtract
+                190, 110, // period, decimal
+                188, // comma
+                48, 49, 50, 51, 52, 53, 54, 55, 56, 57, // 0-9
+                96, 97, 98, 99, 100, 101, 102, 103, 104, 105, // numpad 0-9
+            ].includes(ev.which)
+        ) {
+            ev.preventDefault();
+        }
+    });
+})();
+JS;
+
+        $view->registerJs($js);
+
         return Craft::$app->getView()->renderTemplate('_components/fieldtypes/Number/input', [
-            'id' => Html::id($this->handle),
+            'id' => $id,
+            'describedBy' => $this->describedBy,
             'field' => $this,
             'value' => $value,
+            'formatNumber' => $formatNumber,
         ]);
     }
 

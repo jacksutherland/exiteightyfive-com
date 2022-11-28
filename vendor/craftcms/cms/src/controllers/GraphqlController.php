@@ -76,7 +76,7 @@ class GraphqlController extends Controller
         // Add CORS headers
         $headers = $this->response->getHeaders();
         $headers->setDefault('Access-Control-Allow-Credentials', 'true');
-        $headers->setDefault('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Craft-Token');
+        $headers->setDefault('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Craft-Authorization, X-Craft-Token');
 
         $generalConfig = Craft::$app->getConfig()->getGeneral();
         if (is_array($generalConfig->allowedGraphqlOrigins)) {
@@ -89,7 +89,7 @@ class GraphqlController extends Controller
                     }
                 }
             }
-        } else if ($generalConfig->allowedGraphqlOrigins !== false) {
+        } elseif ($generalConfig->allowedGraphqlOrigins !== false) {
             $headers->setDefault('Access-Control-Allow-Origin', '*');
         }
 
@@ -159,8 +159,8 @@ class GraphqlController extends Controller
         // Check for the cache-bust header
         $gqlCacheHeader = $this->request->getHeaders()->get('x-craft-gql-cache', null, true);
         if ($gqlCacheHeader === 'no-cache') {
-            $cacheSetting = Craft::$app->getConfig()->getGeneral()->enableGraphQlCaching;
-            Craft::$app->getConfig()->getGeneral()->enableGraphQlCaching = false;
+            $cacheSetting = Craft::$app->getConfig()->getGeneral()->enableGraphqlCaching;
+            Craft::$app->getConfig()->getGeneral()->enableGraphqlCaching = false;
         }
 
         $result = [];
@@ -185,7 +185,7 @@ class GraphqlController extends Controller
         }
 
         if ($gqlCacheHeader === 'no-cache') {
-            Craft::$app->getConfig()->getGeneral()->enableGraphQlCaching = $cacheSetting;
+            Craft::$app->getConfig()->getGeneral()->enableGraphqlCaching = $cacheSetting;
         }
 
         return $this->asJson($singleQuery ? reset($result) : $result);
@@ -217,7 +217,8 @@ class GraphqlController extends Controller
         }
 
         // Was a specific token passed?
-        foreach ($requestHeaders->get('authorization', [], false) as $authHeader) {
+        $authHeaders = $requestHeaders->get('X-Craft-Authorization', null, false) ?? $requestHeaders->get('Authorization', null, false) ?? [];
+        foreach ($authHeaders as $authHeader) {
             $authValues = array_map('trim', explode(',', $authHeader));
             foreach ($authValues as $authValue) {
                 if (preg_match('/^Bearer\s+(.+)$/i', $authValue, $matches)) {

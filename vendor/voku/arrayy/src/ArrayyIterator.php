@@ -7,7 +7,7 @@ namespace Arrayy;
 /**
  * @template TKey of array-key
  * @template T
- * @template-extends \ArrayIterator<TKey,T>
+ * @extends \ArrayIterator<TKey,T>
  */
 class ArrayyIterator extends \ArrayIterator
 {
@@ -35,6 +35,7 @@ class ArrayyIterator extends \ArrayIterator
     /**
      * @return Arrayy|mixed will return a "Arrayy"-object instead of an array
      */
+    #[\ReturnTypeWillChange]
     public function current()
     {
         $value = parent::current();
@@ -55,6 +56,7 @@ class ArrayyIterator extends \ArrayIterator
      * @phpstan-param TKey $offset
      * @param-return Arrayy<TKey,T>|mixed
      */
+    #[\ReturnTypeWillChange]
     public function offsetGet($offset)
     {
         $value = parent::offsetGet($offset);

@@ -23,11 +23,13 @@ use craft\utilities\QueueManager;
 use craft\utilities\SystemMessages as SystemMessagesUtility;
 use craft\utilities\SystemReport;
 use craft\utilities\Updates as UpdatesUtility;
+use craft\utilities\Upgrade;
 use yii\base\Component;
 
 /**
  * The Utilities service provides APIs for managing utilities.
- * An instance of the Utilities service is globally accessible in Craft via [[\craft\base\ApplicationTrait::getUtilities()|`Craft::$app->utilities()`]].
+ *
+ * An instance of the service is available via [[\craft\base\ApplicationTrait::getUtilities()|`Craft::$app->utilities()`]].
  *
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
@@ -65,6 +67,7 @@ class Utilities extends Component
     {
         $utilityTypes = [
             UpdatesUtility::class,
+            Upgrade::class,
             SystemReport::class,
             ProjectConfigUtility::class,
             PhpInfo::class,
@@ -123,7 +126,7 @@ class Utilities extends Component
      */
     public function checkAuthorization(string $class): bool
     {
-        /* @var string|UtilityInterface $class */
+        /** @var string|UtilityInterface $class */
         $utilityId = $class::id();
         $user = Craft::$app->getUser();
 
@@ -139,7 +142,7 @@ class Utilities extends Component
     public function getUtilityTypeById(string $id)
     {
         foreach ($this->getAllUtilityTypes() as $class) {
-            /* @var UtilityInterface $class */
+            /** @var UtilityInterface $class */
             if ($class::id() === $id) {
                 return $class;
             }

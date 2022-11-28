@@ -1,8 +1,8 @@
 <?php
 /**
- * @link http://www.yiiframework.com/
+ * @link https://www.yiiframework.com/
  * @copyright Copyright (c) 2008 Yii Software LLC
- * @license http://www.yiiframework.com/license/
+ * @license https://www.yiiframework.com/license/
  */
 
 namespace yii\queue\cli;
@@ -76,7 +76,8 @@ class VerboseBehavior extends Behavior
         $this->command->stdout(' - ', Console::FG_YELLOW);
         $this->command->stdout('Done', Console::FG_GREEN);
         $duration = number_format(round(microtime(true) - $this->jobStartedAt, 3), 3);
-        $this->command->stdout(" ($duration s)", Console::FG_YELLOW);
+        $memory = round(memory_get_peak_usage(false)/1024/1024, 2);
+        $this->command->stdout(" ($duration s, $memory MiB)", Console::FG_YELLOW);
         $this->command->stdout(PHP_EOL);
     }
 
@@ -97,6 +98,10 @@ class VerboseBehavior extends Behavior
         $this->command->stdout('> ' . get_class($event->error) . ': ', Console::FG_RED);
         $message = explode("\n", ltrim($event->error->getMessage()), 2)[0]; // First line
         $this->command->stdout($message, Console::FG_GREY);
+        $this->command->stdout(PHP_EOL);
+        $this->command->stdout('Stack trace:', Console::FG_GREY);
+        $this->command->stdout(PHP_EOL);
+        $this->command->stdout($event->error->getTraceAsString(), Console::FG_GREY);
         $this->command->stdout(PHP_EOL);
     }
 

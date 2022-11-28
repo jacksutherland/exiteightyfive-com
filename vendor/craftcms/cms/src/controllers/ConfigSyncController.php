@@ -8,10 +8,10 @@
 namespace craft\controllers;
 
 use Craft;
-use craft\db\Table;
+use craft\errors\BusyResourceException;
 use craft\errors\InvalidPluginException;
+use craft\errors\StaleResourceException;
 use craft\helpers\ArrayHelper;
-use craft\helpers\Db;
 use craft\services\Plugins;
 use yii\base\NotSupportedException;
 use yii\web\Response;
@@ -55,7 +55,17 @@ class ConfigSyncController extends BaseUpdaterController
             $projectConfig->forceUpdate = true;
         }
 
-        $projectConfig->applyYamlChanges();
+        try {
+            $projectConfig->applyYamlChanges();
+        } catch (BusyResourceException|StaleResourceException $e) {
+            return $this->send([
+                'error' => $e->getMessage(),
+                'options' => [
+                    $this->finishedState(['label' => Craft::t('app', 'Cancel')]),
+                    $this->actionOption(Craft::t('app', 'Try again'), self::ACTION_RETRY, ['submit' => true]),
+                ],
+            ]);
+        }
         return $this->sendFinished();
     }
 
@@ -141,7 +151,7 @@ class ConfigSyncController extends BaseUpdaterController
         $data['uninstallPlugins'] = array_diff($loadedConfigPlugins, $yamlPlugins);
 
         // Set the return URL, if any
-        if (($returnUrl = $this->request->getBodyParam('return')) !== null) {
+        if (($returnUrl = $this->findReturnUrl()) !== null) {
             $data['returnUrl'] = strip_tags($returnUrl);
         }
 
@@ -182,7 +192,7 @@ class ConfigSyncController extends BaseUpdaterController
 
                 if (!$plugin) {
                     $missingPlugins[] = "`$handle`";
-                } else if ($plugin->schemaVersion != $projectConfig->get(Plugins::CONFIG_PLUGINS_KEY . '.' . $handle . '.schemaVersion', true)) {
+                } elseif ($plugin->schemaVersion != $projectConfig->get(Plugins::CONFIG_PLUGINS_KEY . '.' . $handle . '.schemaVersion', true)) {
                     $incompatibilities[] = $plugin->name;
                 }
             }
@@ -191,7 +201,7 @@ class ConfigSyncController extends BaseUpdaterController
         if (!empty($incompatibilities)) {
             $error = Craft::t('app', "Your project config YAML files are expecting different versions to be installed for the following:") .
                 ' ' . implode(', ', $incompatibilities);
-        } else if (!empty($missingPlugins)) {
+        } elseif (!empty($missingPlugins)) {
             $error = Craft::t('app', "Your project config YAML files are expecting the following plugins to be installed:") .
                 ' ' . implode(', ', $missingPlugins);
         }

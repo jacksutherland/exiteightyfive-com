@@ -52,6 +52,19 @@ class GlobalSetQuery extends ElementQuery
     public $handle;
 
     /**
+     * @inheritdoc
+     */
+    public function __construct(string $elementType, array $config = [])
+    {
+        // todo: set this from the property def in v4
+        if (version_compare(Craft::$app->getInstalledSchemaVersion(), '3.7.6', '>=')) {
+            $this->defaultOrderBy = ['globalsets.sortOrder' => SORT_ASC];
+        }
+
+        parent::__construct($elementType, $config);
+    }
+
+    /**
      * Sets the [[$editable]] property.
      *
      * @param bool $value The property value (defaults to true)
@@ -81,8 +94,8 @@ class GlobalSetQuery extends ElementQuery
      * ```twig
      * {# Fetch the global set with a handle of 'foo' #}
      * {% set {element-var} = {twig-method}
-     *     .handle('foo')
-     *     .one() %}
+     *   .handle('foo')
+     *   .one() %}
      * ```
      *
      * ```php
@@ -114,6 +127,11 @@ class GlobalSetQuery extends ElementQuery
             'globalsets.handle',
             'globalsets.uid',
         ]);
+
+        // todo: remove this condition after the next breakpoint
+        if (version_compare(Craft::$app->getInstalledSchemaVersion(), '3.7.6', '>=')) {
+            $this->query->addSelect('globalsets.sortOrder');
+        }
 
         if ($this->handle) {
             $this->subQuery->andWhere(Db::parseParam('globalsets.handle', $this->handle));

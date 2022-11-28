@@ -102,9 +102,9 @@ class Instance
      * use yii\db\Connection;
      *
      * // returns Yii::$app->db
-     * $db = Instance::ensure('db', Connection::className());
+     * $db = Instance::ensure('db', Connection::class);
      * // returns an instance of Connection using the given configuration
-     * $db = Instance::ensure(['dsn' => 'sqlite:path/to/my.db'], Connection::className());
+     * $db = Instance::ensure(['dsn' => 'sqlite:path/to/my.db'], Connection::class);
      * ```
      *
      * @param object|string|array|static $reference an object or a reference to the desired object.
@@ -188,7 +188,7 @@ class Instance
      * @param array $state
      * @return Instance
      * @throws InvalidConfigException when $state property does not contain `id` parameter
-     * @see var_export()
+     * @see https://www.php.net/manual/en/function.var-export.php
      * @since 2.0.12
      */
     public static function __set_state($state)

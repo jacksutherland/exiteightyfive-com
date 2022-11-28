@@ -30,8 +30,8 @@ class Bitbucket
     private $process;
     /** @var HttpDownloader */
     private $httpDownloader;
-    /** @var array */
-    private $token = array();
+    /** @var array{access_token: string, expires_in?: int}|null */
+    private $token = null;
     /** @var int|null */
     private $time;
 
@@ -103,7 +103,12 @@ class Bitbucket
                 ),
             ));
 
-            $this->token = $response->decodeJson();
+            $token = $response->decodeJson();
+            if (!isset($token['expires_in']) || !isset($token['access_token'])) {
+                throw new \LogicException('Expected a token configured with expires_in and access_token present, got '.json_encode($token));
+            }
+
+            $this->token = $token;
         } catch (TransportException $e) {
             if ($e->getCode() === 400) {
                 $this->io->writeError('<error>Invalid OAuth consumer provided.</error>');
@@ -146,7 +151,7 @@ class Bitbucket
         $this->io->writeError(sprintf('to create a consumer. It will be stored in "%s" for future use by Composer.', $this->config->getAuthConfigSource()->getName()));
         $this->io->writeError('Ensure you enter a "Callback URL" (http://example.com is fine) or it will not be possible to create an Access Token (this callback url will not be used by composer)');
 
-        $consumerKey = trim($this->io->askAndHideAnswer('Consumer Key (hidden): '));
+        $consumerKey = trim((string) $this->io->askAndHideAnswer('Consumer Key (hidden): '));
 
         if (!$consumerKey) {
             $this->io->writeError('<warning>No consumer key given, aborting.</warning>');
@@ -155,7 +160,7 @@ class Bitbucket
             return false;
         }
 
-        $consumerSecret = trim($this->io->askAndHideAnswer('Consumer Secret (hidden): '));
+        $consumerSecret = trim((string) $this->io->askAndHideAnswer('Consumer Secret (hidden): '));
 
         if (!$consumerSecret) {
             $this->io->writeError('<warning>No consumer secret given, aborting.</warning>');
@@ -191,7 +196,7 @@ class Bitbucket
      */
     public function requestToken($originUrl, $consumerKey, $consumerSecret)
     {
-        if (!empty($this->token) || $this->getTokenFromConfig($originUrl)) {
+        if ($this->token !== null || $this->getTokenFromConfig($originUrl)) {
             return $this->token['access_token'];
         }
 
@@ -202,18 +207,29 @@ class Bitbucket
 
         $this->storeInAuthConfig($originUrl, $consumerKey, $consumerSecret);
 
+        if (!isset($this->token['access_token'])) {
+            throw new \LogicException('Failed to initialize token above');
+        }
+
         return $this->token['access_token'];
     }
 
     /**
      * Store the new/updated credentials to the configuration
+     *
      * @param string $originUrl
      * @param string $consumerKey
      * @param string $consumerSecret
+     *
+     * @return void
      */
     private function storeInAuthConfig($originUrl, $consumerKey, $consumerSecret)
     {
         $this->config->getConfigSource()->removeConfigSetting('bitbucket-oauth.'.$originUrl);
+
+        if (null === $this->token || !isset($this->token['expires_in'])) {
+            throw new \LogicException('Expected a token configured with expires_in present, got '.json_encode($this->token));
+        }
 
         $time = null === $this->time ? time() : $this->time;
         $consumer = array(

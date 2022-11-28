@@ -27,7 +27,7 @@ class Category extends ElementMutationResolver
 {
     use StructureMutationTrait;
 
-    /* @inheritdoc */
+    /** @inheritdoc */
     protected $immutableAttributes = ['id', 'uid', 'groupId'];
 
     /**
@@ -42,7 +42,7 @@ class Category extends ElementMutationResolver
      */
     public function saveCategory($source, array $arguments, $context, ResolveInfo $resolveInfo)
     {
-        /* @var CategoryGroup $categoryGroup */
+        /** @var CategoryGroup $categoryGroup */
         $categoryGroup = $this->getResolutionData('categoryGroup');
         $canIdentify = !empty($arguments['id']) || !empty($arguments['uid']);
         $elementService = Craft::$app->getElements();
@@ -67,7 +67,7 @@ class Category extends ElementMutationResolver
 
         $this->requireSchemaAction('categorygroups.' . $categoryGroup->uid, 'save');
 
-        $category = $this->populateElementWithData($category, $arguments);
+        $category = $this->populateElementWithData($category, $arguments, $resolveInfo);
 
         $category = $this->saveElement($category);
 

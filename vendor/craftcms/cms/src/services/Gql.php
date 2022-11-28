@@ -87,7 +87,9 @@ use yii\base\InvalidArgumentException;
 use yii\caching\TagDependency;
 
 /**
- * The Gql service provides GraphQL functionality.
+ * GraphQL service.
+ *
+ * An instance of the service is available via [[\craft\base\ApplicationTrait::getGql()|`Craft::$app->gql`]].
  *
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.3.0
@@ -324,7 +326,7 @@ class Gql extends Component
     const GRAPHQL_COMPLEXITY_CPU_HEAVY = 200;
 
     /**
-     * Complexity value for accessing a field that will trigger a query for every parent returned,
+     * Complexity value for accessing a field that will trigger a query for every parent returned.
      *
      * @since 3.6.0
      */
@@ -411,7 +413,7 @@ class Gql extends Component
 
             foreach ($registeredTypes as $registeredType) {
                 if (method_exists($registeredType, 'getTypeGenerator')) {
-                    /* @var GeneratorInterface $typeGeneratorClass */
+                    /** @var GeneratorInterface $typeGeneratorClass */
                     $typeGeneratorClass = $registeredType::getTypeGenerator();
 
                     if (is_subclass_of($typeGeneratorClass, GeneratorInterface::class)) {
@@ -497,8 +499,7 @@ class Gql extends Component
         array $variables = null,
         string $operationName = null,
         bool $debugMode = false
-    ): array
-    {
+    ): array {
         $event = new ExecuteGqlQueryEvent([
             'schemaId' => $schema->id,
             'query' => $query,
@@ -919,21 +920,25 @@ class Gql extends Component
             return false;
         }
 
-        // Public token information is stored in the project config
-        if ($token->accessToken === GqlToken::PUBLIC_TOKEN) {
-            $data = [
-                'expiryDate' => $token->expiryDate ? $token->expiryDate->getTimestamp() : null,
-                'enabled' => (bool)$token->enabled,
-            ];
-
-            Craft::$app->getProjectConfig()->set(self::CONFIG_GQL_PUBLIC_TOKEN_KEY, $data);
-
-            return true;
-        }
-
         if ($runValidation && !$token->validate()) {
             Craft::info('Token not saved due to validation error.', __METHOD__);
             return false;
+        }
+
+        // Public token information is stored in the project config
+        if ($token->accessToken === GqlToken::PUBLIC_TOKEN) {
+            $data = [
+                'enabled' => (bool)$token->enabled,
+                'expiryDate' => $token->expiryDate ? $token->expiryDate->getTimestamp() : null,
+            ];
+
+            $projectConfigService = Craft::$app->getProjectConfig();
+            if ($data !== $projectConfigService->get(self::CONFIG_GQL_PUBLIC_TOKEN_KEY)) {
+                $muteEvents = $projectConfigService->muteEvents;
+                $projectConfigService->muteEvents = true;
+                $projectConfigService->set(self::CONFIG_GQL_PUBLIC_TOKEN_KEY, $data);
+                $projectConfigService->muteEvents = $muteEvents;
+            }
         }
 
         $this->_saveTokenInternal($token);
@@ -1013,7 +1018,7 @@ class Gql extends Component
 
         if ($isNewSchema && empty($schema->uid)) {
             $schema->uid = StringHelper::UUID();
-        } else if (empty($schema->uid)) {
+        } elseif (empty($schema->uid)) {
             $schema->uid = Db::uidById(Table::GQLSCHEMAS, $schema->id);
         }
 
@@ -1201,30 +1206,31 @@ class Gql extends Component
      * Return the content arguments based on an element class and contexts for it.
      *
      * @param FieldLayoutBehavior[] $contexts
-     * @param string $elementClass
+     * @param string $elementType
      * @return array
      */
-    public function getContentArguments(array $contexts, $elementClass): array
+    public function getContentArguments(array $contexts, string $elementType): array
     {
-        if (!array_key_exists($elementClass, $this->_contentFieldCache)) {
+        if (!array_key_exists($elementType, $this->_contentFieldCache)) {
+            $elementQuery = Craft::$app->getElements()->createElementQuery($elementType);
             $contentArguments = [];
 
             foreach ($contexts as $context) {
-                if (!GqlHelper::isSchemaAwareOf($elementClass::gqlScopesByContext($context))) {
+                if (!GqlHelper::isSchemaAwareOf($elementType::gqlScopesByContext($context))) {
                     continue;
                 }
 
                 foreach ($context->getFields() as $contentField) {
-                    if (!$contentField instanceof GqlInlineFragmentFieldInterface) {
+                    if (!$contentField instanceof GqlInlineFragmentFieldInterface && !method_exists($elementQuery, $contentField->handle)) {
                         $contentArguments[$contentField->handle] = $contentField->getContentGqlQueryArgumentType();
                     }
                 }
             }
 
-            $this->_contentFieldCache[$elementClass] = $contentArguments;
+            $this->_contentFieldCache[$elementType] = $contentArguments;
         }
 
-        return $this->_contentFieldCache[$elementClass];
+        return $this->_contentFieldCache[$elementType];
     }
 
     /**
@@ -1239,7 +1245,7 @@ class Gql extends Component
     {
         $devMode = Craft::$app->getConfig()->getGeneral()->devMode;
 
-        /* @var Error $error */
+        /** @var Error $error */
         foreach ($errors as &$error) {
             $originException = $nextException = $error;
 
@@ -1249,11 +1255,16 @@ class Gql extends Component
             }
 
             // If devMode enabled, substitute the original exception here.
-            if ($devMode) {
+            if ($devMode && !empty($originException->getMessage())) {
                 $error = $originException;
+            } elseif (!$originException instanceof Error) {
+                // If devMode not enabled and the error seems to be originating from Craft, display a generic message
+                $error = new Error(
+                    Craft::t('app', 'Something went wrong when processing the GraphQL query.')
+                );
             }
 
-            // Otherwise, just log it.
+            // Log it.
             Craft::$app->getErrorHandler()->logException($originException);
         }
 
@@ -1279,12 +1290,11 @@ class Gql extends Component
         $context,
         array $variables = null,
         string $operationName = null
-    )
-    {
+    ) {
         // No cache key, if explicitly disabled
         $generalConfig = Craft::$app->getConfig()->getGeneral();
 
-        if (!$generalConfig->enableGraphQlCaching) {
+        if (!$generalConfig->enableGraphqlCaching) {
             return null;
         }
 
@@ -1346,7 +1356,7 @@ class Gql extends Component
         $this->trigger(self::EVENT_REGISTER_GQL_TYPES, $event);
 
         foreach ($event->types as $type) {
-            /* @var InterfaceType $type */
+            /** @var InterfaceType $type */
             TypeLoader::registerType($type::getName(), $type . '::getType');
         }
 
@@ -1435,7 +1445,7 @@ class Gql extends Component
         $directives = GraphQL::getStandardDirectives();
 
         foreach ($event->directives as $directive) {
-            /* @var Directive $directive */
+            /** @var Directive $directive */
             $directives[] = $directive::create();
         }
 
@@ -1475,8 +1485,11 @@ class Gql extends Component
         $mutationComponents = [];
 
         if (!empty($sortedEntryTypes)) {
-
             foreach (Craft::$app->getSections()->getAllSections() as $section) {
+                if (!isset($sortedEntryTypes[$section->id])) {
+                    continue;
+                }
+
                 $query = ['label' => Craft::t('app', 'Section - {section}', ['section' => Craft::t('site', $section->name)])];
                 $mutate = ['label' => Craft::t('app', 'Section - {section}', ['section' => Craft::t('site', $section->name)])];
 

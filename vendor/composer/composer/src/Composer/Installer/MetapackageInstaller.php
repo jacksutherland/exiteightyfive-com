@@ -26,6 +26,7 @@ use Composer\DependencyResolver\Operation\UninstallOperation;
  */
 class MetapackageInstaller implements InstallerInterface
 {
+    /** @var IOInterface */
     private $io;
 
     public function __construct(IOInterface $io)
@@ -34,7 +35,7 @@ class MetapackageInstaller implements InstallerInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function supports($packageType)
     {
@@ -42,7 +43,7 @@ class MetapackageInstaller implements InstallerInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function isInstalled(InstalledRepositoryInterface $repo, PackageInterface $package)
     {
@@ -50,41 +51,46 @@ class MetapackageInstaller implements InstallerInterface
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function download(PackageInterface $package, PackageInterface $prevPackage = null)
     {
         // noop
+        return \React\Promise\resolve();
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function prepare($type, PackageInterface $package, PackageInterface $prevPackage = null)
     {
         // noop
+        return \React\Promise\resolve();
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function cleanup($type, PackageInterface $package, PackageInterface $prevPackage = null)
     {
         // noop
+        return \React\Promise\resolve();
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function install(InstalledRepositoryInterface $repo, PackageInterface $package)
     {
         $this->io->writeError("  - " . InstallOperation::format($package));
 
         $repo->addPackage(clone $package);
+
+        return \React\Promise\resolve();
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function update(InstalledRepositoryInterface $repo, PackageInterface $initial, PackageInterface $target)
     {
@@ -96,10 +102,12 @@ class MetapackageInstaller implements InstallerInterface
 
         $repo->removePackage($initial);
         $repo->addPackage(clone $target);
+
+        return \React\Promise\resolve();
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function uninstall(InstalledRepositoryInterface $repo, PackageInterface $package)
     {
@@ -110,10 +118,12 @@ class MetapackageInstaller implements InstallerInterface
         $this->io->writeError("  - " . UninstallOperation::format($package));
 
         $repo->removePackage($package);
+
+        return \React\Promise\resolve();
     }
 
     /**
-     * {@inheritDoc}
+     * @inheritDoc
      */
     public function getInstallPath(PackageInterface $package)
     {

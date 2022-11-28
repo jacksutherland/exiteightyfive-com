@@ -12,6 +12,8 @@
 
 namespace Composer\Repository;
 
+use Composer\DependencyResolver\PoolOptimizer;
+use Composer\DependencyResolver\PolicyInterface;
 use Composer\DependencyResolver\Pool;
 use Composer\DependencyResolver\PoolBuilder;
 use Composer\DependencyResolver\Request;
@@ -20,6 +22,8 @@ use Composer\IO\IOInterface;
 use Composer\IO\NullIO;
 use Composer\Package\BasePackage;
 use Composer\Package\AliasPackage;
+use Composer\Package\CompleteAliasPackage;
+use Composer\Package\CompletePackage;
 use Composer\Semver\Constraint\ConstraintInterface;
 use Composer\Package\Version\StabilityFilter;
 
@@ -39,13 +43,13 @@ class RepositorySet
 
     /**
      * @var array[]
-     * @psalm-var array<string, array<string, array{alias: string, alias_normalized: string}>>
+     * @phpstan-var array<string, array<string, array{alias: string, alias_normalized: string}>>
      */
     private $rootAliases;
 
     /**
      * @var string[]
-     * @psalm-var array<string, string>
+     * @phpstan-var array<string, string>
      */
     private $rootReferences;
 
@@ -54,16 +58,20 @@ class RepositorySet
 
     /**
      * @var int[] array of stability => BasePackage::STABILITY_* value
-     * @psalm-var array<string, int>
+     * @phpstan-var array<string, BasePackage::STABILITY_*>
      */
     private $acceptableStabilities;
 
     /**
      * @var int[] array of package name => BasePackage::STABILITY_* value
-     * @psalm-var array<string, int>
+     * @phpstan-var array<string, BasePackage::STABILITY_*>
      */
     private $stabilityFlags;
 
+    /**
+     * @var ConstraintInterface[]
+     * @phpstan-var array<string, ConstraintInterface>
+     */
     private $rootRequires;
 
     /** @var bool */
@@ -78,11 +86,13 @@ class RepositorySet
      *
      * @param string $minimumStability
      * @param int[]  $stabilityFlags   an array of package name => BasePackage::STABILITY_* value
-     * @psalm-param array<string, int> $stabilityFlags
+     * @phpstan-param array<string, BasePackage::STABILITY_*> $stabilityFlags
      * @param array[] $rootAliases
-     * @psalm-param list<array{package: string, version: string, alias: string, alias_normalized: string}> $rootAliases
+     * @phpstan-param list<array{package: string, version: string, alias: string, alias_normalized: string}> $rootAliases
      * @param string[] $rootReferences an array of package name => source reference
-     * @psalm-param array<string, string> $rootReferences
+     * @phpstan-param array<string, string> $rootReferences
+     * @param ConstraintInterface[] $rootRequires an array of package name => constraint from the root package
+     * @phpstan-param array<string, ConstraintInterface> $rootRequires
      */
     public function __construct($minimumStability = 'stable', array $stabilityFlags = array(), array $rootAliases = array(), array $rootReferences = array(), array $rootRequires = array())
     {
@@ -104,11 +114,20 @@ class RepositorySet
         }
     }
 
+    /**
+     * @param bool $allow
+     *
+     * @return void
+     */
     public function allowInstalledRepositories($allow = true)
     {
         $this->allowInstalledRepositories = $allow;
     }
 
+    /**
+     * @return ConstraintInterface[] an array of package name => constraint from the root package, platform requirements excluded
+     * @phpstan-return array<string, ConstraintInterface>
+     */
     public function getRootRequires()
     {
         return $this->rootRequires;
@@ -121,6 +140,8 @@ class RepositorySet
      * repository the search for that package ends, and following repos will not be consulted.
      *
      * @param RepositoryInterface $repo A package repository
+     *
+     * @return void
      */
     public function addRepository(RepositoryInterface $repo)
     {
@@ -147,7 +168,7 @@ class RepositorySet
      * @param  string                   $name
      * @param  ConstraintInterface|null $constraint
      * @param  int                      $flags      any of the ALLOW_* constants from this class to tweak what is returned
-     * @return array
+     * @return BasePackage[]
      */
     public function findPackages($name, ConstraintInterface $constraint = null, $flags = 0)
     {
@@ -190,6 +211,12 @@ class RepositorySet
         return $result;
     }
 
+    /**
+     * @param  string   $packageName
+     *
+     * @return array[] an array with the provider name as key and value of array('name' => '...', 'description' => '...', 'type' => '...')
+     * @phpstan-return array<string, array{name: string, description: string, type: string}>
+     */
     public function getProviders($packageName)
     {
         $providers = array();
@@ -202,6 +229,13 @@ class RepositorySet
         return $providers;
     }
 
+    /**
+     * Check for each given package name whether it would be accepted by this RepositorySet in the given $stability
+     *
+     * @param  string[] $names
+     * @param  string   $stability one of 'stable', 'RC', 'beta', 'alpha' or 'dev'
+     * @return bool
+     */
     public function isPackageAcceptable($names, $stability)
     {
         return StabilityFilter::isPackageAcceptable($this->acceptableStabilities, $this->stabilityFlags, $names, $stability);
@@ -212,9 +246,9 @@ class RepositorySet
      *
      * @return Pool
      */
-    public function createPool(Request $request, IOInterface $io, EventDispatcher $eventDispatcher = null)
+    public function createPool(Request $request, IOInterface $io, EventDispatcher $eventDispatcher = null, PoolOptimizer $poolOptimizer = null)
     {
-        $poolBuilder = new PoolBuilder($this->acceptableStabilities, $this->stabilityFlags, $this->rootAliases, $this->rootReferences, $io, $eventDispatcher);
+        $poolBuilder = new PoolBuilder($this->acceptableStabilities, $this->stabilityFlags, $this->rootAliases, $this->rootReferences, $io, $eventDispatcher, $poolOptimizer);
 
         foreach ($this->repositories as $repo) {
             if (($repo instanceof InstalledRepositoryInterface || $repo instanceof InstalledRepository) && !$this->allowInstalledRepositories) {
@@ -252,7 +286,11 @@ class RepositorySet
                     while ($package instanceof AliasPackage) {
                         $package = $package->getAliasOf();
                     }
-                    $aliasPackage = new AliasPackage($package, $alias['alias_normalized'], $alias['alias']);
+                    if ($package instanceof CompletePackage) {
+                        $aliasPackage = new CompleteAliasPackage($package, $alias['alias_normalized'], $alias['alias']);
+                    } else {
+                        $aliasPackage = new AliasPackage($package, $alias['alias_normalized'], $alias['alias']);
+                    }
                     $aliasPackage->setRootPackageAlias(true);
                     $packages[] = $aliasPackage;
                 }
@@ -262,12 +300,22 @@ class RepositorySet
         return new Pool($packages);
     }
 
-    // TODO unify this with above in some simpler version without "request"?
+    /**
+     * @param string $packageName
+     *
+     * @return Pool
+     */
     public function createPoolForPackage($packageName, LockArrayRepository $lockedRepo = null)
     {
+        // TODO unify this with above in some simpler version without "request"?
         return $this->createPoolForPackages(array($packageName), $lockedRepo);
     }
 
+    /**
+     * @param string[] $packageNames
+     *
+     * @return Pool
+     */
     public function createPoolForPackages($packageNames, LockArrayRepository $lockedRepo = null)
     {
         $request = new Request($lockedRepo);
@@ -283,6 +331,12 @@ class RepositorySet
         return $this->createPool($request, new NullIO());
     }
 
+    /**
+     * @param array[] $aliases
+     * @phpstan-param list<array{package: string, version: string, alias: string, alias_normalized: string}> $aliases
+     *
+     * @return array<string, array<string, array{alias: string, alias_normalized: string}>>
+     */
     private static function getRootAliasesPerPackage(array $aliases)
     {
         $normalizedAliases = array();

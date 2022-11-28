@@ -3,14 +3,17 @@
 return [
     'id' => 'CraftCMS',
     'name' => 'Craft CMS',
-    'version' => '3.6.17',
-    'schemaVersion' => '3.6.8',
+    'version' => '3.7.61',
+    'schemaVersion' => '3.7.33',
     'minVersionRequired' => '2.6.2788',
     'basePath' => dirname(__DIR__), // Defines the @app alias
     'runtimePath' => '@storage/runtime', // Defines the @runtime alias
     'controllerNamespace' => 'craft\controllers',
 
     'components' => [
+        'announcements' => [
+            'class' => craft\services\Announcements::class,
+        ],
         'api' => [
             'class' => craft\services\Api::class,
         ],
@@ -76,6 +79,9 @@ return [
         ],
         'matrix' => [
             'class' => craft\services\Matrix::class,
+        ],
+        'mutex' => [
+            'class' => craft\mutex\Mutex::class,
         ],
         'path' => [
             'class' => craft\services\Path::class,
@@ -154,6 +160,9 @@ return [
         'utilities' => [
             'class' => craft\services\Utilities::class,
         ],
+        'webpack' => [
+            'class' => craft\services\Webpack::class,
+        ],
         'contentMigrator' => [
             'class' => craft\db\MigrationManager::class,
             'track' => craft\db\MigrationManager::TRACK_CONTENT,
@@ -229,11 +238,6 @@ return [
 
         'mailer' => function() {
             $config = craft\helpers\App::mailerConfig();
-            return Craft::createObject($config);
-        },
-
-        'mutex' => function() {
-            $config = craft\helpers\App::dbMutexConfig();
             return Craft::createObject($config);
         },
 

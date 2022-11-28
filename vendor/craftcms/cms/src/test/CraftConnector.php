@@ -89,8 +89,8 @@ class CraftConnector extends Yii2
         // Reset the view object
         $app->set('view', new View());
 
-        /* @var Module $module */
-        foreach (Craft::$app->getModules() as $module) {
+        /** @var Module $module */
+        foreach (Craft::$app->getModules(true) as $module) {
             $moduleClass = get_class($module);
             $moduleId = $module->id;
 
@@ -115,7 +115,7 @@ class CraftConnector extends Yii2
     }
 
     /**
-     * @inheritDoc
+     * @inheritdoc
      */
     public function resetApplication($closeSession = true)
     {

@@ -101,7 +101,11 @@ class ElementIndexesController extends BaseElementsController
         $this->paginated = (bool)$this->request->getParam('paginated');
         $this->elementQuery = $this->elementQuery();
 
-        if ($this->includeActions() && $this->sourceKey !== null) {
+        if (
+            in_array($action->id, ['get-elements', 'get-more-elements', 'perform-action', 'export']) &&
+            $this->includeActions() &&
+            $this->sourceKey !== null
+        ) {
             $this->actions = $this->availableActions();
             $this->exporters = $this->availableExporters();
         }
@@ -180,7 +184,7 @@ class ElementIndexesController extends BaseElementsController
 
         // Find that action from the list of available actions for the source
         if (!empty($this->actions)) {
-            /* @var ElementAction $availableAction */
+            /** @var ElementAction $availableAction */
             foreach ($this->actions as $availableAction) {
                 if ($actionClass === get_class($availableAction)) {
                     $action = clone $availableAction;
@@ -189,7 +193,7 @@ class ElementIndexesController extends BaseElementsController
             }
         }
 
-        /* @noinspection UnSafeIsSetOverArrayInspection - FP */
+        /** @noinspection UnSafeIsSetOverArrayInspection - FP */
         if (!isset($action)) {
             throw new BadRequestHttpException('Element action is not supported by the element type');
         }
@@ -209,7 +213,7 @@ class ElementIndexesController extends BaseElementsController
         }
 
         // Perform the action
-        /* @var ElementQuery $actionCriteria */
+        /** @var ElementQuery $actionCriteria */
         $actionCriteria = clone $this->elementQuery;
         $actionCriteria->offset = 0;
         $actionCriteria->limit = null;
@@ -255,6 +259,20 @@ class ElementIndexesController extends BaseElementsController
         if ($success) {
             // Send a new set of elements
             $responseData = array_merge($responseData, $this->elementResponseData(true, true));
+
+            // Send updated badge counts
+            /** @var string|ElementInterface $elementType */
+            $elementType = $this->elementType;
+            $formatter = Craft::$app->getFormatter();
+            foreach ($elementType::sources($this->context) as $source) {
+                if (isset($source['key'])) {
+                    if (isset($source['badgeCount'])) {
+                        $responseData['badgeCounts'][$source['key']] = $formatter->asDecimal($source['badgeCount'], 0);
+                    } else {
+                        $responseData['badgeCounts'][$source['key']] = null;
+                    }
+                }
+            }
         }
 
         return $this->asJson($responseData);
@@ -302,8 +320,12 @@ class ElementIndexesController extends BaseElementsController
         $export = $exporter->export($this->elementQuery);
 
         if ($exporter::isFormattable()) {
-            if (!is_array($export)) {
-                throw new InvalidValueException(get_class($exporter) . '::export() must return an array since isFormattable() returns true.');
+            // Handle being passed in a generator function or other callable
+            if (is_callable($export)) {
+                $export = $export();
+            }
+            if (!is_iterable($export)) {
+                throw new InvalidValueException(get_class($exporter) . '::export() must return an array or generator function since isFormattable() returns true.');
             }
 
             $this->response->data = $export;
@@ -314,12 +336,12 @@ class ElementIndexesController extends BaseElementsController
                     break;
                 case Response::FORMAT_XML:
                     Craft::$app->language = 'en-US';
-                    /* @var string|ElementInterface $elementType */
+                    /** @var string|ElementInterface $elementType */
                     $elementType = $this->elementType;
                     $this->response->formatters[Response::FORMAT_XML]['rootTag'] = $elementType::pluralLowerDisplayName();
                     break;
             }
-        } else if (
+        } elseif (
             is_callable($export) ||
             is_resource($export) ||
             (is_array($export) && isset($export[0]) && is_resource($export[0]))
@@ -417,7 +439,7 @@ class ElementIndexesController extends BaseElementsController
      */
     protected function elementQuery(): ElementQueryInterface
     {
-        /* @var string|ElementInterface $elementType */
+        /** @var string|ElementInterface $elementType */
         $elementType = $this->elementType;
         $query = $elementType::find();
 
@@ -499,7 +521,7 @@ class ElementIndexesController extends BaseElementsController
      */
     protected function elementResponseData(bool $includeContainer, bool $includeActions): array
     {
-        /* @var string|ElementInterface $elementType */
+        /** @var string|ElementInterface $elementType */
         $elementType = $this->elementType;
         $responseData = [];
         $view = $this->getView();
@@ -546,7 +568,7 @@ class ElementIndexesController extends BaseElementsController
             return null;
         }
 
-        /* @var string|ElementInterface $elementType */
+        /** @var string|ElementInterface $elementType */
         $elementType = $this->elementType;
         $actions = $elementType::actions($this->sourceKey);
 
@@ -569,10 +591,10 @@ class ElementIndexesController extends BaseElementsController
             if ($this->elementQuery->trashed) {
                 if ($action instanceof DeleteActionInterface && $action->canHardDelete()) {
                     $action->hard = true;
-                } else if (!$action instanceof Restore) {
+                } elseif (!$action instanceof Restore) {
                     unset($actions[$i]);
                 }
-            } else if ($action instanceof Restore) {
+            } elseif ($action instanceof Restore) {
                 unset($actions[$i]);
             }
         }
@@ -605,7 +627,7 @@ class ElementIndexesController extends BaseElementsController
             return null;
         }
 
-        /* @var string|ElementInterface $elementType */
+        /** @var string|ElementInterface $elementType */
         $elementType = $this->elementType;
         $exporters = $elementType::exporters($this->sourceKey);
 
@@ -642,7 +664,7 @@ class ElementIndexesController extends BaseElementsController
 
         $actionData = [];
 
-        /* @var ElementAction $action */
+        /** @var ElementAction $action */
         foreach ($this->actions as $action) {
             $actionData[] = [
                 'type' => get_class($action),

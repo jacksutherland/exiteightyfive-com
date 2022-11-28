@@ -20,6 +20,7 @@ use craft\validators\UrlValidator;
 use yii\base\InvalidConfigException;
 use yii\base\InvalidValueException;
 use yii\db\Schema;
+use yii\validators\EmailValidator;
 
 /**
  * Url represents a URL field.
@@ -167,11 +168,11 @@ class Url extends Field implements PreviewableFieldInterface
             }
         }
 
-        if ($value === '') {
+        if (!$value) {
             return null;
         }
 
-        return $value;
+        return str_replace(' ', '+', $value);
     }
 
     /**
@@ -197,7 +198,7 @@ class Url extends Field implements PreviewableFieldInterface
             $valueType = reset($this->types);
         }
 
-        $id = Html::id($this->handle);
+        $id = $this->getInputId();
         $typeOptions = [];
 
         foreach ($this->types as $type) {
@@ -227,7 +228,7 @@ class Url extends Field implements PreviewableFieldInterface
 
         $input = Craft::$app->getView()->renderTemplate('_includes/forms/text', [
             'id' => $id,
-            'instructionsId' => "$id-instructions",
+            'describedBy' => $this->describedBy,
             'class' => ['flex-grow', 'fullwidth'],
             'type' => $valueType,
             'name' => "$this->handle[value]",
@@ -240,13 +241,22 @@ class Url extends Field implements PreviewableFieldInterface
             ],
         ]);
 
+        $view = Craft::$app->getView();
+
+        if ($value === null) {
+            // Override the initial value being set to null by CustomField::inputHtml()
+            $view->setInitialDeltaValue($this->handle, [
+                'type' => $valueType,
+                'value' => '',
+            ]);
+        }
+
         if (count($this->types) === 1) {
             return
                 Html::hiddenInput("$this->handle[type]", $valueType) .
                 $input;
         }
 
-        $view = Craft::$app->getView();
         $namespacedId = $view->namespaceInputId($id);
         $js = <<<JS
 $('#$namespacedId-type').on('change', e => { 
@@ -296,8 +306,8 @@ JS;
                     $patterns[] = '^tel:[\d\+\(\)\-,;]+$';
                     break;
                 case self::TYPE_EMAIL:
-                    // Regex taken from EmailValidator::$pattern
-                    $patterns[] = '^mailto:[a-zA-Z0-9!#$%&\'*+\\/=?^_`{|}~-]+(?:\.[a-zA-Z0-9!#$%&\'*+\\/=?^_`{|}~-]+)*@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?$';
+                    $emailPattern = trim((new EmailValidator())->pattern, '/^$');
+                    $patterns[] = "^mailto:$emailPattern(\?.*)?$";
                     break;
             }
         }

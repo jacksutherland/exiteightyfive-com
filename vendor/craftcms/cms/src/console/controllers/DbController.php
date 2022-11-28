@@ -50,13 +50,18 @@ class DbController extends Controller
     /**
      * Creates a new database backup.
      *
+     * Example:
+     * ```
+     * php craft db/backup ./my-backups/
+     * ```
+     *
      * @param string|null $path The path the database backup should be created at.
      * Can be any of the following:
      *
      * - A full file path
      * - A folder path (backup will be saved in there with a dynamically-generated name)
      * - A filename (backup will be saved in the working directory with the given name)
-     * - Blank (backup will be saved to the config/backups/ folder with a dynamically-generated name)
+     * - Blank (backup will be saved to the `storage/backups/` folder with a dynamically-generated name)
      *
      * @return int
      */
@@ -75,7 +80,7 @@ class DbController extends Controller
 
             if (is_dir($path)) {
                 $path .= DIRECTORY_SEPARATOR . basename($db->getBackupFilePath());
-            } else if ($this->zip) {
+            } elseif ($this->zip) {
                 $path = preg_replace('/\.zip$/', '', $path);
             }
         } else {
@@ -95,7 +100,7 @@ class DbController extends Controller
                             $this->stdout('Aborting' . PHP_EOL);
                             return ExitCode::OK;
                         }
-                        $this->stderr("$checkPath already exists. Retry with the --overwire flag to overwrite it." . PHP_EOL, Console::FG_RED);
+                        $this->stderr("$checkPath already exists. Retry with the --overwrite flag to overwrite it." . PHP_EOL, Console::FG_RED);
                         return ExitCode::UNSPECIFIED_ERROR;
                     }
                 }
@@ -125,7 +130,12 @@ class DbController extends Controller
     /**
      * Restores a database backup.
      *
-     * @param string|null The path to the database backup file.
+     * Example:
+     * ```
+     * php craft db/restore ./my-backup.sql
+     * ```
+     *
+     * @param string|null $path The path to the database backup file.
      * @return int
      */
     public function actionRestore(string $path = null): int
@@ -177,14 +187,25 @@ class DbController extends Controller
             $this->stdout('done' . PHP_EOL, Console::FG_GREEN);
         }
 
+        if ($this->interactive && $this->confirm('Clear data caches?', true)) {
+            $this->run('clear-caches/data');
+        }
+
         return ExitCode::OK;
     }
 
     /**
      * Converts tables’ character sets and collations. (MySQL only)
      *
-     * @param string|null $charset The character set
-     * @param string|null $collation
+     * Example:
+     * ```
+     * php craft db/convert-charset utf8 utf8_unicode_ci
+     * ```
+     *
+     * @param string|null $charset The target character set, which honors `DbConfig::$charset`
+     *                               or defaults to `utf8`.
+     * @param string|null $collation The target collation, which honors `DbConfig::$collation`
+     *                               or defaults to `utf8_unicode_ci`.
      * @return int
      */
     public function actionConvertCharset(?string $charset = null, ?string $collation = null): int

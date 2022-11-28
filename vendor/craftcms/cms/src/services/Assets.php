@@ -50,11 +50,13 @@ use craft\records\VolumeFolder as VolumeFolderRecord;
 use craft\volumes\Temp;
 use yii\base\Component;
 use yii\base\InvalidArgumentException;
+use yii\base\InvalidConfigException;
 use yii\base\NotSupportedException;
 
 /**
  * Assets service.
- * An instance of the Assets service is globally accessible in Craft via [[\craft\base\ApplicationTrait::getAssets()|`Craft::$app->assets`]].
+ *
+ * An instance of the service is available via [[\craft\base\ApplicationTrait::getAssets()|`Craft::$app->assets`]].
  *
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
@@ -115,6 +117,12 @@ class Assets extends Component
     private $_queuedGeneratePendingTransformsJob = false;
 
     /**
+     * @var VolumeFolder[]
+     * @see getUserTemporaryUploadFolder
+     */
+    private $_userTempFolders = [];
+
+    /**
      * Returns a file by its ID.
      *
      * @param int $assetId
@@ -123,7 +131,7 @@ class Assets extends Component
      */
     public function getAssetById(int $assetId, int $siteId = null)
     {
-        /* @noinspection PhpIncompatibleReturnTypeInspection */
+        /** @noinspection PhpIncompatibleReturnTypeInspection */
         return Craft::$app->getElements()->getElementById($assetId, Asset::class, $siteId);
     }
 
@@ -198,10 +206,23 @@ class Assets extends Component
      */
     public function moveAsset(Asset $asset, VolumeFolder $folder, string $filename = ''): bool
     {
-        // Set the new combined target location, and save it
-        $asset->newFilename = $filename;
-        $asset->newFolderId = $folder->id;
-        $asset->setScenario(Asset::SCENARIO_FILEOPS);
+        $folderChanging = $asset->folderId != $folder->id;
+        $filenameChanging = $filename !== '' && $filename !== $asset->filename;
+
+        if (!$folderChanging && !$filenameChanging) {
+            return true;
+        }
+
+        if ($folderChanging) {
+            $asset->newFolderId = $folder->id;
+        }
+
+        if ($filenameChanging) {
+            $asset->newFilename = $filename;
+            $asset->setScenario(Asset::SCENARIO_FILEOPS);
+        } else {
+            $asset->setScenario(Asset::SCENARIO_MOVE);
+        }
 
         return Craft::$app->getElements()->saveElement($asset);
     }
@@ -265,14 +286,13 @@ class Assets extends Component
         $folder = $this->getFolderById($folderId);
 
         if (!$folder) {
-            throw new AssetLogicException(Craft::t('app',
-                'No folder exists with the ID “{id}”',
-                ['id' => $folderId]));
+            throw new AssetLogicException(Craft::t('app', 'No folder exists with the ID “{id}”', [
+                'id' => $folderId,
+            ]));
         }
 
         if (!$folder->parentId) {
-            throw new AssetLogicException(Craft::t('app',
-                'It’s not possible to rename the top folder of a Volume.'));
+            throw new AssetLogicException(Craft::t('app', 'It’s not possible to rename the top folder of a Volume.'));
         }
 
         $conflictingFolder = $this->findFolder([
@@ -281,9 +301,9 @@ class Assets extends Component
         ]);
 
         if ($conflictingFolder) {
-            throw new AssetConflictException(Craft::t('app',
-                'A folder with the name “{folderName}” already exists in the folder.',
-                ['folderName' => $folder->name]));
+            throw new AssetConflictException(Craft::t('app', 'A folder with the name “{folderName}” already exists in the folder.', [
+                'folderName' => $newName,
+            ]));
         }
 
         $parentFolderPath = dirname($folder->path);
@@ -316,8 +336,11 @@ class Assets extends Component
      */
     public function deleteFoldersByIds($folderIds, bool $deleteDir = true)
     {
+        $folders = [];
+
         foreach ((array)$folderIds as $folderId) {
             $folder = $this->getFolderById($folderId);
+            $folders[] = $folder;
 
             if ($folder) {
                 if ($deleteDir) {
@@ -335,7 +358,17 @@ class Assets extends Component
             $elementService->deleteElement($asset, true);
         }
 
-        VolumeFolderRecord::deleteAll(['id' => $folderIds]);
+        foreach ($folders as $folder) {
+            $descendants = $this->getAllDescendantFolders($folder);
+            usort($descendants, function($a, $b) {
+                return substr_count($a->path, '/') < substr_count($b->path, '/');
+            });
+
+            foreach ($descendants as $descendant) {
+                VolumeFolderRecord::deleteAll(['id' => $descendant->id]);
+            }
+            VolumeFolderRecord::deleteAll(['id' => $folder->id]);
+        }
     }
 
     /**
@@ -487,7 +520,7 @@ class Assets extends Component
      */
     public function getAllDescendantFolders(VolumeFolder $parentFolder, string $orderBy = 'path'): array
     {
-        /* @var $query Query */
+        /** @var Query $query */
         $query = $this->_createFolderQuery()
             ->where([
                 'and',
@@ -789,7 +822,7 @@ class Assets extends Component
         $extLength = strlen($ext);
         if ($extLength <= 3) {
             $textSize = '20';
-        } else if ($extLength === 4) {
+        } elseif ($extLength === 4) {
             $textSize = '17';
         } else {
             if ($extLength > 5) {
@@ -984,6 +1017,54 @@ class Assets extends Component
     }
 
     /**
+     * Returns the temporary volume and subpath, if set.
+     *
+     * @return array
+     * @throws InvalidConfigException If the temp volume is invalid
+     * @since 3.7.39
+     */
+    public function getTempVolumeAndSubpath(): array
+    {
+        $assetSettings = Craft::$app->getProjectConfig()->get('assets');
+        if (empty($assetSettings['tempVolumeUid'])) {
+            return [null, null];
+        }
+
+        $volume = Craft::$app->getVolumes()->getVolumeByUid($assetSettings['tempVolumeUid']);
+
+        if (!$volume) {
+            throw new InvalidConfigException("The Temp Uploads Location is set to an invalid volume UID: {$assetSettings['tempVolumeUid']}");
+        }
+
+        $subpath = ($assetSettings['tempSubpath'] ?? null) ?: null;
+        return [$volume, $subpath];
+    }
+
+    /**
+     * Creates an asset query that is configured to return assets in the temporary upload location.
+     *
+     * @return AssetQuery
+     * @throws InvalidConfigException If the temp volume is invalid
+     * @since 3.7.39
+     */
+    public function createTempAssetQuery(): AssetQuery
+    {
+        /** @var VolumeInterface|null $volume */
+        /** @var string|null $subpath */
+        [$volume, $subpath] = $this->getTempVolumeAndSubpath();
+        $query = Asset::find();
+        if ($volume) {
+            $query->volumeId($volume->id);
+            if ($subpath) {
+                $query->folderPath("$subpath/*");
+            }
+        } else {
+            $query->volumeId(':empty:');
+        }
+        return $query;
+    }
+
+    /**
      * Returns the given user's temporary upload folder.
      *
      * If no user is provided, the currently-logged in user will be used (if there is one), or a folder named after
@@ -1000,27 +1081,35 @@ class Assets extends Component
             $user = Craft::$app->getUser()->getIdentity();
         }
 
+        $cacheKey = $user->id ?? '__GUEST__';
+
+        if (isset($this->_userTempFolders[$cacheKey])) {
+            return $this->_userTempFolders[$cacheKey];
+        }
+
         if ($user) {
             $folderName = 'user_' . $user->id;
+        } elseif (Craft::$app->getRequest()->getIsConsoleRequest()) {
+            // For console requests, just make up a folder name.
+            $folderName = 'temp_' . sha1(time());
         } else {
             // A little obfuscation never hurt anyone
             $folderName = 'user_' . sha1(Craft::$app->getSession()->id);
         }
 
         // Is there a designated temp uploads volume?
-        $assetSettings = Craft::$app->getProjectConfig()->get('assets');
-        if (isset($assetSettings['tempVolumeUid'])) {
-            $volume = Craft::$app->getVolumes()->getVolumeByUid($assetSettings['tempVolumeUid']);
-            if (!$volume) {
-                throw new VolumeException(Craft::t('app', 'The volume set for temp asset storage is not valid.'));
-            }
-            $path = (isset($assetSettings['tempSubpath']) ? $assetSettings['tempSubpath'] . '/' : '') .
-                $folderName;
-            $folderId = $this->ensureFolderByFullPathAndVolume($path, $volume, false);
-            return $this->findFolder([
-                'volumeId' => $volume->id,
-                'id' => $folderId,
-            ]);
+        try {
+            /** @var VolumeInterface|null $tempVolume */
+            /** @var string|null $tempSubpath */
+            [$tempVolume, $tempSubpath] = $this->getTempVolumeAndSubpath();
+        } catch (InvalidConfigException $e) {
+            throw new VolumeException($e->getMessage(), 0, $e);
+        }
+
+        if ($tempVolume) {
+            $path = ($tempSubpath ? "$tempSubpath/" : '') . $folderName;
+            $folderId = $this->ensureFolderByFullPathAndVolume($path, $tempVolume);
+            return $this->_userTempFolders[$cacheKey] = $this->getFolderById($folderId);
         }
 
         $volumeTopFolder = $this->findFolder([
@@ -1051,7 +1140,7 @@ class Assets extends Component
 
         FileHelper::createDirectory(Craft::$app->getPath()->getTempAssetUploadsPath() . DIRECTORY_SEPARATOR . $folderName);
 
-        return $folder;
+        return $this->_userTempFolders[$cacheKey] = $folder;
     }
 
     /**

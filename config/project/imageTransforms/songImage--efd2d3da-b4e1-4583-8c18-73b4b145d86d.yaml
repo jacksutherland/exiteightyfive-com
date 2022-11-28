@@ -1,9 +1,0 @@
-format: null
-handle: songImage
-height: 150
-interlace: none
-mode: crop
-name: 'Song Image'
-position: center-center
-quality: 82
-width: 255

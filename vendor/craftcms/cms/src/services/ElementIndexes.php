@@ -17,13 +17,15 @@ use craft\db\Table;
 use craft\events\DefineSourceSortOptionsEvent;
 use craft\events\DefineSourceTableAttributesEvent;
 use craft\helpers\Db;
+use craft\helpers\ElementHelper;
 use craft\helpers\Json;
 use craft\models\FieldLayout;
 use yii\base\Component;
 
 /**
- * The ElementIndexes service provides APIs for managing element indexes.
- * An instance of ElementIndexes service is globally accessible in Craft via [[\craft\base\ApplicationTrait::getElementIndexes()|`Craft::$app->elementIndexes`]].
+ * The Element Indexes service provides APIs for managing element indexes.
+ *
+ * An instance of the service is available via [[\craft\base\ApplicationTrait::getElementIndexes()|`Craft::$app->elementIndexes`]].
  *
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
@@ -78,7 +80,7 @@ class ElementIndexes extends Component
      */
     public function saveSettings(string $elementType, array $newSettings): bool
     {
-        /* @var string|ElementInterface $elementType */
+        /** @var string|ElementInterface $elementType */
         // Get the currently saved settings
         $settings = $this->getSettings($elementType);
         $baseSources = $this->_normalizeSources($elementType::sources('index'));
@@ -131,7 +133,7 @@ class ElementIndexes extends Component
             foreach ($settings['sources'] as $key => &$source) {
                 if (!isset($indexedBaseSources[$key])) {
                     unset($settings['sources'][$key]);
-                } else if (empty($source['headerColHeading'])) {
+                } elseif (empty($source['headerColHeading'])) {
                     unset($source['headerColHeading']);
                 }
             }
@@ -161,7 +163,7 @@ class ElementIndexes extends Component
      */
     public function getSources(string $elementType, string $context = 'index'): array
     {
-        /* @var string|ElementInterface $elementType */
+        /** @var string|ElementInterface $elementType */
         $settings = $this->getSettings($elementType);
         $baseSources = $this->_normalizeSources($elementType::sources($context));
         $sources = [];
@@ -178,7 +180,7 @@ class ElementIndexes extends Component
                 if ($type === 'heading') {
                     // Queue it up. We'll only add it if a real source follows
                     $pendingHeading = $value;
-                } else if (isset($indexedBaseSources[$value])) {
+                } elseif (isset($indexedBaseSources[$value])) {
                     // If there's a pending heading, add that first
                     if ($pendingHeading !== null) {
                         $sources[] = ['heading' => $pendingHeading];
@@ -215,14 +217,14 @@ class ElementIndexes extends Component
      */
     public function getAvailableTableAttributes(string $elementType): array
     {
-        /* @var string|ElementInterface $elementType */
+        /** @var string|ElementInterface $elementType */
         $attributes = $elementType::tableAttributes();
 
         // Normalize
         foreach ($attributes as $key => $info) {
             if (!is_array($info)) {
                 $attributes[$key] = ['label' => $info];
-            } else if (!isset($info['label'])) {
+            } elseif (!isset($info['label'])) {
                 $attributes[$key]['label'] = '';
             }
         }
@@ -239,7 +241,7 @@ class ElementIndexes extends Component
      */
     public function getTableAttributes(string $elementType, string $sourceKey): array
     {
-        /* @var ElementInterface|string $elementType */
+        /** @var ElementInterface|string $elementType */
         // If this is a source path, use the first segment
         if (($slash = strpos($sourceKey, '/')) !== false) {
             $sourceKey = substr($sourceKey, 0, $slash);
@@ -301,7 +303,7 @@ class ElementIndexes extends Component
     public function getFieldLayoutsForSource(string $elementType, string $sourceKey): array
     {
         if (!isset($this->_fieldLayouts[$elementType][$sourceKey])) {
-            /* @var string|ElementInterface $elementType */
+            /** @var string|ElementInterface $elementType */
             $this->_fieldLayouts[$elementType][$sourceKey] = $elementType::fieldLayouts($sourceKey);
         }
         return $this->_fieldLayouts[$elementType][$sourceKey];
@@ -317,6 +319,8 @@ class ElementIndexes extends Component
      */
     public function getSourceSortOptions(string $elementType, string $sourceKey): array
     {
+        $sourceKey = ElementHelper::rootSourceKey($sourceKey);
+
         $event = new DefineSourceSortOptionsEvent([
             'elementType' => $elementType,
             'source' => $sourceKey,
@@ -325,7 +329,8 @@ class ElementIndexes extends Component
         $processedFieldIds = [];
 
         foreach ($this->getFieldLayoutsForSource($elementType, $sourceKey) as $fieldLayout) {
-            foreach ($fieldLayout->getFields() as $field) {
+            foreach ($fieldLayout->getCustomFieldElements() as $layoutElement) {
+                $field = $layoutElement->getField();
                 if (
                     $field instanceof SortableFieldInterface &&
                     !isset($processedFieldIds[$field->id])
@@ -388,7 +393,7 @@ class ElementIndexes extends Component
      */
     public function getAvailableTableFields(string $elementType): array
     {
-        /* @var string|ElementInterface $elementType */
+        /** @var string|ElementInterface $elementType */
         $fields = Craft::$app->getFields()->getFieldsByElementType($elementType);
         $availableFields = [];
 

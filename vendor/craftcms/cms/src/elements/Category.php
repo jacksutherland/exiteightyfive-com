@@ -134,7 +134,7 @@ class Category extends Element
      */
     public static function gqlTypeNameByContext($context): string
     {
-        /* @var CategoryGroup $context */
+        /** @var CategoryGroup $context */
         return $context->handle . '_Category';
     }
 
@@ -144,7 +144,7 @@ class Category extends Element
      */
     public static function gqlScopesByContext($context): array
     {
-        /* @var CategoryGroup $context */
+        /** @var CategoryGroup $context */
         return ['categorygroups.' . $context->uid];
     }
 
@@ -154,7 +154,7 @@ class Category extends Element
      */
     public static function gqlMutationNameByContext($context): string
     {
-        /* @var CategoryGroup $context */
+        /** @var CategoryGroup $context */
         return 'save_' . $context->handle . '_Category';
     }
 
@@ -189,7 +189,7 @@ class Category extends Element
      * @inheritdoc
      * @since 3.5.0
      */
-    public static function defineFieldLayouts(string $source): array
+    protected static function defineFieldLayouts(string $source): array
     {
         $fieldLayouts = [];
         if (
@@ -209,7 +209,7 @@ class Category extends Element
         // Get the selected site
         $controller = Craft::$app->controller;
         if ($controller instanceof ElementIndexesController) {
-            /* @var ElementQuery $elementQuery */
+            /** @var ElementQuery $elementQuery */
             $elementQuery = $controller->getElementQuery();
         } else {
             $elementQuery = null;
@@ -221,7 +221,7 @@ class Category extends Element
         // Get the group we need to check permissions on
         if (preg_match('/^group:(\d+)$/', $source, $matches)) {
             $group = Craft::$app->getCategories()->getGroupById($matches[1]);
-        } else if (preg_match('/^group:(.+)$/', $source, $matches)) {
+        } elseif (preg_match('/^group:(.+)$/', $source, $matches)) {
             $group = Craft::$app->getCategories()->getGroupByUid($matches[1]);
         }
 
@@ -253,7 +253,7 @@ class Category extends Element
                 $newChildUrl = 'categories/' . $group->handle . '/new';
 
                 if (Craft::$app->getIsMultiSite()) {
-                    $newChildUrl .= '/' . $site->handle;
+                    $newChildUrl .= '?site=' . $site->handle;
                 }
 
                 $actions[] = $elementsService->createAction([
@@ -331,7 +331,7 @@ class Category extends Element
     protected static function defineTableAttributes(): array
     {
         return [
-            'title' => ['label' => Craft::t('app', 'Title')],
+            'title' => ['label' => Craft::t('app', 'Category')],
             'slug' => ['label' => Craft::t('app', 'Slug')],
             'uri' => ['label' => Craft::t('app', 'URI')],
             'link' => ['label' => Craft::t('app', 'Link'), 'icon' => 'world'],
@@ -445,7 +445,7 @@ class Category extends Element
     /**
      * @inheritdoc
      */
-    public function getIsEditable(): bool
+    protected function isEditable(): bool
     {
         return Craft::$app->getUser()->checkPermission('editCategories:' . $this->getGroup()->uid);
     }
@@ -453,17 +453,23 @@ class Category extends Element
     /**
      * @inheritdoc
      */
-    public function getCpEditUrl()
+    protected function cpEditUrl(): ?string
     {
         $group = $this->getGroup();
+        $path = "categories/$group->handle";
 
-        $url = UrlHelper::cpUrl('categories/' . $group->handle . '/' . $this->id . ($this->slug ? '-' . $this->slug : ''));
-
-        if (Craft::$app->getIsMultiSite()) {
-            $url .= '/' . $this->getSite()->handle;
+        if ($this->id) {
+            $path .= "/$this->id" . ($this->slug ? "-$this->slug" : '');
+        } else {
+            $path .= '/new';
         }
 
-        return $url;
+        $params = [];
+        if (Craft::$app->getIsMultiSite()) {
+            $params['site'] = $this->getSite()->handle;
+        }
+
+        return UrlHelper::cpUrl($path, $params);
     }
 
     /**
@@ -472,6 +478,17 @@ class Category extends Element
     public function getFieldLayout()
     {
         return parent::getFieldLayout() ?? $this->getGroup()->getFieldLayout();
+    }
+
+    /**
+     * @inheritdoc
+     */
+    protected function metaFieldsHtml(): string
+    {
+        return implode('', [
+            $this->slugFieldHtml(),
+            parent::metaFieldsHtml(),
+        ]);
     }
 
     /**
@@ -543,6 +560,8 @@ class Category extends Element
     public function afterSave(bool $isNew)
     {
         if (!$this->propagating) {
+            $group = $this->getGroup();
+
             // Get the category record
             if (!$isNew) {
                 $record = CategoryRecord::findOne($this->id);
@@ -562,9 +581,17 @@ class Category extends Element
             if (!$this->duplicateOf && $this->_hasNewParent()) {
                 $mode = $isNew ? Structures::MODE_INSERT : Structures::MODE_AUTO;
                 if (!$this->newParentId) {
-                    Craft::$app->getStructures()->appendToRoot($this->structureId, $this, $mode);
+                    if ($group->defaultPlacement === CategoryGroup::DEFAULT_PLACEMENT_BEGINNING) {
+                        Craft::$app->getStructures()->prependToRoot($this->structureId, $this, $mode);
+                    } else {
+                        Craft::$app->getStructures()->appendToRoot($this->structureId, $this, $mode);
+                    }
                 } else {
-                    Craft::$app->getStructures()->append($this->structureId, $this, $this->getParent(), $mode);
+                    if ($group->defaultPlacement === CategoryGroup::DEFAULT_PLACEMENT_BEGINNING) {
+                        Craft::$app->getStructures()->prepend($this->structureId, $this, $this->getParent(), $mode);
+                    } else {
+                        Craft::$app->getStructures()->append($this->structureId, $this, $this->getParent(), $mode);
+                    }
                 }
             }
 
@@ -593,7 +620,7 @@ class Category extends Element
         ];
 
         if ($this->structureId) {
-            // Remember the parent ID, in case the entry needs to be restored later
+            // Remember the parent ID, in case the category needs to be restored later
             $parentId = $this->getAncestors(1)
                 ->anyStatus()
                 ->select(['elements.id'])
@@ -689,7 +716,7 @@ class Category extends Element
     }
 
     /**
-     * Returns whether the category has been assigned a new parent entry.
+     * Returns whether the category has been assigned a new parent.
      *
      * @return bool
      * @see beforeSave()
@@ -705,7 +732,7 @@ class Category extends Element
     }
 
     /**
-     * Checks if an category was submitted with a new parent category selected.
+     * Checks if the category has been assigned a new parent.
      *
      * @return bool
      */

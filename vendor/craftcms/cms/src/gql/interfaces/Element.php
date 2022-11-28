@@ -103,6 +103,11 @@ class Element extends InterfaceType
                 'type' => Type::int(),
                 'description' => 'The ID of the site the element is associated with.',
             ],
+            'siteSettingsId' => [
+                'name' => 'siteSettingsId',
+                'type' => Type::id(),
+                'description' => 'The unique identifier for an element-site relation.',
+            ],
             'language' => [
                 'name' => 'language',
                 'type' => Type::string(),
@@ -121,7 +126,7 @@ class Element extends InterfaceType
             'status' => [
                 'name' => 'status',
                 'type' => Type::string(),
-                'description' => 'The element\'s status.',
+                'description' => 'The element’s status.',
             ],
             'dateCreated' => [
                 'name' => 'dateCreated',
@@ -154,20 +159,15 @@ class Element extends InterfaceType
                 'type' => Type::boolean(),
                 'description' => 'Returns whether this is a revision.',
             ],
-            'sourceId' => [
-                'name' => 'sourceId',
+            'revisionId' => [
+                'name' => 'revisionId',
                 'type' => Type::int(),
-                'description' => 'Returns the element’s ID, or if it’s a draft/revision, its source element’s ID.',
-            ],
-            'sourceUid' => [
-                'name' => 'sourceUid',
-                'type' => Type::string(),
-                'description' => 'Returns the element’s UUID, or if it’s a draft/revision, its source element’s UUID.',
+                'description' => 'The revision ID (from the `revisions` table).',
             ],
             'draftId' => [
                 'name' => 'draftId',
                 'type' => Type::int(),
-                'description' => 'The ID of the draft to return (from the `drafts` table)',
+                'description' => 'The draft ID (from the `drafts` table).',
             ],
             'isUnpublishedDraft' => [
                 'name' => 'isUnpublishedDraft',

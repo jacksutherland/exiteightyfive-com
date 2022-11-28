@@ -16,12 +16,9 @@ use yii\di\NotInstantiableException;
  *
  * For more details and usage information on Controller, see the [guide article on controllers](guide:structure-controllers).
  *
- * @property-read Module[] $modules All ancestor modules that this controller is located within. This property
- * is read-only.
+ * @property-read Module[] $modules All ancestor modules that this controller is located within.
  * @property-read string $route The route (module ID, controller ID and action ID) of the current request.
- * This property is read-only.
- * @property-read string $uniqueId The controller ID that is prefixed with the module ID (if any). This
- * property is read-only.
+ * @property-read string $uniqueId The controller ID that is prefixed with the module ID (if any).
  * @property View|\yii\web\View $view The view object that can be used to render views or view files.
  * @property string $viewPath The directory containing the view files for this controller.
  *
@@ -514,6 +511,7 @@ class Controller extends Component implements ViewContextInterface
     public function findLayoutFile($view)
     {
         $module = $this->module;
+        $layout = null;
         if (is_string($this->layout)) {
             $layout = $this->layout;
         } elseif ($this->layout === null) {
@@ -525,7 +523,7 @@ class Controller extends Component implements ViewContextInterface
             }
         }
 
-        if (!isset($layout)) {
+        if ($layout === null) {
             return false;
         }
 

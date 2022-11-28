@@ -22,8 +22,9 @@ use yii\base\Component;
 use yii\base\Exception;
 
 /**
- * Service for image operations.
- * An instance of the Images service is globally accessible in Craft via [[\craft\base\ApplicationTrait::getImages()|`Craft::$app->images`]].
+ * Images service.
+ *
+ * An instance of the service is available via [[\craft\base\ApplicationTrait::getImages()|`Craft::$app->images`]].
  *
  * @property bool $isGd Whether image manipulations will be performed using GD or not
  * @property bool $isImagick Whether image manipulations will be performed using Imagick or not
@@ -59,7 +60,7 @@ class Images extends Component
     {
         if (strtolower(Craft::$app->getConfig()->getGeneral()->imageDriver) === 'gd') {
             $this->_driver = self::DRIVER_GD;
-        } else if ($this->getCanUseImagick()) {
+        } elseif ($this->getCanUseImagick()) {
             $this->_driver = self::DRIVER_IMAGICK;
         } else {
             $this->_driver = self::DRIVER_GD;
@@ -120,6 +121,10 @@ class Images extends Component
             $supportedFormats[] = 'webp';
         }
 
+        if ($this->getSupportsAvif()) {
+            $supportedFormats[] = 'avif';
+        }
+
         return $supportedFormats;
     }
 
@@ -141,7 +146,7 @@ class Images extends Component
 
         // Taken from Imagick\Imagine() constructor.
         // Imagick::getVersion() is static only since Imagick PECL extension 3.2.0b1, so instantiate it.
-        /* @noinspection PhpStaticAsDynamicMethodCallInspection */
+        /** @noinspection PhpStaticAsDynamicMethodCallInspection */
         $versionString = \Imagick::getVersion()['versionString'];
         [$this->_imagickVersion] = sscanf($versionString, 'ImageMagick %s %04d-%02d-%02d %s %s');
 
@@ -180,6 +185,17 @@ class Images extends Component
     public function getSupportsWebP(): bool
     {
         return $this->getIsImagick() ? !empty(Imagick::queryFormats('WEBP')) : function_exists('imagewebp');
+    }
+
+
+    /**
+     * Returns whether the Avif image format is supported.
+     *
+     * @return bool
+     */
+    public function getSupportsAvif(): bool
+    {
+        return $this->getIsImagick() ? !empty(Imagick::queryFormats('AVIF')) : function_exists('imageavif');
     }
 
     /**
@@ -362,7 +378,7 @@ class Images extends Component
             return false;
         }
 
-        /* @var Raster $image */
+        /** @var Raster $image */
         $image = $this->loadImage($filePath);
         $image->rotate($degrees);
 

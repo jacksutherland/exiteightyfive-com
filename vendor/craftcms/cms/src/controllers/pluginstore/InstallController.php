@@ -60,7 +60,7 @@ class InstallController extends BaseUpdaterController
      */
     public function actionCraftInstall(): YiiResponse
     {
-        /* @var Response $tempResponse */
+        /** @var Response $tempResponse */
         [$success, $tempResponse, $errorDetails] = $this->installPlugin($this->data['handle'], $this->data['edition']);
 
         if (!$success) {
@@ -77,7 +77,7 @@ class InstallController extends BaseUpdaterController
                     $this->actionOption(Craft::t('app', 'Remove it'), self::ACTION_COMPOSER_REMOVE),
                     [
                         'label' => Craft::t('app', 'Troubleshoot'),
-                        'url' => 'https://craftcms.com/guides/failed-updates',
+                        'url' => 'https://craftcms.com/knowledge-base/failed-updates',
                     ],
                 ],
             ]);
@@ -138,7 +138,7 @@ class InstallController extends BaseUpdaterController
         $licenseKey = $this->request->getBodyParam('licenseKey');
 
         if (
-            ($returnUrl = $this->request->getBodyParam('return')) !== null &&
+            ($returnUrl = $this->findReturnUrl()) !== null &&
             !in_array($returnUrl, ['plugin-store', 'settings/plugins'], true)
         ) {
             $returnUrl = null;

@@ -101,7 +101,7 @@ class MigrationManager extends Component
         $class = $this->migrationNamespace . '\\' . $name;
         require_once $file;
 
-        return new $class;
+        return new $class();
     }
 
     /**
@@ -119,7 +119,7 @@ class MigrationManager extends Component
         $migrationNames = $this->getNewMigrations();
 
         if (empty($migrationNames)) {
-            Craft::info('No new migration found. Your system is up-to-date.', __METHOD__);
+            Craft::info('No new migration found. Your system is up to date.', __METHOD__);
             return;
         }
 
@@ -210,8 +210,8 @@ class MigrationManager extends Component
             return;
         }
 
-        /* @var \yii\db\Migration $migration */
-        /* @noinspection CallableParameterUseCaseInTypeContextInspection */
+        /** @var \yii\db\Migration $migration */
+        /** @noinspection CallableParameterUseCaseInTypeContextInspection */
         $migration = Instance::ensure($migration, MigrationInterface::class);
 
         // Clear the schema cache
@@ -271,8 +271,8 @@ class MigrationManager extends Component
             return;
         }
 
-        /* @var \yii\db\Migration $migration */
-        /* @noinspection CallableParameterUseCaseInTypeContextInspection */
+        /** @var \yii\db\Migration $migration */
+        /** @noinspection CallableParameterUseCaseInTypeContextInspection */
         $migration = Instance::ensure($migration, MigrationInterface::class);
 
         // Clear the schema cache
@@ -499,7 +499,7 @@ class MigrationManager extends Component
 
             if ($this->track === 'craft') {
                 $query->where(['type' => 'app']);
-            } else if (strpos($this->track, 'plugin:') === 0) {
+            } elseif (strpos($this->track, 'plugin:') === 0) {
                 $pluginId = (new Query())
                     ->select(['id'])
                     ->from([Table::PLUGINS])

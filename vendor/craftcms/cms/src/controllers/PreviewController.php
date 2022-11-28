@@ -52,35 +52,40 @@ class PreviewController extends Controller
      */
     public function actionCreateToken(): Response
     {
-        $elementType = $this->request->getRequiredBodyParam('elementType');
-        $sourceId = $this->request->getRequiredBodyParam('sourceId');
-        $siteId = $this->request->getRequiredBodyParam('siteId');
-        $draftId = $this->request->getBodyParam('draftId');
-        $revisionId = $this->request->getBodyParam('revisionId');
+        $elementType = $this->request->getRequiredParam('elementType');
+        $sourceId = $this->request->getRequiredParam('sourceId');
+        $siteId = $this->request->getRequiredParam('siteId');
+        $draftId = $this->request->getParam('draftId');
+        $revisionId = $this->request->getParam('revisionId');
+        $token = $this->request->getParam('previewToken');
+        $redirect = $this->request->getParam('redirect');
 
         if ($draftId) {
             $this->requireAuthorization('previewDraft:' . $draftId);
-        } else if ($revisionId) {
+        } elseif ($revisionId) {
             $this->requireAuthorization('previewRevision:' . $revisionId);
         } else {
             $this->requireAuthorization('previewElement:' . $sourceId);
         }
 
-        // Create a 24 hour token
-        $route = [
+        // Create the token
+        $token = Craft::$app->getTokens()->createPreviewToken([
             'preview/preview', [
                 'elementType' => $elementType,
                 'sourceId' => (int)$sourceId,
                 'siteId' => (int)$siteId,
                 'draftId' => (int)$draftId ?: null,
                 'revisionId' => (int)$revisionId ?: null,
+                'userId' => Craft::$app->getUser()->getId(),
             ],
-        ];
-
-        $token = Craft::$app->getTokens()->createToken($route);
+        ], null, $token);
 
         if (!$token) {
             throw new ServerErrorHttpException(Craft::t('app', 'Could not create a preview token.'));
+        }
+
+        if ($redirect) {
+            return $this->redirect($redirect);
         }
 
         return $this->asJson(compact('token'));
@@ -94,37 +99,72 @@ class PreviewController extends Controller
      * @param int $siteId
      * @param int|null $draftId
      * @param int|null $revisionId
+     * @param int|null $userId
      * @return Response
      * @throws BadRequestHttpException
      * @throws \Throwable
      */
-    public function actionPreview(string $elementType, int $sourceId, int $siteId, int $draftId = null, int $revisionId = null): Response
-    {
+    public function actionPreview(
+        string $elementType,
+        int $sourceId,
+        int $siteId,
+        ?int $draftId = null,
+        ?int $revisionId = null,
+        ?int $userId = null
+    ): Response {
         // Make sure a token was used to get here
         $this->requireToken();
 
-        /* @var ElementInterface $elementType */
+        /** @var ElementInterface $elementType */
         $query = $elementType::find()
             ->siteId($siteId)
             ->anyStatus();
 
         if ($draftId) {
-            $query->draftId($draftId);
-        } else if ($revisionId) {
-            $query->revisionId($revisionId);
+            $element = $query
+                ->draftId($draftId)
+                ->one();
+        } elseif ($revisionId) {
+            $element = $query
+                ->revisionId($revisionId)
+                ->one();
         } else {
-            $query->id($sourceId);
+            if ($userId) {
+                // First check if there's a provisional draft
+                $element = (clone $query)
+                    ->draftOf($sourceId)
+                    ->provisionalDrafts()
+                    ->draftCreator($userId)
+                    ->one();
+            }
+
+            if (!isset($element)) {
+                $element = $query
+                    ->id($sourceId)
+                    ->one();
+            }
         }
 
-        $element = $query->one();
-
         if ($element) {
+            if (!$element->lft && $element->getIsDerivative()) {
+                // See if we can add structure data to it
+                $canonical = $element->getCanonical(true);
+                $element->structureId = $canonical->structureId;
+                $element->root = $canonical->root;
+                $element->lft = $canonical->lft;
+                $element->rgt = $canonical->rgt;
+                $element->level = $canonical->level;
+            }
+
             $element->previewing = true;
             Craft::$app->getElements()->setPlaceholderElement($element);
         }
 
         // Prevent the browser from caching the response
         $this->response->setNoCacheHeaders();
+
+        // Recheck whether this is an action request, this time ignoring the token
+        $this->request->checkIfActionRequest(true, false);
 
         // Re-route the request, this time ignoring the token
         $urlManager = Craft::$app->getUrlManager();

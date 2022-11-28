@@ -17,13 +17,13 @@ use craft\helpers\App;
  */
 class Dispatcher extends \yii\log\Dispatcher
 {
-    /* @since 3.6.9 */
+    /** @since 3.6.9 */
     const TARGET_FILE = '__file__';
 
-    /* @since 3.6.9 */
+    /** @since 3.6.9 */
     const TARGET_STDOUT = '__stdout__';
 
-    /* @since 3.6.9 */
+    /** @since 3.6.9 */
     const TARGET_STDERR = '__stderr__';
 
     /**
@@ -31,7 +31,7 @@ class Dispatcher extends \yii\log\Dispatcher
      */
     public function init()
     {
-        $this->targets = array_merge($this->targets, App::defaultLogTargets());
         parent::init();
+        $this->targets = array_merge($this->targets, App::defaultLogTargets());
     }
 }

@@ -19,7 +19,7 @@ use yii\db\Connection;
 /**
  * UserQuery represents a SELECT SQL statement for users in a way that is independent of DBMS.
  *
- * @property string|string[]|UserGroup $group The handle(s) of the tag group(s) that resulting users must belong to.
+ * @property-write string|string[]|UserGroup|null $group The user group(s) that resulting users must belong to
  * @method User[]|array all($db = null)
  * @method User|array|null one($db = null)
  * @method User|array|null nth(int $n, Connection $db = null)
@@ -60,8 +60,8 @@ class UserQuery extends ElementQuery
      * ```twig
      * {# fetch all the admins #}
      * {% set admins = craft.users()
-     *     .admin()
-     *     .all()%}
+     *   .admin()
+     *   .all()%}
      *
      * {# fetch all the non-admins #}
      * {% set nonAdmins = craft.users()
@@ -90,8 +90,8 @@ class UserQuery extends ElementQuery
      * ```twig
      * {# fetch users with control panel access #}
      * {% set admins = craft.users()
-     *     .can('accessCp')
-     *     .all() %}
+     *   .can('accessCp')
+     *   .all() %}
      * ```
      * @used-by can()
      */
@@ -109,8 +109,8 @@ class UserQuery extends ElementQuery
      * ```twig
      * {# fetch the authors #}
      * {% set admins = craft.users()
-     *     .group('authors')
-     *     .all() %}
+     *   .group('authors')
+     *   .all() %}
      * ```
      * @used-by group()
      * @used-by groupId()
@@ -159,8 +159,8 @@ class UserQuery extends ElementQuery
      * ```twig
      * {# fetch users with their user groups #}
      * {% set users = craft.users()
-     *     .withGroups()
-     *     .all() %}
+     *   .withGroups()
+     *   .all() %}
      * ```
      * @used-by withGroups()
      * @since 3.6.0
@@ -200,8 +200,8 @@ class UserQuery extends ElementQuery
      * ```twig
      * {# Fetch admins #}
      * {% set {elements-var} = {twig-method}
-     *     .admin()
-     *     .all() %}
+     *   .admin()
+     *   .all() %}
      * ```
      *
      * ```php
@@ -229,8 +229,8 @@ class UserQuery extends ElementQuery
      * ```twig
      * {# Fetch users with photos #}
      * {% set {elements-var} = {twig-method}
-     *     .hasPhoto()
-     *     .all() %}
+     *   .hasPhoto()
+     *   .all() %}
      * ```
      *
      * ```php
@@ -260,8 +260,8 @@ class UserQuery extends ElementQuery
      * ```twig
      * {# Fetch users that can access the control panel #}
      * {% set {elements-var} = {twig-method}
-     *     .can('accessCp')
-     *     .all() %}
+     *   .can('accessCp')
+     *   .all() %}
      * ```
      *
      * ```php
@@ -291,6 +291,7 @@ class UserQuery extends ElementQuery
      * | `'foo'` | in a group with a handle of `foo`.
      * | `'not foo'` | not in a group with a handle of `foo`.
      * | `['foo', 'bar']` | in a group with a handle of `foo` or `bar`.
+     * | `['and', 'foo', 'bar']` | in both groups with handles of `foo` or `bar`.
      * | `['not', 'foo', 'bar']` | not in a group with a handle of `foo` or `bar`.
      * | a [[UserGroup|UserGroup]] object | in a group represented by the object.
      *
@@ -299,8 +300,8 @@ class UserQuery extends ElementQuery
      * ```twig
      * {# Fetch users in the Foo user group #}
      * {% set {elements-var} = {twig-method}
-     *     .group('foo')
-     *     .all() %}
+     *   .group('foo')
+     *   .all() %}
      * ```
      *
      * ```php
@@ -310,22 +311,31 @@ class UserQuery extends ElementQuery
      *     ->all();
      * ```
      *
-     * @param string|string[]|UserGroup|null $value The property value
+     * @param string|string[]|UserGroup|UserGroup[]|null $value The property value
      * @return static self reference
      * @uses $groupId
      */
     public function group($value)
     {
-        if ($value instanceof UserGroup) {
-            $this->groupId = $value->id;
-        } else if ($value !== null) {
+        // If the value is a group handle, swap it with the user group
+        if (is_string($value) && ($group = Craft::$app->getUserGroups()->getGroupByHandle($value))) {
+            $value = $group;
+        }
+
+        if (Db::normalizeParam($value, function($item) {
+            return $item instanceof UserGroup ? $item->id : null;
+        })) {
+            $this->groupId = $value;
+        } else {
+            $glue = Db::extractGlue($value);
             $this->groupId = (new Query())
                 ->select(['id'])
                 ->from([Table::USERGROUPS])
                 ->where(Db::parseParam('handle', $value))
                 ->column();
-        } else {
-            $this->groupId = null;
+            if ($this->groupId && $glue !== null) {
+                array_unshift($this->groupId, $glue);
+            }
         }
 
         return $this;
@@ -341,6 +351,7 @@ class UserQuery extends ElementQuery
      * | `1` | in a group with an ID of 1.
      * | `'not 1'` | not in a group with an ID of 1.
      * | `[1, 2]` | in a group with an ID of 1 or 2.
+     * | `['and', 1, 2]` | in both groups with IDs of 1 or 2.
      * | `['not', 1, 2]` | not in a group with an ID of 1 or 2.
      *
      * ---
@@ -348,8 +359,8 @@ class UserQuery extends ElementQuery
      * ```twig
      * {# Fetch users in a group with an ID of 1 #}
      * {% set {elements-var} = {twig-method}
-     *     .groupId(1)
-     *     .all() %}
+     *   .groupId(1)
+     *   .all() %}
      * ```
      *
      * ```php
@@ -376,17 +387,17 @@ class UserQuery extends ElementQuery
      *
      * | Value | Fetches users…
      * | - | -
-     * | `'foo@bar.baz'` | with an email of `foo@bar.baz`.
-     * | `'not foo@bar.baz'` | not with an email of `foo@bar.baz`.
-     * | `'*@bar.baz'` | with an email that ends with `@bar.baz`.
+     * | `'me@domain.tld'` | with an email of `me@domain.tld`.
+     * | `'not me@domain.tld'` | not with an email of `me@domain.tld`.
+     * | `'*@domain.tld'` | with an email that ends with `@domain.tld`.
      *
      * ---
      *
      * ```twig
      * {# Fetch users with a .co.uk domain on their email address #}
      * {% set {elements-var} = {twig-method}
-     *     .email('*.co.uk')
-     *     .all() %}
+     *   .email('*.co.uk')
+     *   .all() %}
      * ```
      *
      * ```php
@@ -424,8 +435,8 @@ class UserQuery extends ElementQuery
      *
      * {# Fetch that user #}
      * {% set {element-var} = {twig-method}
-     *     .username(requestedUsername|literal)
-     *     .one() %}
+     *   .username(requestedUsername|literal)
+     *   .one() %}
      * ```
      *
      * ```php
@@ -463,8 +474,8 @@ class UserQuery extends ElementQuery
      * ```twig
      * {# Fetch all the Jane's #}
      * {% set {elements-var} = {twig-method}
-     *     .firstName('Jane')
-     *     .all() %}
+     *   .firstName('Jane')
+     *   .all() %}
      * ```
      *
      * ```php
@@ -473,6 +484,11 @@ class UserQuery extends ElementQuery
      *     ->firstName('Jane')
      *     ->one();
      * ```
+     *
+     * ::: warning
+     * String values with commas will be treated as arrays, unless they’ve been escaped with the
+     * [`literal`](https://craftcms.com/docs/3.x/dev/filters.html#literal) filter.
+     * :::
      *
      * @param string|string[]|null $value The property value
      * @return static self reference
@@ -499,8 +515,8 @@ class UserQuery extends ElementQuery
      * ```twig
      * {# Fetch all the Doe's #}
      * {% set {elements-var} = {twig-method}
-     *     .lastName('Doe')
-     *     .all() %}
+     *   .lastName('Doe')
+     *   .all() %}
      * ```
      *
      * ```php
@@ -509,6 +525,11 @@ class UserQuery extends ElementQuery
      *     ->lastName('Doe')
      *     ->one();
      * ```
+     *
+     * ::: warning
+     * String values with commas will be treated as arrays, unless they’ve been escaped with the
+     * [`literal`](https://craftcms.com/docs/3.x/dev/filters.html#literal) filter.
+     * :::
      *
      * @param string|string[]|null $value The property value
      * @return static self reference
@@ -538,8 +559,8 @@ class UserQuery extends ElementQuery
      * {% set aWeekAgo = date('7 days ago')|atom %}
      *
      * {% set {elements-var} = {twig-method}
-     *     .lastLoginDate(">= #{aWeekAgo}")
-     *     .all() %}
+     *   .lastLoginDate(">= #{aWeekAgo}")
+     *   .all() %}
      * ```
      *
      * ```php
@@ -573,14 +594,15 @@ class UserQuery extends ElementQuery
      * | `'pending'` | with accounts that are still pending activation.
      * | `'locked'` | with locked accounts (regardless of whether they’re active or suspended).
      * | `['active', 'suspended']` | with active or suspended accounts.
+     * | `['not', 'active', 'suspended']` | without active or suspended accounts.
      *
      * ---
      *
      * ```twig
      * {# Fetch active and locked users #}
      * {% set {elements-var} = {twig-method}
-     *     .status(['active', 'locked'])
-     *     .all() %}
+     *   .status(['active', 'locked'])
+     *   .all() %}
      * ```
      *
      * ```php
@@ -618,8 +640,8 @@ class UserQuery extends ElementQuery
      * ```twig
      * {# fetch users with their user groups #}
      * {% set users = craft.users()
-     *     .withGroups()
-     *     .all() %}
+     *   .withGroups()
+     *   .all() %}
      * ```
      *
      * @param bool $value The property value (defaults to true)
@@ -690,12 +712,39 @@ class UserQuery extends ElementQuery
         }
 
         if ($this->groupId) {
-            $this->subQuery->andWhere([
-                'exists', (new Query())
-                    ->from(['ugu' => Table::USERGROUPS_USERS])
-                    ->where('[[elements.id]] = [[ugu.userId]]')
-                    ->andWhere(Db::parseParam('groupId', $this->groupId)),
-            ]);
+            // Checking multiple groups?
+            if (
+                is_array($this->groupId) &&
+                is_string(reset($this->groupId)) &&
+                strtolower(reset($this->groupId)) === 'and'
+            ) {
+                $groupIdChecks = array_slice($this->groupId, 1);
+            } else {
+                $groupIdChecks = [$this->groupId];
+            }
+
+            foreach ($groupIdChecks as $i => $groupIdCheck) {
+                if (
+                    is_array($groupIdCheck) &&
+                    is_string(reset($groupIdCheck)) &&
+                    strtolower(reset($groupIdCheck)) === 'not'
+                ) {
+                    $groupIdOperator = 'not exists';
+                    array_shift($groupIdCheck);
+                    if (empty($groupIdCheck)) {
+                        continue;
+                    }
+                } else {
+                    $groupIdOperator = 'exists';
+                }
+
+                $this->subQuery->andWhere([
+                    $groupIdOperator, (new Query())
+                        ->from(["ugu$i" => Table::USERGROUPS_USERS])
+                        ->where("[[elements.id]] = [[ugu$i.userId]]")
+                        ->andWhere(Db::parseParam('groupId', $groupIdCheck)),
+                ]);
+            }
         }
 
         if ($this->email) {
@@ -734,7 +783,6 @@ class UserQuery extends ElementQuery
                 ];
             case User::STATUS_PENDING:
                 return [
-                    'users.suspended' => false,
                     'users.pending' => true,
                 ];
             case User::STATUS_LOCKED:

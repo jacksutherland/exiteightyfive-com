@@ -66,12 +66,16 @@ class ElementRelationParamParser extends BaseObject
      */
     public static function normalizeRelatedToParam($relatedToParam): array
     {
-        // Ensure it's array
+        // Ensure it's an array
         if (!is_array($relatedToParam)) {
             $relatedToParam = is_string($relatedToParam) ? StringHelper::split($relatedToParam) : [$relatedToParam];
         }
 
-        if (isset($relatedToParam[0]) && in_array($relatedToParam[0], ['and', 'or'])) {
+        if (
+            isset($relatedToParam[0]) &&
+            is_string($relatedToParam[0]) &&
+            in_array($relatedToParam[0], ['and', 'or'])
+        ) {
             $glue = array_shift($relatedToParam);
             if ($glue === 'and' && count($relatedToParam) < 2) {
                 $glue = 'or';
@@ -164,7 +168,11 @@ class ElementRelationParamParser extends BaseObject
                     $elements = is_string($elements) ? StringHelper::split($elements) : [$elements];
                 }
 
-                if (isset($elements[0]) && in_array($elements[0], ['and', 'or'])) {
+                if (
+                    isset($elements[0]) &&
+                    is_string($elements[0]) &&
+                    in_array($elements[0], ['and', 'or'])
+                ) {
                     $glue = array_shift($elements);
                     if ($glue === 'and' && count($elements) < 2) {
                         $glue = 'or';
@@ -204,7 +212,7 @@ class ElementRelationParamParser extends BaseObject
 
             if ($condition) {
                 $conditions[] = $condition;
-            } else if ($glue === 'or') {
+            } elseif ($glue === 'or') {
                 continue;
             } else {
                 return false;
@@ -251,16 +259,16 @@ class ElementRelationParamParser extends BaseObject
                         if ($elementParam === 'element') {
                             $relSourceElementIds[] = $element;
                         }
-                    } else if ($element instanceof ElementInterface) {
+                    } elseif ($element instanceof ElementInterface) {
                         if ($elementParam === 'targetElement') {
-                            $relElementIds[] = $element->getSourceId();
+                            $relElementIds[] = $element->getCanonicalId();
                         } else {
                             $relElementIds[] = $element->id;
                             if ($elementParam === 'element') {
-                                $relSourceElementIds[] = $element->getSourceId();
+                                $relSourceElementIds[] = $element->getCanonicalId();
                             }
                         }
-                    } else if ($element instanceof ElementQueryInterface) {
+                    } elseif ($element instanceof ElementQueryInterface) {
                         $ids = $element->ids();
                         ArrayHelper::append($relElementIds, ...$ids);
                         if ($elementParam === 'element') {
@@ -334,7 +342,7 @@ class ElementRelationParamParser extends BaseObject
                 if ($fieldModel instanceof BaseRelationField) {
                     // We'll deal with normal relation fields all together
                     $relationFieldIds[] = $fieldModel->id;
-                } else if ($fieldModel instanceof Matrix) {
+                } elseif ($fieldModel instanceof Matrix) {
                     $blockTypeFieldIds = [];
 
                     // Searching by a specific block type field?

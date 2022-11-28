@@ -10,7 +10,9 @@ namespace craft\helpers;
 use Craft;
 use craft\base\ElementInterface;
 use craft\behaviors\DraftBehavior;
+use craft\behaviors\RevisionBehavior;
 use craft\enums\LicenseKeyStatus;
+use craft\errors\InvalidHtmlTagException;
 use craft\events\RegisterCpAlertsEvent;
 use craft\web\twig\TemplateLoaderException;
 use craft\web\View;
@@ -84,7 +86,7 @@ class Cp
                 // Invalid license?
                 if ($licenseKeyStatus === LicenseKeyStatus::Invalid) {
                     $alerts[] = Craft::t('app', 'Your Craft license key is invalid.');
-                } else if (Craft::$app->getHasWrongEdition()) {
+                } elseif (Craft::$app->getHasWrongEdition()) {
                     $message = Craft::t('app', 'You’re running Craft {edition} with a Craft {licensedEdition} license.', [
                             'edition' => Craft::$app->getEditionName(),
                             'licensedEdition' => Craft::$app->getLicensedEditionName(),
@@ -221,7 +223,63 @@ class Cp
         Event::trigger(self::class, self::EVENT_REGISTER_ALERTS, $event);
         $alerts = array_merge($alerts, $event->alerts);
 
+        // Inline CSS styles
+        foreach ($alerts as $i => $alert) {
+            $offset = 0;
+            while (true) {
+                try {
+                    $tagInfo = Html::parseTag($alert, $offset);
+                } catch (InvalidHtmlTagException $e) {
+                    break;
+                }
+
+                $newTagHtml = self::alertTagHtml($tagInfo);
+                $alert = substr($alert, 0, $tagInfo['start']) .
+                    $newTagHtml .
+                    substr($alert, $tagInfo['end']);
+                $offset = $tagInfo['start'] + strlen($newTagHtml);
+            }
+            $alerts[$i] = $alert;
+        }
+
         return $alerts;
+    }
+
+    private static function alertTagHtml(array $tagInfo): string
+    {
+        if ($tagInfo['type'] === 'text') {
+            return $tagInfo['value'];
+        }
+
+        $style = [];
+        if ($tagInfo['type'] === 'a') {
+            $style = array_merge($style, [
+                'color' => '#cf1124',
+                'text-decoration' => 'underline',
+            ]);
+
+            if (isset($tagInfo['attributes']['class']) && in_array('go', $tagInfo['attributes']['class'])) {
+                $style = array_merge($style, [
+                    'text-decoration' => 'none',
+                    'white-space' => 'nowrap',
+                    'border' => '1px solid #cf112480',
+                    'border-radius' => '4px',
+                    'padding' => '3px 5px',
+                    'margin' => '0 2px',
+                ]);
+            }
+        }
+
+        $childTagHtml = array_map(function(array $childTagInfo): string {
+            return self::alertTagHtml($childTagInfo);
+        }, $tagInfo['children'] ?? []);
+
+        return trim(static::renderTemplate('_layouts/components/tag.twig', [
+            'type' => $tagInfo['type'],
+            'attributes' => $tagInfo['attributes'] ?? [],
+            'style' => $style,
+            'content' => implode('', $childTagHtml),
+        ]));
     }
 
     /**
@@ -235,6 +293,7 @@ class Cp
      * @param bool $showThumb Whether the element thumb should be shown (if the element has one)
      * @param bool $showLabel Whether the element label should be shown
      * @param bool $showDraftName Whether to show the draft name beside the label if the element is a draft of a published element
+     * @param bool $single Whether the input name should omit the trailing `[]`
      * @return string
      * @since 3.5.8
      */
@@ -246,9 +305,9 @@ class Cp
         bool $showStatus = true,
         bool $showThumb = true,
         bool $showLabel = true,
-        bool $showDraftName = true
-    ): string
-    {
+        bool $showDraftName = true,
+        bool $single = false
+    ): string {
         $isDraft = $element->getIsDraft();
         $isRevision = !$isDraft && $element->getIsRevision();
         $label = $element->getUiLabel();
@@ -340,10 +399,16 @@ class Cp
         $html .= '>';
 
         if ($context === 'field' && $inputName !== null) {
-            $html .= Html::hiddenInput($inputName . '[]', $element->id) .
-                Html::tag('a', '', [
+            $html .= Html::hiddenInput($inputName . ($single ? '' : '[]'), $element->id) .
+                Html::tag('button', '', [
                     'class' => ['delete', 'icon'],
                     'title' => Craft::t('app', 'Remove'),
+                    'type' => 'button',
+                    'aria' => [
+                        'label' => Craft::t('app', 'Remove {label}', [
+                            'label' => $label,
+                        ]),
+                    ],
                 ]);
         }
 
@@ -379,7 +444,7 @@ class Cp
             $encodedLabel = Html::encode($label);
 
             if ($showDraftName && $isDraft && !$element->getIsUnpublishedDraft()) {
-                /* @var DraftBehavior|ElementInterface $element */
+                /** @var DraftBehavior|ElementInterface $element */
                 $encodedLabel .= Html::tag('span', $element->draftName ?: Craft::t('app', 'Draft'), [
                     'class' => 'draft-label',
                 ]);
@@ -391,12 +456,6 @@ class Cp
                 !$element->trashed &&
                 ($cpEditUrl = $element->getCpEditUrl())
             ) {
-                if ($isDraft) {
-                    $cpEditUrl = UrlHelper::urlWithParams($cpEditUrl, ['draftId' => $element->draftId]);
-                } else if ($isRevision) {
-                    $cpEditUrl = UrlHelper::urlWithParams($cpEditUrl, ['revisionId' => $element->revisionId]);
-                }
-
                 $html .= Html::a($encodedLabel, $cpEditUrl);
             } else {
                 $html .= $encodedLabel;
@@ -429,8 +488,7 @@ class Cp
         bool $showThumb = true,
         bool $showLabel = true,
         bool $showDraftName = true
-    ): string
-    {
+    ): string {
         if (empty($elements)) {
             return '';
         }
@@ -466,23 +524,46 @@ class Cp
      */
     public static function fieldHtml(string $input, array $config = []): string
     {
-        // Set the ID and instructionsId before rendering the field so it's consistent
         $id = $config['id'] = $config['id'] ?? 'field' . mt_rand();
-        $instructionsId = $config['instructionsId'] = $config['instructionsId'] ?? "$id-instructions";
+        $instructionsId = $config['instructionsId'] ?? "$id-instructions";
+        $tipId = $config['tipId'] ?? "$id-tip";
+        $warningId = $config['warningId'] ?? "$id-warning";
+        $errorsId = $config['errorsId'] ?? "$id-errors";
+        $statusId = $config['statusId'] ?? "$id-status";
+
+        $instructions = $config['instructions'] ?? null;
+        $tip = $config['tip'] ?? null;
+        $warning = $config['warning'] ?? null;
+        $errors = $config['errors'] ?? null;
+        $status = $config['status'] ?? null;
 
         if (StringHelper::startsWith($input, 'template:')) {
+            // Set a describedBy value in case the input template supports it
+            if (!isset($config['describedBy'])) {
+                $descriptorIds = array_filter([
+                    $errors ? $errorsId : null,
+                    $status ? $statusId : null,
+                    $instructions ? $instructionsId : null,
+                    $tip ? $tipId : null,
+                    $warning ? $warningId : null,
+                ]);
+                $config['describedBy'] = $descriptorIds ? implode(' ', $descriptorIds) : null;
+            }
+
             $input = static::renderTemplate(substr($input, 9), $config);
         }
 
         $fieldset = $config['fieldset'] ?? false;
         $fieldId = $config['fieldId'] ?? "$id-field";
         $labelId = $config['labelId'] ?? "$id-" . ($fieldset ? 'legend' : 'label');
-        $status = $config['status'] ?? null;
         $label = $config['fieldLabel'] ?? $config['label'] ?? null;
+
         if ($label === '__blank__') {
             $label = null;
         }
+
         $siteId = Craft::$app->getIsMultiSite() && isset($config['siteId']) ? (int)$config['siteId'] : null;
+
         if ($siteId) {
             $site = Craft::$app->getSites()->getSiteById($siteId);
             if (!$site) {
@@ -491,62 +572,85 @@ class Cp
         } else {
             $site = null;
         }
+
         $required = (bool)($config['required'] ?? false);
-        $instructions = $config['instructions'] ?? null;
         $instructionsPosition = $config['instructionsPosition'] ?? 'before';
-        $tip = $config['tip'] ?? null;
-        $warning = $config['warning'] ?? null;
         $orientation = $config['orientation'] ?? ($site ? $site->getLocale() : Craft::$app->getLocale())->getOrientation();
         $translatable = Craft::$app->getIsMultiSite() ? ($config['translatable'] ?? ($site !== null)) : false;
-        $errors = $config['errors'] ?? null;
+
         $fieldClass = array_merge(array_filter([
             'field',
             ($config['first'] ?? false) ? 'first' : null,
             $errors ? 'has-errors' : null,
         ]), Html::explodeClass($config['fieldClass'] ?? []));
+
         if (isset($config['attribute']) && ($currentUser = Craft::$app->getUser()->getIdentity())) {
             $showAttribute = $currentUser->admin && $currentUser->getPreference('showFieldHandles');
         } else {
             $showAttribute = false;
         }
-        $fieldAttributes = ArrayHelper::merge([
-            'class' => $fieldClass,
-            'id' => $fieldId,
-            'aria' => [
-                'describedby' => $instructions ? $instructionsId : false,
-            ],
-        ], $config['fieldAttributes'] ?? []);
-        $inputContainerAttributes = ArrayHelper::merge([
-            'class' => array_filter([
-                'input',
-                $orientation,
-                $errors ? 'errors' : null,
-            ]),
-        ], $config['inputContainerAttributes'] ?? []);
+
         $instructionsHtml = $instructions
-            ? Html::tag('div', preg_replace('/&amp;(\w+);/', '&$1;', Markdown::process($instructions, 'gfm-comment')), [
+            ? Html::tag('div', preg_replace('/&amp;(\w+);/', '&$1;', Markdown::process(Html::encodeInvalidTags($instructions), 'gfm-comment')), [
                 'id' => $instructionsId,
                 'class' => ['instructions'],
             ])
             : '';
 
-        return Html::tag($fieldset ? 'fieldset' : 'div',
-            ($status
-                ? Html::tag('div', Html::encode(mb_strtoupper($status[1][0])), [
-                    'class' => ['status-badge', $status[0]],
-                    'title' => $status[1],
+        $labelHtml = $label . (
+            $required
+                ? Html::tag('span', Craft::t('app', 'Required'), [
+                    'class' => ['visually-hidden'],
+                ]) .
+                Html::tag('span', '', [
+                    'class' => ['required'],
                     'aria' => [
-                        'label' => $status[1],
+                        'hidden' => 'true',
+                    ],
+                ])
+                : ''
+            );
+
+        $containerTag = $fieldset ? 'fieldset' : 'div';
+
+        return
+            Html::beginTag($containerTag, ArrayHelper::merge(
+                [
+                    'class' => $fieldClass,
+                    'id' => $fieldId,
+                ],
+                $config['fieldAttributes'] ?? []
+            )) .
+            (($label && $fieldset)
+                ? Html::tag('legend', $labelHtml, [
+                    'class' => ['visually-hidden'],
+                    'data' => [
+                        'label' => $label,
                     ],
                 ])
                 : '') .
+            ($status
+                ? Html::beginTag('div', [
+                    'id' => $statusId,
+                    'class' => ['status-badge', $status[0]],
+                    'title' => $status[1],
+                ]) .
+                Html::tag('span', $status[1], [
+                    'class' => 'visually-hidden',
+                ]) .
+                Html::endTag('div')
+                : '') .
             (($label || $showAttribute)
-                ? Html::tag('div',
+                ? (
+                    Html::beginTag('div', ['class' => 'heading']) .
+                    ($config['headingPrefix'] ?? '') .
                     ($label
-                        ? Html::tag($fieldset ? 'legend' : 'label', $label, ArrayHelper::merge([
+                        ? Html::tag($fieldset ? 'legend' : 'label', $labelHtml, ArrayHelper::merge([
                             'id' => $labelId,
-                            'class' => $required ? ['required'] : [],
                             'for' => !$fieldset ? $id : null,
+                            'aria' => [
+                                'hidden' => $fieldset ? 'true' : null,
+                            ],
                         ], $config['labelAttributes'] ?? []))
                         : '') .
                     ($translatable
@@ -569,31 +673,65 @@ class Cp
                             'class' => ['code', 'small', 'light'],
                             'value' => $config['attribute'],
                         ])
-                        : ''),
-                    [
-                        'class' => ['heading'],
-                    ]
+                        : '') .
+                    ($config['headingSuffix'] ?? '') .
+                    Html::endTag('div')
                 )
                 : '') .
             ($instructionsPosition === 'before' ? $instructionsHtml : '') .
-            Html::tag('div', $input, $inputContainerAttributes) .
+            Html::tag('div', $input, ArrayHelper::merge(
+                [
+                    'class' => array_filter([
+                        'input',
+                        $orientation,
+                        $errors ? 'errors' : null,
+                    ]),
+                ],
+                $config['inputContainerAttributes'] ?? []
+            )) .
             ($instructionsPosition === 'after' ? $instructionsHtml : '') .
-            ($tip
-                ? Html::tag('p', preg_replace('/&amp;(\w+);/', '&$1;', Markdown::processParagraph($tip)), [
-                    'class' => ['notice', 'with-icon'],
-                ])
-                : '') .
-            ($warning
-                ? Html::tag('p', preg_replace('/&amp;(\w+);/', '&$1;', Markdown::processParagraph($warning)), [
-                    'class' => ['warning', 'with-icon'],
-                ])
-                : '') .
+            self::_noticeHtml($tipId, 'notice', Craft::t('app', 'Tip:'), $tip) .
+            self::_noticeHtml($warningId, 'warning', Craft::t('app', 'Warning:'), $warning) .
             ($errors
                 ? static::renderTemplate('_includes/forms/errorList', [
+                    'id' => $errorsId,
                     'errors' => $errors,
                 ])
-                : ''),
-            $fieldAttributes);
+                : '') .
+            Html::endTag($containerTag);
+    }
+
+    /**
+     * Returns the HTML for a field tip/warning.
+     *
+     * @param string $id
+     * @param string $class
+     * @param string $label
+     * @param string|null $message
+     * @return string
+     */
+    private static function _noticeHtml(string $id, string $class, string $label, ?string $message): string
+    {
+        if (!$message) {
+            return '';
+        }
+
+        return
+            Html::beginTag('p', [
+                'id' => $id,
+                'class' => [$class, 'has-icon'],
+            ]) .
+            Html::tag('span', '', [
+                'class' => 'icon',
+                'aria' => [
+                    'hidden' => 'true',
+                ],
+            ]) .
+            Html::tag('span', "$label ", [
+                'class' => 'visually-hidden',
+            ]) .
+            Html::tag('span', preg_replace('/&amp;(\w+);/', '&$1;', Markdown::processParagraph(Html::encodeInvalidTags($message)))) .
+            Html::endTag('p');
     }
 
     /**
@@ -739,5 +877,143 @@ class Cp
     {
         $config['id'] = $config['id'] ?? 'textarea' . mt_rand();
         return static::fieldHtml('template:_includes/forms/textarea', $config);
+    }
+
+    /**
+     * Renders a date + time field’s HTML.
+     *
+     * @param array $config
+     * @return string
+     * @throws InvalidArgumentException if `$config['siteId']` is invalid
+     * @since 3.7.0
+     */
+    public static function dateTimeFieldHtml(array $config): string
+    {
+        $config['id'] = $config['id'] ?? 'datetime' . mt_rand();
+        return static::fieldHtml('template:_includes/forms/datetime', $config);
+    }
+
+    /**
+     * Renders an element select field’s HTML.
+     *
+     * @param array $config
+     * @return string
+     * @throws InvalidArgumentException if `$config['siteId']` is invalid
+     * @since 3.7.0
+     */
+    public static function elementSelectFieldHtml(array $config): string
+    {
+        $config['id'] = $config['id'] ?? 'elementselect' . mt_rand();
+        return static::fieldHtml('template:_includes/forms/elementSelect', $config);
+    }
+
+    /**
+     * Renders an autosuggest field’s HTML.
+     *
+     * @param array $config
+     * @return string
+     * @throws InvalidArgumentException if `$config['siteId']` is invalid
+     * @since 3.7.0
+     */
+    public static function autosuggestFieldHtml(array $config): string
+    {
+        $config['id'] = $config['id'] ?? 'autosuggest' . mt_rand();
+
+        // Suggest an environment variable / alias?
+        if ($config['suggestEnvVars'] ?? false) {
+            $value = $config['value'] ?? '';
+            if (!isset($config['tip']) && (!isset($value[0]) || !in_array($value[0], ['$', '@']))) {
+                if ($config['suggestAliases'] ?? false) {
+                    $config['tip'] = Craft::t('app', 'This can be set to an environment variable, or begin with an alias.');
+                } else {
+                    $config['tip'] = Craft::t('app', 'This can be set to an environment variable.');
+                }
+                $config['tip'] .= ' ' .
+                    Html::a(Craft::t('app', 'Learn more'), 'https://craftcms.com/docs/3.x/config/#environmental-configuration', [
+                        'class' => 'go',
+                    ]);
+            } elseif (
+                !isset($config['warning']) &&
+                ($value === '@web' || strpos($value, '@web/') === 0) &&
+                Craft::$app->getRequest()->isWebAliasSetDynamically
+            ) {
+                $config['warning'] = Craft::t('app', 'The `@web` alias is not recommended if it is determined automatically.');
+            }
+        }
+
+        return static::fieldHtml('template:_includes/forms/autosuggest', $config);
+    }
+
+    /**
+     * Returns a metadata component’s HTML.
+     *
+     * @param array $data The data, with keys representing the labels. The values can either be strings or callables.
+     * If a value is `false`, it will be omitted.
+     * @return string
+     */
+    public static function metadataHtml(array $data): string
+    {
+        $defs = [];
+
+        foreach ($data as $label => $value) {
+            if (is_callable($value)) {
+                $value = $value();
+            }
+            if ($value !== false) {
+                $defs[] = Html::tag('div',
+                    Html::tag('dt', Html::encode($label), ['class' => 'heading']) . "\n" .
+                    Html::tag('dd', $value, ['class' => 'value']), [
+                        'class' => 'data',
+                    ]);
+            }
+        }
+
+        if (empty($defs)) {
+            return '';
+        }
+
+        return Html::tag('dl', implode("\n", $defs), [
+            'class' => ['meta', 'read-only'],
+        ]);
+    }
+
+    /**
+     * Returns the page title and document title that should be used for Edit Element pages.
+     *
+     * @param ElementInterface $element
+     * @return string[]
+     * @since 3.7.0
+     */
+    public static function editElementTitles(ElementInterface $element): array
+    {
+        $title = trim((string)$element->title);
+
+        if ($title === '') {
+            if (!$element->id || $element->getIsUnpublishedDraft()) {
+                $title = Craft::t('app', 'Create a new {type}', [
+                    'type' => $element::lowerDisplayName(),
+                ]);
+            } else {
+                $title = Craft::t('app', 'Edit {type}', [
+                    'type' => $element::displayName(),
+                ]);
+            }
+        }
+
+        $docTitle = $title;
+
+        if ($element->getIsDraft()) {
+            /** @var ElementInterface|DraftBehavior $element */
+            if ($element->isProvisionalDraft) {
+                $docTitle .= ' — ' . Craft::t('app', 'Edited');
+            } else {
+                $docTitle .= " ($element->draftName)";
+            }
+        } elseif ($element->getIsRevision()) {
+            /** @var ElementInterface|RevisionBehavior $element */
+            $docTitle .= ' (' . $element->getRevisionLabel() . ')';
+        }
+
+        return [$docTitle, $title];
     }
 }

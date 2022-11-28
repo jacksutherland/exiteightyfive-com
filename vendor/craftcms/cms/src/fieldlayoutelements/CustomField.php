@@ -11,7 +11,6 @@ use Craft;
 use craft\base\ElementInterface;
 use craft\base\FieldInterface;
 use craft\helpers\ArrayHelper;
-use craft\helpers\Html;
 use yii\base\InvalidArgumentException;
 
 /**
@@ -177,7 +176,7 @@ class CustomField extends BaseField
      */
     protected function statusClass(ElementInterface $element = null, bool $static = false)
     {
-        if ($element && ($status = $element->getFieldStatus($this->_field->handle))) {
+        if ($element && ($status = $this->_field->getStatus($element))) {
             return $status[0];
         }
         return null;
@@ -188,7 +187,7 @@ class CustomField extends BaseField
      */
     protected function statusLabel(ElementInterface $element = null, bool $static = false)
     {
-        if ($element && ($status = $element->getFieldStatus($this->_field->handle))) {
+        if ($element && ($status = $this->_field->getStatus($element))) {
             return $status[1];
         }
         return null;
@@ -208,15 +207,12 @@ class CustomField extends BaseField
     public function formHtml(ElementInterface $element = null, bool $static = false)
     {
         $view = Craft::$app->getView();
-        $registerDeltas = ($element->id ?? false) && $view->getIsDeltaRegistrationActive();
-        $namespace = $view->getNamespace();
-        $view->setIsDeltaRegistrationActive(!$static);
-        $view->setNamespace($view->namespaceInputName('fields'));
-
-        $html = Html::namespaceHtml(parent::formHtml($element, $static), 'fields');
-
-        $view->setIsDeltaRegistrationActive($registerDeltas);
-        $view->setNamespace($namespace);
+        $isDeltaRegistrationActive = $view->getIsDeltaRegistrationActive();
+        $view->setIsDeltaRegistrationActive($isDeltaRegistrationActive && ($element->id ?? false) && !$static);
+        $html = $view->namespaceInputs(function() use ($element, $static) {
+            return (string)parent::formHtml($element, $static);
+        }, 'fields');
+        $view->setIsDeltaRegistrationActive($isDeltaRegistrationActive);
 
         return $html;
     }
@@ -232,6 +228,14 @@ class CustomField extends BaseField
     /**
      * @inheritdoc
      */
+    protected function id(): string
+    {
+        return $this->_field->getInputId();
+    }
+
+    /**
+     * @inheritdoc
+     */
     protected function inputHtml(ElementInterface $element = null, bool $static = false): string
     {
         $value = $element ? $element->getFieldValue($this->_field->handle) : $this->_field->normalizeValue(null);
@@ -242,10 +246,31 @@ class CustomField extends BaseField
 
         $view = Craft::$app->getView();
         $view->registerDeltaName($this->_field->handle);
+
         if (empty($element->id) || $element->isFieldEmpty($this->_field->handle)) {
             $view->setInitialDeltaValue($this->_field->handle, null);
         }
-        return $this->_field->getInputHtml($value, $element);
+
+        $required = $this->_field->required;
+        $describedBy = $this->_field->describedBy;
+
+        $this->_field->required = $this->required;
+        $this->_field->describedBy = $this->describedBy($element, $static);
+
+        $html = $this->_field->getInputHtml($value, $element);
+
+        $this->_field->required = $required;
+        $this->_field->describedBy = $describedBy;
+
+        return $html;
+    }
+
+    /**
+     * @inheritdoc
+     */
+    protected function orientation(ElementInterface $element = null, bool $static = false): string
+    {
+        return $this->_field->getOrientation($element);
     }
 
     /**

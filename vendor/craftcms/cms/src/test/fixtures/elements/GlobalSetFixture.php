@@ -7,7 +7,6 @@
 
 namespace craft\test\fixtures\elements;
 
-
 use Craft;
 use craft\base\ElementInterface;
 use craft\elements\GlobalSet;
@@ -54,7 +53,7 @@ abstract class GlobalSetFixture extends BaseElementFixture
      */
     protected function saveElement(ElementInterface $element): bool
     {
-        /* @var GlobalSet $element */
+        /** @var GlobalSet $element */
         if (!parent::saveElement($element)) {
             return false;
         }

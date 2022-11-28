@@ -28,24 +28,6 @@ return array (
       'mobileDetectService' => 'superbig\\mobiledetect\\services\\MobileDetectService',
     ),
   ),
-  'verbb/comments' => 
-  array (
-    'class' => 'verbb\\comments\\Comments',
-    'basePath' => $vendorDir . '/verbb/comments/src',
-    'handle' => 'comments',
-    'aliases' => 
-    array (
-      '@verbb/comments' => $vendorDir . '/verbb/comments/src',
-    ),
-    'name' => 'Comments',
-    'version' => '1.8.7',
-    'description' => 'A Craft CMS plugin for managing comments directly within the CMS.',
-    'developer' => 'Verbb',
-    'developerUrl' => 'https://verbb.io',
-    'developerEmail' => 'support@verbb.io',
-    'documentationUrl' => 'https://github.com/verbb/comments',
-    'changelogUrl' => 'https://raw.githubusercontent.com/verbb/comments/craft-3/CHANGELOG.md',
-  ),
   'craftcms/redactor' => 
   array (
     'class' => 'craft\\redactor\\Plugin',
@@ -56,7 +38,7 @@ return array (
       '@craft/redactor' => $vendorDir . '/craftcms/redactor/src',
     ),
     'name' => 'Redactor',
-    'version' => '2.8.7',
+    'version' => '2.10.10',
     'description' => 'Edit rich text content in Craft CMS using Redactor by Imperavi.',
     'developer' => 'Pixel & Tonic',
     'developerUrl' => 'https://pixelandtonic.com/',

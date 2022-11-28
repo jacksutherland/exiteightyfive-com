@@ -9,14 +9,12 @@ namespace craft\fields;
 
 use Craft;
 use craft\base\ElementInterface;
-use craft\db\Table as DbTable;
 use craft\elements\Category;
 use craft\elements\db\CategoryQuery;
 use craft\gql\arguments\elements\Category as CategoryArguments;
 use craft\gql\interfaces\elements\Category as CategoryInterface;
 use craft\gql\resolvers\elements\Category as CategoryResolver;
 use craft\helpers\ArrayHelper;
-use craft\helpers\Db;
 use craft\helpers\ElementHelper;
 use craft\helpers\Gql;
 use craft\helpers\Gql as GqlHelper;
@@ -105,7 +103,7 @@ class Categories extends BaseRelationField
     public function normalizeValue($value, ElementInterface $element = null)
     {
         if (is_array($value)) {
-            /* @var Category[] $categories */
+            /** @var Category[] $categories */
             $categories = Category::find()
                 ->siteId($this->targetSiteId($element))
                 ->id(array_values(array_filter($value)))
@@ -155,6 +153,13 @@ class Categories extends BaseRelationField
         return $variables;
     }
 
+    public function getEagerLoadingMap(array $sourceElements)
+    {
+        $map = parent::getEagerLoadingMap($sourceElements);
+        $map['criteria']['orderBy'] = ['structureelements.lft' => SORT_ASC];
+        return $map;
+    }
+
     /**
      * @inheritdoc
      */
@@ -185,14 +190,20 @@ class Categories extends BaseRelationField
     public function getEagerLoadingGqlConditions()
     {
         $allowedEntities = Gql::extractAllowedEntitiesFromSchema();
-        $allowedCategoryUids = $allowedEntities['categorygroups'] ?? [];
+        $categoryGroupUids = $allowedEntities['categorygroups'] ?? [];
 
-        if (empty($allowedCategoryUids)) {
+        if (empty($categoryGroupUids)) {
             return false;
         }
 
-        $categoryIds = Db::idsByUids(DbTable::CATEGORYGROUPS, $allowedCategoryUids);
+        $categoriesService = Craft::$app->getCategories();
+        $groupIds = array_filter(array_map(function(string $uid) use ($categoriesService) {
+            $group = $categoriesService->getGroupByUid($uid);
+            return $group->id ?? null;
+        }, $categoryGroupUids));
 
-        return ['groupId' => array_values($categoryIds)];
+        return [
+            'groupId' => $groupIds,
+        ];
     }
 }

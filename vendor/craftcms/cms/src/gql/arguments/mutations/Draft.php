@@ -23,13 +23,18 @@ class Draft extends Entry
     public static function getArguments(): array
     {
         $parentArguments = parent::getArguments();
-        unset ($parentArguments['id'], $parentArguments['uid']);
+        unset($parentArguments['id'], $parentArguments['uid']);
 
         return array_merge($parentArguments, [
             'draftId' => [
                 'name' => 'draftId',
                 'type' => Type::nonNull(Type::id()),
                 'description' => 'The ID of the draft.',
+            ],
+            'provisional' => [
+                'name' => 'provisional',
+                'type' => Type::boolean(),
+                'description' => 'Whether a provisional draft should be looked up.',
             ],
             'draftName' => [
                 'name' => 'draftName',

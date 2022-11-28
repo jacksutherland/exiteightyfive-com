@@ -16,11 +16,13 @@ use craft\helpers\Json;
 use craft\records\Token as TokenRecord;
 use DateTime;
 use yii\base\Component;
+use yii\base\InvalidArgumentException;
 use yii\db\Expression;
 
 /**
  * The Tokens service.
- * An instance of the Tokens service is globally accessible in Craft via [[\craft\base\ApplicationTrait::getTokens()|`Craft::$app->tokens`]].
+ *
+ * An instance of the service is available via [[\craft\base\ApplicationTrait::getTokens()|`Craft::$app->tokens`]].
  *
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
@@ -53,10 +55,15 @@ class Tokens extends Component
      * used. Defaults to no limit.
      * @param DateTime|null $expiryDate The date that the token expires.
      * Defaults to the 'defaultTokenDuration' config setting.
+     * @param string|null $token The token to use, if it was pre-generated. Must be exactly 32 characters.
      * @return string|false The generated token, or `false` if there was an error.
      */
-    public function createToken($route, int $usageLimit = null, DateTime $expiryDate = null)
+    public function createToken($route, ?int $usageLimit = null, ?DateTime $expiryDate = null, ?string $token = null)
     {
+        if ($token !== null && strlen($token) !== 32) {
+            throw new InvalidArgumentException("Invalid token: $token");
+        }
+
         if (!$expiryDate) {
             $generalConfig = Craft::$app->getConfig()->getGeneral();
             $interval = DateTimeHelper::secondsToInterval($generalConfig->defaultTokenDuration);
@@ -65,7 +72,7 @@ class Tokens extends Component
         }
 
         $tokenRecord = new TokenRecord();
-        $tokenRecord->token = Craft::$app->getSecurity()->generateRandomString(32);
+        $tokenRecord->token = $token ?? Craft::$app->getSecurity()->generateRandomString();
         $tokenRecord->route = $route;
 
         if ($usageLimit !== null) {
@@ -81,6 +88,23 @@ class Tokens extends Component
         }
 
         return false;
+    }
+
+    /**
+     * Creates a new token for previewing content, using the <config3:previewTokenDuration> to determine the duration, if set.
+     *
+     * @param mixed $route Where matching requests should be routed to.
+     * @param int|null $usageLimit The maximum number of times this token can be
+     * used. Defaults to no limit.
+     * @param string|null $token The token to use, if it was pre-generated. Must be exactly 32 characters.
+     * @return string|false The generated token, or `false` if there was an error.
+     * @since 3.7.0
+     */
+    public function createPreviewToken($route, ?int $usageLimit = null, ?string $token = null)
+    {
+        $interval = DateTimeHelper::secondsToInterval(Craft::$app->getConfig()->getGeneral()->previewTokenDuration);
+        $expiryDate = DateTimeHelper::currentUTCDateTime()->add($interval);
+        return $this->createToken($route, $usageLimit, $expiryDate, $token);
     }
 
     /**

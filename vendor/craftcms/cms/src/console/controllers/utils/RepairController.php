@@ -9,11 +9,15 @@ namespace craft\console\controllers\utils;
 
 use Craft;
 use craft\base\ElementInterface;
+use craft\behaviors\DraftBehavior;
+use craft\behaviors\RevisionBehavior;
 use craft\console\Controller;
 use craft\elements\Category;
 use craft\elements\db\ElementQuery;
 use craft\elements\Entry;
+use craft\helpers\ArrayHelper;
 use craft\helpers\Console;
+use craft\helpers\ElementHelper;
 use craft\models\Section;
 use craft\records\StructureElement;
 use craft\services\ProjectConfig;
@@ -22,7 +26,7 @@ use yii\console\ExitCode;
 use yii\db\Expression;
 
 /**
- * Repairs data
+ * Repairs data.
  *
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.4.24
@@ -30,7 +34,7 @@ use yii\db\Expression;
 class RepairController extends Controller
 {
     /**
-     * @var bool Whether to only do a dry run of the repair process
+     * @var bool Whether to only do a dry run of the repair process.
      */
     public $dryRun = false;
 
@@ -45,9 +49,9 @@ class RepairController extends Controller
     }
 
     /**
-     * Repairs structure data for a section
+     * Repairs structure data for a section.
      *
-     * @param string $handle The section handle
+     * @param string $handle The section handle.
      * @return int
      */
     public function actionSectionStructure(string $handle): int
@@ -68,9 +72,9 @@ class RepairController extends Controller
     }
 
     /**
-     * Repairs structure data for a category group
+     * Repairs structure data for a category group.
      *
-     * @param string $handle The category group handle
+     * @param string $handle The category group handle.
      * @return int
      */
     public function actionCategoryGroupStructure(string $handle): int
@@ -104,8 +108,10 @@ class RepairController extends Controller
 
         // Get all the elements that match the query, including ones that may not be part of the structure
         $elements = $query
-            ->siteId('*')
+            ->site('*')
             ->unique()
+            ->drafts(null)
+            ->provisionalDrafts(null)
             ->anyStatus()
             ->withStructure(false)
             ->addSelect([
@@ -119,6 +125,13 @@ class RepairController extends Controller
                 '[[structureelements.elementId]] = [[elements.id]]',
                 ['structureelements.structureId' => $structureId],
             ])
+            // Only include unpublished and provisional drafts
+            ->andWhere([
+                'or',
+                ['elements.draftId' => null],
+                ['elements.canonicalId' => null],
+                ['and', ['drafts.provisional' => true], ['not', ['structureelements.lft' => null]]],
+            ])
             ->orderBy([
                 new Expression('CASE WHEN [[structureelements.lft]] IS NOT NULL THEN 0 ELSE 1 END ASC'),
                 'structureelements.lft' => SORT_ASC,
@@ -126,7 +139,7 @@ class RepairController extends Controller
             ])
             ->all();
 
-        /* @var string|ElementInterface $elementType */
+        /** @var string|ElementInterface $elementType */
         $elementType = $query->elementType;
         $displayName = $elementType::pluralLowerDisplayName();
 
@@ -137,6 +150,7 @@ class RepairController extends Controller
 
         $this->stdout('Processing ' . count($elements) . " $displayName" . ($this->dryRun ? ' (dry run)' : '') . ' ...' . PHP_EOL);
 
+        /** @var ElementInterface[] $ancestors */
         $ancestors = [];
         $level = 0;
 
@@ -153,58 +167,90 @@ class RepairController extends Controller
             }
 
             foreach ($elements as $element) {
-                /* @var ElementInterface $element */
+                /** @var ElementInterface $element */
                 if (!$element->level) {
                     $issue = 'was missing from structure';
-                    if (!$this->dryRun) {
-                        $structuresService->appendToRoot($structureId, $element, Structures::MODE_INSERT);
-                    }
-                } else if ($element->level < 1) {
+                    $newLevel = 1;
+                } elseif ($element->level < 1) {
                     $issue = "had unexpected level ($element->level)";
-                    if (!$this->dryRun) {
-                        $structuresService->appendToRoot($structureId, $element, Structures::MODE_INSERT);
-                    }
-                } else if ($element->level > $level + 1 && (!$structure->maxLevels || $level < $structure->maxLevels)) {
+                    $newLevel = 1;
+                } elseif ($element->level > $level + 1 && (!$structure->maxLevels || $level < $structure->maxLevels)) {
                     $issue = "had unexpected level ($element->level)";
-                    if (!empty($ancestors)) {
-                        if (!$this->dryRun) {
-                            $structuresService->append($structureId, $element, end($ancestors), Structures::MODE_INSERT);
-                        }
-                    } else {
-                        if (!$this->dryRun) {
-                            $structuresService->appendToRoot($structureId, $element, Structures::MODE_INSERT);
-                        }
-                    }
-                } else if ($structure->maxLevels && $element->level > $structure->maxLevels) {
+                    $newLevel = !empty($ancestors) ? $level + 1 : 1;
+                } elseif ($structure->maxLevels && $element->level > $structure->maxLevels) {
                     $issue = "exceeded the max level ($structure->maxLevels)";
-                    if (isset($ancestors[$level - 2])) {
-                        if (!$this->dryRun) {
-                            $structuresService->append($structureId, $element, $ancestors[$level - 2], Structures::MODE_INSERT);
-                        }
-                    } else {
-                        if (!$this->dryRun) {
-                            $structuresService->appendToRoot($structureId, $element, Structures::MODE_INSERT);
-                        }
-                    }
+                    $newLevel = isset($ancestors[$level - 2]) ? $level : 1;
                 } else {
-                    $issue = false;
-                    if ($element->level == 1) {
-                        if (!$this->dryRun) {
-                            $structuresService->appendToRoot($structureId, $element, Structures::MODE_INSERT);
-                        }
-                    } else {
-                        if (!$this->dryRun) {
-                            $structuresService->append($structureId, $element, $ancestors[$element->level - 2], Structures::MODE_INSERT);
-                        }
-                    }
+                    $issue = null;
+                    $newLevel = $element->level;
                 }
 
+                // Skip provisional drafts if they exist directly after their canonical element
+                if (
+                    $element->isProvisionalDraft &&
+                    isset($ancestors[$newLevel - 1]) &&
+                    $element->getCanonicalId() == $ancestors[$newLevel - 1]->id
+                ) {
+                    $removed = true;
+                } else {
+                    if ($newLevel == 1) {
+                        if (!$this->dryRun) {
+                            $structuresService->appendToRoot($structureId, $element, Structures::MODE_INSERT);
+                        }
+                    } else {
+                        // Make sure that the element has at least one site in common with the parent
+                        $parentElement = $ancestors[$newLevel - 2];
+                        $elementSites = ArrayHelper::getColumn(ElementHelper::supportedSitesForElement($element), 'siteId');
+                        $parentSites = ArrayHelper::getColumn(ElementHelper::supportedSitesForElement($parentElement), 'siteId');
+
+                        if (!array_intersect($elementSites, $parentSites)) {
+                            $issue = 'no supported sites in common with parent';
+                            if (!$this->dryRun) {
+                                $structuresService->appendToRoot($structureId, $element, Structures::MODE_INSERT);
+                            }
+                        } elseif (!$this->dryRun) {
+                            $structuresService->append($structureId, $element, $parentElement, Structures::MODE_INSERT);
+                        }
+                    }
+
+                    $removed = false;
+                }
+
+                $this->stdout(' ');
+
                 $space = $element->level > 1 ? str_repeat(' ', ($element->level - 1) * 4 - 2) : '';
-                $this->stdout(' ' . ($issue ? '✖' : '✔') . ' ' . $space, $issue ? Console::FG_RED : Console::FG_GREEN);
-                $this->stdout(($element->level > 1 ? '∟ ' : '') . $element->title);
-                if ($issue) {
+
+                if ($removed) {
+                    $this->stdout('*', Console::FG_YELLOW);
+                } elseif ($issue) {
+                    $this->stdout('✖', Console::FG_RED);
+                } else {
+                    $this->stdout('✔', Console::FG_GREEN);
+                }
+
+                $this->stdout(" $space" . ($element->level > 1 ? '∟ ' : '') . $element->title);
+
+                if ($element->getIsDraft() || $element->getIsRevision()) {
+                    if ($element->isProvisionalDraft) {
+                        $revLabel = 'provisional draft';
+                    } elseif ($element->getIsUnpublishedDraft()) {
+                        $revLabel = 'unpublished draft';
+                    } elseif ($element->getIsDraft()) {
+                        /** @var DraftBehavior|ElementInterface $element */
+                        $revLabel = 'draft' . ($element->draftName ? ": $element->draftName" : '');
+                    } else {
+                        /** @var RevisionBehavior|ElementInterface $element */
+                        $revLabel = 'revision' . ($element->revisionNum ? " $element->revisionNum" : '');
+                    }
+                    $this->stdout(" ($revLabel)", Console::FG_GREY);
+                }
+
+                if ($removed) {
+                    $this->stdout(' - removed', Console::FG_YELLOW);
+                } elseif ($issue) {
                     $this->stdout(" - $issue", Console::FG_RED);
                 }
+
                 $this->stdout(PHP_EOL);
 
                 // Prepare for the next element

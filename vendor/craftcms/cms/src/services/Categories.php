@@ -34,7 +34,8 @@ use yii\base\Exception;
 
 /**
  * Categories service.
- * An instance of the Categories service is globally accessible in Craft via [[\craft\base\ApplicationTrait::getCategories()|`Craft::$app->categories`]].
+ *
+ * An instance of the service is available via [[\craft\base\ApplicationTrait::getCategories()|`Craft::$app->categories`]].
  *
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
@@ -70,7 +71,7 @@ class Categories extends Component
     const CONFIG_CATEGORYROUP_KEY = 'categoryGroups';
 
     /**
-     * @var MemoizableArray|null
+     * @var MemoizableArray<CategoryGroup>|null
      * @see _groups()
      */
     private $_groups;
@@ -111,14 +112,14 @@ class Categories extends Component
     /**
      * Returns a memoizable array of all category groups.
      *
-     * @return MemoizableArray
+     * @return MemoizableArray<CategoryGroup>
      */
     private function _groups(): MemoizableArray
     {
         if ($this->_groups === null) {
             $groups = [];
 
-            /* @var CategoryGroupRecord[] $groupRecords */
+            /** @var CategoryGroupRecord[] $groupRecords */
             $groupRecords = CategoryGroupRecord::find()
                 ->orderBy(['name' => SORT_ASC])
                 ->with('structure')
@@ -314,6 +315,7 @@ class Categories extends Component
             $groupRecord->name = $data['name'];
             $groupRecord->handle = $data['handle'];
             $groupRecord->uid = $categoryGroupUid;
+            $groupRecord->defaultPlacement = $data['defaultPlacement'] ?? CategoryGroup::DEFAULT_PLACEMENT_END;
 
             // Structure
             $structuresService = Craft::$app->getStructures();
@@ -330,9 +332,9 @@ class Categories extends Component
                 $layout->id = $groupRecord->fieldLayoutId;
                 $layout->type = Category::class;
                 $layout->uid = key($data['fieldLayouts']);
-                Craft::$app->getFields()->saveLayout($layout);
+                Craft::$app->getFields()->saveLayout($layout, false);
                 $groupRecord->fieldLayoutId = $layout->id;
-            } else if ($groupRecord->fieldLayoutId) {
+            } elseif ($groupRecord->fieldLayoutId) {
                 // Delete the field layout
                 Craft::$app->getFields()->deleteLayoutById($groupRecord->fieldLayoutId);
                 $groupRecord->fieldLayoutId = null;
@@ -401,7 +403,6 @@ class Categories extends Component
                 // site rows
                 $affectedSiteUids = array_keys($siteData);
 
-                /* @noinspection PhpUndefinedVariableInspection */
                 foreach ($allOldSiteSettingsRecords as $siteId => $siteSettingsRecord) {
                     $siteUid = array_search($siteId, $siteIdMap, false);
                     if (!in_array($siteUid, $affectedSiteUids, false)) {
@@ -430,7 +431,7 @@ class Categories extends Component
                             'elementId' => $categoryIds,
                             'siteId' => $sitesNowWithoutUrls,
                         ]);
-                    } else if (!empty($sitesWithNewUriFormats)) {
+                    } elseif (!empty($sitesWithNewUriFormats)) {
                         foreach ($categoryIds as $categoryId) {
                             App::maxPowerCaptain();
 
@@ -558,7 +559,7 @@ class Categories extends Component
             return;
         }
 
-        /* @var CategoryGroup $group */
+        /** @var CategoryGroup $group */
         $group = $this->getGroupById($categoryGroupRecord->id);
 
         // Fire a 'beforeApplyGroupDelete' event
@@ -616,43 +617,10 @@ class Categories extends Component
     }
 
     /**
-     * Prune a deleted field from category group layouts.
-     *
-     * @param FieldEvent $event
+     * @deprecated in 3.7.51. Unused fields will be pruned automatically as field layouts are resaved.
      */
     public function pruneDeletedField(FieldEvent $event)
     {
-        $field = $event->field;
-        $fieldUid = $field->uid;
-
-        $projectConfig = Craft::$app->getProjectConfig();
-        $categoryGroups = $projectConfig->get(self::CONFIG_CATEGORYROUP_KEY);
-
-        // Engage stealth mode
-        $projectConfig->muteEvents = true;
-
-        // Loop through the category groups and prune the UID from field layouts.
-        if (is_array($categoryGroups)) {
-            foreach ($categoryGroups as $categoryGroupUid => $categoryGroup) {
-                if (!empty($categoryGroup['fieldLayouts'])) {
-                    foreach ($categoryGroup['fieldLayouts'] as $layoutUid => $layout) {
-                        if (!empty($layout['tabs'])) {
-                            foreach ($layout['tabs'] as $tabUid => $tab) {
-                                $projectConfig->remove(self::CONFIG_CATEGORYROUP_KEY . '.' . $categoryGroupUid . '.fieldLayouts.' . $layoutUid . '.tabs.' . $tabUid . '.fields.' . $fieldUid, 'Prune deleted field');
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Nuke all the layout fields from the DB
-        Db::delete(Table::FIELDLAYOUTFIELDS, [
-            'fieldId' => $field->id,
-        ]);
-
-        // Allow events again
-        $projectConfig->muteEvents = false;
     }
 
     /**
@@ -704,7 +672,7 @@ class Categories extends Component
             return null;
         }
 
-        /* @noinspection PhpIncompatibleReturnTypeInspection */
+        /** @noinspection PhpIncompatibleReturnTypeInspection */
         return Craft::$app->getElements()->getElementById($categoryId, Category::class, $siteId, [
             'structureId' => $structureId,
         ]);
@@ -751,6 +719,7 @@ class Categories extends Component
             'fieldLayoutId',
             'name',
             'handle',
+            'defaultPlacement',
             'uid',
         ]));
 

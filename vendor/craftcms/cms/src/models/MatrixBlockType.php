@@ -122,7 +122,7 @@ class MatrixBlockType extends Model implements GqlInlineFragmentInterface
             throw new InvalidConfigException('Block type missing its field ID');
         }
 
-        /* @var Matrix $field */
+        /** @var Matrix $field */
         if (($field = Craft::$app->getFields()->getFieldById($this->fieldId)) === null) {
             throw new InvalidConfigException('Invalid field ID: ' . $this->fieldId);
         }
@@ -149,7 +149,7 @@ class MatrixBlockType extends Model implements GqlInlineFragmentInterface
     }
 
     /**
-     * Returns the field layout config for this block type.
+     * Returns the block type’s config.
      *
      * @return array
      * @since 3.5.0

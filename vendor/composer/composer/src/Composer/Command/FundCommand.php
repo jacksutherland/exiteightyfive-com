@@ -12,12 +12,15 @@
 
 namespace Composer\Command;
 
-use Composer\Package\CompletePackageInterface;
+use Composer\Json\JsonFile;
 use Composer\Package\AliasPackage;
 use Composer\Package\BasePackage;
-use Composer\Semver\Constraint\MatchAllConstraint;
+use Composer\Package\CompletePackageInterface;
+use Composer\Pcre\Preg;
 use Composer\Repository\CompositeRepository;
+use Composer\Semver\Constraint\MatchAllConstraint;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 /**
@@ -26,13 +29,22 @@ use Symfony\Component\Console\Output\OutputInterface;
  */
 class FundCommand extends BaseCommand
 {
+    /**
+     * @return void
+     */
     protected function configure()
     {
         $this->setName('fund')
             ->setDescription('Discover how to help fund the maintenance of your dependencies.')
+            ->setDefinition(array(
+                new InputOption('format', 'f', InputOption::VALUE_REQUIRED, 'Format of the output: text or json', 'text'),
+            ))
         ;
     }
 
+    /**
+     * @return int
+     */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         $composer = $this->getComposer();
@@ -81,7 +93,14 @@ class FundCommand extends BaseCommand
 
         $io = $this->getIO();
 
-        if ($fundings) {
+        $format = $input->getOption('format');
+        if (!in_array($format, array('text', 'json'))) {
+            $io->writeError(sprintf('Unsupported format "%s". See help for supported formats.', $format));
+
+            return 1;
+        }
+
+        if ($fundings && $format === 'text') {
             $prev = null;
 
             $io->write('The following packages were found in your dependencies which publish funding information:');
@@ -104,6 +123,8 @@ class FundCommand extends BaseCommand
             $io->write("");
             $io->write("Please consider following these links and sponsoring the work of package authors!");
             $io->write("Thank you!");
+        } elseif ($format === 'json') {
+            $io->write(JsonFile::encode($fundings));
         } else {
             $io->write("No funding links were found in your package dependencies. This doesn't mean they don't need your support!");
         }
@@ -111,6 +132,10 @@ class FundCommand extends BaseCommand
         return 0;
     }
 
+    /**
+     * @param mixed[] $fundings
+     * @return mixed[]
+     */
     private function insertFundingData(array $fundings, CompletePackageInterface $package)
     {
         foreach ($package->getFunding() as $fundingOption) {
@@ -120,7 +145,7 @@ class FundCommand extends BaseCommand
                 continue;
             }
             $url = $fundingOption['url'];
-            if (!empty($fundingOption['type']) && $fundingOption['type'] === 'github' && preg_match('{^https://github.com/([^/]+)$}', $url, $match)) {
+            if (!empty($fundingOption['type']) && $fundingOption['type'] === 'github' && Preg::isMatch('{^https://github.com/([^/]+)$}', $url, $match)) {
                 $url = 'https://github.com/sponsors/'.$match[1];
             }
             $fundings[$vendor][$url][] = $packageName;

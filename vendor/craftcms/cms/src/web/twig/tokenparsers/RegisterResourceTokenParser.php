@@ -90,7 +90,7 @@ class RegisterResourceTokenParser extends AbstractTokenParser
         }
 
         $lineno = $token->getLine();
-        /* @var Parser $parser */
+        /** @var Parser $parser */
         $parser = $this->parser;
         $stream = $parser->getStream();
         $expressionParser = $parser->getExpressionParser();
@@ -125,7 +125,7 @@ class RegisterResourceTokenParser extends AbstractTokenParser
                 'POS_END',
             ]);
             $position = $nameToken->getValue();
-        } else if ($this->allowRuntimePosition && $stream->test(Token::NAME_TYPE, 'on')) {
+        } elseif ($this->allowRuntimePosition && $stream->test(Token::NAME_TYPE, 'on')) {
             $stream->next();
             $nameToken = $stream->expect(Token::NAME_TYPE, [
                 'ready',

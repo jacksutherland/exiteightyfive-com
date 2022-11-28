@@ -9,6 +9,7 @@ namespace craft\console;
 
 use Craft;
 use craft\base\ApplicationTrait;
+use craft\console\controllers\HelpController;
 use craft\db\Query;
 use craft\db\Table;
 use craft\errors\MissingComponentException;
@@ -17,7 +18,6 @@ use craft\queue\QueueLogBehavior;
 use yii\base\Component;
 use yii\base\InvalidConfigException;
 use yii\console\controllers\CacheController;
-use yii\console\controllers\HelpController;
 use yii\console\controllers\MigrateController;
 use yii\console\Response;
 
@@ -28,8 +28,8 @@ use yii\console\Response;
  *
  * @property Request $request The request component
  * @property User $user The user component
- * @method Request getRequest()      Returns the request component.
- * @method Response getResponse()     Returns the response component.
+ * @method Request getRequest() Returns the request component.
+ * @method Response getResponse() Returns the response component.
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
  */
@@ -105,6 +105,17 @@ class Application extends \yii\console\Application
                 parent::setTimeZone('UTC');
             }
         }
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function handleRequest($request)
+    {
+        // Disable read/write splitting for all console requests
+        $this->getDb()->enableReplicas = false;
+
+        return parent::handleRequest($request);
     }
 
     /**

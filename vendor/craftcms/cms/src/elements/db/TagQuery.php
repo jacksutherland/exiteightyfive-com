@@ -7,6 +7,7 @@
 
 namespace craft\elements\db;
 
+use Craft;
 use craft\db\Query;
 use craft\db\QueryAbortedException;
 use craft\db\Table;
@@ -19,7 +20,7 @@ use yii\db\Connection;
 /**
  * TagQuery represents a SELECT SQL statement for tags in a way that is independent of DBMS.
  *
- * @property string|string[]|TagGroup $group The handle(s) of the tag group(s) that resulting tags must belong to.
+ * @property-write string|string[]|TagGroup|null $group The tag group(s) that resulting tags must belong to
  * @method Tag[]|array all($db = null)
  * @method Tag|array|null one($db = null)
  * @method Tag|array|null nth(int $n, Connection $db = null)
@@ -57,8 +58,8 @@ class TagQuery extends ElementQuery
      * ```twig
      * {# fetch tags in the Topics group #}
      * {% set tags = craft.tags()
-     *     .group('topics')
-     *     .all() %}
+     *   .group('topics')
+     *   .all() %}
      * ```
      * @used-by group()
      * @used-by groupId()
@@ -95,8 +96,8 @@ class TagQuery extends ElementQuery
      * ```twig
      * {# Fetch tags in the Foo group #}
      * {% set {elements-var} = {twig-method}
-     *     .group('foo')
-     *     .all() %}
+     *   .group('foo')
+     *   .all() %}
      * ```
      *
      * ```php
@@ -106,22 +107,25 @@ class TagQuery extends ElementQuery
      *     ->all();
      * ```
      *
-     * @param string|string[]|TagGroup|null $value The property value
+     * @param string|string[]|TagGroup|TagGroup[]|null $value The property value
      * @return static self reference
      * @uses $groupId
      */
     public function group($value)
     {
-        if ($value instanceof TagGroup) {
-            $this->groupId = [$value->id];
-        } else if ($value !== null) {
+        if (Db::normalizeParam($value, function($item) {
+            if (is_string($item)) {
+                $item = Craft::$app->getTags()->getTagGroupByHandle($item);
+            }
+            return $item instanceof TagGroup ? $item->id : null;
+        })) {
+            $this->groupId = $value;
+        } else {
             $this->groupId = (new Query())
                 ->select(['id'])
                 ->from([Table::TAGGROUPS])
                 ->where(Db::parseParam('handle', $value))
                 ->column() ?: false;
-        } else {
-            $this->groupId = null;
         }
 
         return $this;
@@ -144,8 +148,8 @@ class TagQuery extends ElementQuery
      * ```twig
      * {# Fetch tags in the group with an ID of 1 #}
      * {% set {elements-var} = {twig-method}
-     *     .groupId(1)
-     *     .all() %}
+     *   .groupId(1)
+     *   .all() %}
      * ```
      *
      * ```php
@@ -198,9 +202,9 @@ class TagQuery extends ElementQuery
 
         if (empty($this->groupId)) {
             $this->groupId = null;
-        } else if (is_numeric($this->groupId)) {
+        } elseif (is_numeric($this->groupId)) {
             $this->groupId = [$this->groupId];
-        } else if (!is_array($this->groupId) || !ArrayHelper::isNumeric($this->groupId)) {
+        } elseif (!is_array($this->groupId) || !ArrayHelper::isNumeric($this->groupId)) {
             $this->groupId = (new Query())
                 ->select(['id'])
                 ->from([Table::TAGGROUPS])

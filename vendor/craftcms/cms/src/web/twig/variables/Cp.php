@@ -17,7 +17,14 @@ use craft\helpers\ArrayHelper;
 use craft\helpers\Cp as CpHelper;
 use craft\helpers\StringHelper;
 use craft\helpers\UrlHelper;
+use craft\web\twig\TemplateLoaderException;
+use DateTime;
+use RecursiveCallbackFilterIterator;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
+use SplFileInfo;
 use yii\base\Component;
+use yii\base\InvalidArgumentException;
 use yii\base\InvalidConfigException;
 
 /**
@@ -36,14 +43,18 @@ class Cp extends Component
      * use craft\web\twig\variables\Cp;
      * use yii\base\Event;
      *
-     * Event::on(Cp::class, Cp::EVENT_REGISTER_FORM_ACTIONS, function(FormActionsEvent $event) {
-     *     if (Craft::$app->requestedRoute == 'entries/edit-entry') {
-     *         $event->formActions[] = [
-     *             'label' => 'Save and view entry',
-     *             'redirect' => Craft::$app->getSecurity()->hashData('{url}'),
-     *         ];
+     * Event::on(
+     *     Cp::class,
+     *     Cp::EVENT_REGISTER_FORM_ACTIONS,
+     *     function(FormActionsEvent $event) {
+     *         if (Craft::$app->requestedRoute == 'entries/edit-entry') {
+     *             $event->formActions[] = [
+     *                 'label' => 'Save and view entry',
+     *                 'redirect' => Craft::$app->getSecurity()->hashData('{url}'),
+     *             ];
+     *         }
      *     }
-     * });
+     * );
      * ```
      *
      * @see prepFormActions()
@@ -59,13 +70,17 @@ class Cp extends Component
      * use craft\web\twig\variables\Cp;
      * use yii\base\Event;
      *
-     * Event::on(Cp::class, Cp::EVENT_REGISTER_CP_NAV_ITEMS, function(RegisterCpNavItemsEvent $e) {
-     *     $e->navItems[] = [
-     *         'label' => 'Item Label',
-     *         'url' => 'my-module',
-     *         'icon' => '/path/to/icon.svg',
-     *     ];
-     * });
+     * Event::on(
+     *     Cp::class,
+     *     Cp::EVENT_REGISTER_CP_NAV_ITEMS,
+     *     function(RegisterCpNavItemsEvent $e) {
+     *         $e->navItems[] = [
+     *             'label' => 'Item Label',
+     *             'url' => 'my-module',
+     *             'icon' => '/path/to/icon.svg',
+     *         ];
+     *     }
+     * );
      * ```
      *
      * [[RegisterCpNavItemsEvent::$navItems]] is an array whose values are sub-arrays that define the nav items. Each sub-array can have the following keys:
@@ -94,13 +109,17 @@ class Cp extends Component
      * use craft\web\twig\variables\Cp;
      * use yii\base\Event;
      *
-     * Event::on(Cp::class, Cp::EVENT_REGISTER_CP_SETTINGS, function(RegisterCpSettingsEvent $e) {
-     *     $e->settings[Craft::t('app', 'Modules')] = [
-     *         'label' => 'Item Label',
-     *         'url' => 'my-module',
-     *         'icon' => '/path/to/icon.svg',
-     *     ];
-     * });
+     * Event::on(
+     *     Cp::class,
+     *     Cp::EVENT_REGISTER_CP_SETTINGS,
+     *     function(RegisterCpSettingsEvent $e) {
+     *         $e->settings[Craft::t('app', 'Modules')][] = [
+     *             'label' => 'Item Label',
+     *             'url' => 'my-module',
+     *             'icon' => '/path/to/icon.svg',
+     *         ];
+     *     }
+     * );
      * ```
      *
      * [[RegisterCpSettingsEvent::$settings]] is an array whose keys define the section labels, and values are sub-arrays that define the
@@ -256,7 +275,7 @@ class Cp extends Component
                 ];
 
                 $navItems[] = [
-                    'label' => Craft::t('app', 'GraphQL'),
+                    'label' => 'GraphQL',
                     'url' => 'graphql',
                     'icon' => '@appicons/graphql.svg',
                     'subnav' => $subNavItems,
@@ -270,7 +289,7 @@ class Cp extends Component
             $badgeCount = 0;
 
             foreach ($utilities as $class) {
-                /* @var UtilityInterface $class */
+                /** @var UtilityInterface $class */
                 $badgeCount += $class::badgeCount();
             }
 
@@ -471,7 +490,7 @@ class Cp extends Component
 
         $envSuggestions = [];
         foreach (array_keys($_SERVER) as $var) {
-            if (is_string($var) && is_string($env = App::env($var))) {
+            if (is_string($var) && !StringHelper::startsWith($var, 'HTTP_') && is_string($env = App::env($var))) {
                 $envSuggestions[] = [
                     'name' => '$' . $var,
                     'hint' => $security->redactIfSensitive($var, Craft::getAlias($env, false)),
@@ -512,6 +531,154 @@ class Cp extends Component
     }
 
     /**
+     * Returns environment variable options for a select input.
+     *
+     * @param array|null $allowedValues
+     * @return array
+     * @since 3.7.22
+     */
+    public function getEnvOptions(?array $allowedValues = null): array
+    {
+        if ($allowedValues !== null) {
+            $allowedValues = array_flip($allowedValues);
+        }
+
+        $options = [];
+        $security = Craft::$app->getSecurity();
+
+        foreach (array_keys($_SERVER) as $var) {
+            if (
+                is_string($var) &&
+                !StringHelper::startsWith($var, 'HTTP_') &&
+                is_string($value = App::env($var)) &&
+                ($allowedValues === null || isset($allowedValues[$value]))
+            ) {
+                $data = [];
+                if ($value !== '') {
+                    $data['hint'] = $security->redactIfSensitive($var, Craft::getAlias($value, false));
+                }
+
+                $options[] = [
+                    'label' => "$$var",
+                    'value' => "$$var",
+                    'data' => [
+                        'data' => !empty($data) ? $data : false,
+                    ],
+                ];
+            }
+        }
+
+        return $this->_envOptions($options);
+    }
+
+    /**
+     * Returns environment variable options for a boolean menu.
+     *
+     * @return array
+     * @since 3.7.22
+     */
+    public function getBooleanEnvOptions(): array
+    {
+        $options = [];
+
+        foreach (array_keys($_SERVER) as $var) {
+            if (
+                is_string($var) &&
+                is_string($value = App::env($var)) &&
+                $value !== '' &&
+                ($boolean = filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE)) !== null
+            ) {
+                $options[] = [
+                    'label' => "$$var",
+                    'value' => "$$var",
+                    'data' => [
+                        'data' => [
+                            'boolean' => $boolean,
+                        ],
+                    ],
+                ];
+            }
+        }
+
+        return $this->_envOptions($options);
+    }
+
+    /**
+     * @param array $options
+     * @return array
+     */
+    private function _envOptions(array $options): array
+    {
+        if (!empty($options)) {
+            ArrayHelper::multisort($options, 'value');
+            array_unshift($options, [
+                'optgroup' => Craft::t('app', 'Environment Variables'),
+            ]);
+        }
+
+        return $options;
+    }
+
+    /**
+     * Returns all known time zones for a time zone input.
+     *
+     * @return array
+     * @since 3.7.0
+     */
+    public function getTimeZoneOptions(): array
+    {
+        // Assemble the timezone options array (Technique adapted from http://stackoverflow.com/a/7022536/1688568)
+        $options = [];
+
+        $utc = new DateTime();
+        $offsets = [];
+        $timezoneIds = [];
+
+        foreach (\DateTimeZone::listIdentifiers() as $timezoneId) {
+            $timezone = new \DateTimeZone($timezoneId);
+            $transition = $timezone->getTransitions($utc->getTimestamp(), $utc->getTimestamp());
+            $abbr = $transition[0]['abbr'];
+
+            $offset = round($timezone->getOffset($utc) / 60);
+
+            if ($offset) {
+                $hour = floor($offset / 60);
+                $minutes = floor(abs($offset) % 60);
+                $format = sprintf("%+03d:%02u", $hour, $minutes);
+            } else {
+                $format = '';
+            }
+
+            $label = "(GMT$format)";
+            if (preg_match('/^[A-Z]+$/', $abbr)) {
+                $label .= " $abbr";
+            }
+
+            $data = [];
+
+            if ($timezoneId !== 'UTC') {
+                [, $city] = explode('/', $timezoneId, 2);
+                // Cleanup, e.g. North_Dakota/New_Salem => New Salem, North Dakota
+                $data['hint'] = str_replace('_', ' ', implode(', ', array_reverse(explode('/', $city))));
+            }
+
+            $offsets[] = $offset;
+            $timezoneIds[] = $timezoneId;
+            $options[] = [
+                'value' => $timezoneId,
+                'label' => $label,
+                'data' => [
+                    'data' => !empty($data) ? $data : false,
+                ],
+            ];
+        }
+
+        array_multisort($offsets, SORT_ASC, SORT_NUMERIC, $timezoneIds, $options);
+
+        return $options;
+    }
+
+    /**
      * Returns ASCII character mappings for the given language, if it differs from the application language.
      *
      * @param string $language
@@ -536,78 +703,81 @@ class Cp extends Component
     public function getTemplateSuggestions(): array
     {
         // Get all the template files sorted by path length
-        $root = Craft::$app->getPath()->getSiteTemplatesPath();
+        $roots = ArrayHelper::merge([
+            '' => [Craft::$app->getPath()->getSiteTemplatesPath()],
+        ], Craft::$app->getView()->getSiteTemplateRoots());
 
-        if (!is_dir($root)) {
-            return [];
-        }
-
-        $directory = new \RecursiveDirectoryIterator($root);
-
-        $filter = new \RecursiveCallbackFilterIterator($directory, function($current) {
-            // Skip hidden files and directories, as well as node_modules/ folders
-            if ($current->getFilename()[0] === '.' || $current->getFilename() === 'node_modules') {
-                return false;
-            }
-            return true;
-        });
-
-        $iterator = new \RecursiveIteratorIterator($filter);
-        /* @var \SplFileInfo[] $files */
-        $files = [];
-        $pathLengths = [];
-
-        foreach ($iterator as $file) {
-            /* @var \SplFileInfo $file */
-            if (!$file->isDir() && $file->getFilename()[0] !== '.') {
-                $files[] = $file;
-                $pathLengths[] = strlen($file->getRealPath());
-            }
-        }
-
-        array_multisort($pathLengths, SORT_NUMERIC, $files);
-
-        // Now build the suggestions array
         $suggestions = [];
         $templates = [];
         $sites = [];
-        $config = Craft::$app->getConfig()->getGeneral();
-        $rootLength = strlen($root);
 
         foreach (Craft::$app->getSites()->getAllSites() as $site) {
             $sites[$site->handle] = Craft::t('site', $site->getName());
         }
 
-        foreach ($files as $file) {
-            $template = substr($file->getRealPath(), $rootLength + 1);
+        foreach ($roots as $root => $basePaths) {
+            foreach ($basePaths as $basePath) {
+                if (!is_dir($basePath)) {
+                    continue;
+                }
 
-            // Can we chop off the extension?
-            $extension = $file->getExtension();
-            if (in_array($extension, $config->defaultTemplateExtensions, true)) {
-                $template = substr($template, 0, strlen($template) - (strlen($extension) + 1));
-            }
+                $directory = new RecursiveDirectoryIterator($basePath);
 
-            $hint = null;
+                $filter = new RecursiveCallbackFilterIterator($directory, function($current) {
+                    // Skip hidden files and directories, as well as node_modules/ folders
+                    if ($current->getFilename()[0] === '.' || $current->getFilename() === 'node_modules') {
+                        return false;
+                    }
+                    return true;
+                });
 
-            // Is it in a site template directory?
-            foreach ($sites as $handle => $name) {
-                if (strpos($template, $handle . DIRECTORY_SEPARATOR) === 0) {
-                    $hint = $name;
-                    $template = substr($template, strlen($handle) + 1);
-                    break;
+                $iterator = new RecursiveIteratorIterator($filter);
+                /** @var SplFileInfo[] $files */
+                $files = [];
+                $pathLengths = [];
+
+                foreach ($iterator as $file) {
+                    /** @var SplFileInfo $file */
+                    if (!$file->isDir() && $file->getFilename()[0] !== '.') {
+                        $files[] = $file;
+                        $pathLengths[] = strlen($file->getRealPath());
+                    }
+                }
+
+                array_multisort($pathLengths, SORT_NUMERIC, $files);
+
+                $basePathLength = strlen($basePath);
+
+                foreach ($files as $file) {
+                    $template = substr($file->getRealPath(), $basePathLength + 1);
+                    $hint = null;
+
+                    // Is it in a site template directory?
+                    foreach ($sites as $handle => $name) {
+                        if (strpos($template, $handle . DIRECTORY_SEPARATOR) === 0) {
+                            $hint = $name;
+                            $template = substr($template, strlen($handle) + 1);
+                            break;
+                        }
+                    }
+
+                    // Prepend the template root path
+                    if ($root !== '') {
+                        $template = sprintf('%s/%s', $root, $template);
+                    }
+
+                    // Avoid listing the same template path twice (considering localized templates)
+                    if (isset($templates[$template])) {
+                        continue;
+                    }
+
+                    $templates[$template] = true;
+                    $suggestions[] = [
+                        'name' => $template,
+                        'hint' => $hint,
+                    ];
                 }
             }
-
-            // Avoid listing the same template path twice (considering localized templates)
-            if (isset($templates[$template])) {
-                continue;
-            }
-
-            $templates[$template] = true;
-            $suggestions[] = [
-                'name' => $template,
-                'hint' => $hint,
-            ];
         }
 
         ArrayHelper::multisort($suggestions, 'name');
@@ -634,5 +804,20 @@ class Cp extends Component
         ]);
         $this->trigger(self::EVENT_REGISTER_FORM_ACTIONS, $event);
         return $event->formActions ?: null;
+    }
+
+    /**
+     * Renders a field’s HTML, for the given input HTML or a template.
+     *
+     * @param string $input The input HTML or template path. If passing a template path, it must begin with `template:`.
+     * @param array $config
+     * @return string
+     * @throws TemplateLoaderException if $input begins with `template:` and is followed by an invalid template path
+     * @throws InvalidArgumentException if `$config['siteId']` is invalid
+     * @since 3.7.24
+     */
+    public function field(string $input, array $config = []): string
+    {
+        return CpHelper::fieldHtml($input, $config);
     }
 }

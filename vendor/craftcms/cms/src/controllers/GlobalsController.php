@@ -10,6 +10,7 @@ namespace craft\controllers;
 use Craft;
 use craft\base\Element;
 use craft\elements\GlobalSet;
+use craft\helpers\Json;
 use craft\helpers\UrlHelper;
 use craft\web\Controller;
 use yii\web\BadRequestHttpException;
@@ -94,6 +95,23 @@ class GlobalsController extends Controller
     }
 
     /**
+     * Reorders global sets.
+     *
+     * @return Response
+     * @since 3.7.0
+     */
+    public function actionReorderSets(): Response
+    {
+        $this->requirePostRequest();
+        $this->requireAcceptsJson();
+
+        $setIds = Json::decode($this->request->getRequiredBodyParam('ids'));
+        Craft::$app->getGlobals()->reorderSets($setIds);
+
+        return $this->asJson(['success' => true]);
+    }
+
+    /**
      * Deletes a global set.
      *
      * @return Response
@@ -141,7 +159,7 @@ class GlobalsController extends Controller
                     $site = Craft::$app->getSites()->getSiteById($siteId);
                 } else {
                     // Are they allowed to edit the current site?
-                    /* @noinspection PhpUnhandledExceptionInspection */
+                    /** @noinspection PhpUnhandledExceptionInspection */
                     $currentSite = Craft::$app->getSites()->getCurrentSite();
                     if (in_array($currentSite->id, $editableSiteIds, false)) {
                         $site = $currentSite;
@@ -167,7 +185,7 @@ class GlobalsController extends Controller
             }
 
             // Set the siteId cookie
-            /* @var Cookie $cookie */
+            /** @var Cookie $cookie */
             $cookie = Craft::createObject(Craft::cookieConfig([
                 'class' => Cookie::class,
                 'name' => $siteCookieName,
@@ -177,7 +195,7 @@ class GlobalsController extends Controller
             ]));
             $this->response->getRawCookies()->add($cookie);
         } else {
-            /* @noinspection PhpUnhandledExceptionInspection */
+            /** @noinspection PhpUnhandledExceptionInspection */
             $site = Craft::$app->getSites()->getPrimarySite();
         }
 
@@ -203,7 +221,9 @@ class GlobalsController extends Controller
         }
 
         // Prep the form tabs & content
-        $form = $globalSet->getFieldLayout()->createForm($globalSet);
+        $form = $globalSet->getFieldLayout()->createForm($globalSet, false, [
+            'registerDeltas' => true,
+        ]);
 
         // Render the template!
         return $this->renderTemplate('globals/_edit', [

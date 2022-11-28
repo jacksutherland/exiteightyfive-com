@@ -1,5 +1,55 @@
 # Changelog
 
+### 7.9.5 (2022-10-13)
+
+- try to optimize autocompletion for PhpStorm
+
+### 7.9.4 (2022-09-06)
+
+- try to fix phpstan (1.8.4) reported issues
+
+### 7.9.3 (2022-07-06)
+
+- "Collection" -> fix phpstan check for offset
+
+### 7.9.2 (2022-07-05)
+
+- optimize some phpdocs (phpstan)
+- simplify some code
+
+### 7.9.1 (2022-03-08)
+
+- "To people of Russia": There is a war in Ukraine right now. The forces of the Russian Federation are attacking civilians.
+- fix phpdocs for "chunk()"
+- try to optimize support for PhpStorm auto-completion
+
+### 7.9.0 (2022-02-15)
+
+- remove "gitbook" from "dev-dependencies"
+- add "containsOnly()"
+- add "getBackwardsGenerator()"
+- add "reverseKeepIndex()"
+
+### 7.8.14 (2021-12-21)
+
+- add more support for Generics + phpstan checks
+- fix PHP 8.1 compatibility -> thanks @frenchcomp
+
+### 7.8.13 (2021-10-23)
+
+- add "NonEmptyString"-Collections (accepts "non-empty-string")
+- add "Numeric"-Collections (accepts "numeric" e.g.: 1, '1', 1.1, '1.1')
+- add "NumericString"-Collections (accepts "numeric" e.g.: '1', '1.1')
+
+### 7.8.12 (2021-10-18)
+
+- fix "Float"-Collections (only accepts "float" now)
+- add "FloatInt"-Collections (accepts "float" and "int")
+
+### 7.8.11 (2021-08-08)
+
+- fix fatal error from "ArrayyRewindableExtendedGenerator"
+
 ### 7.8.10 (2021-06-19)
 
 - add more support for Generics + phpstan checks

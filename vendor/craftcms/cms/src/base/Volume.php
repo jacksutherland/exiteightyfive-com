@@ -11,6 +11,7 @@ namespace craft\base;
 use Craft;
 use craft\behaviors\FieldLayoutBehavior;
 use craft\elements\Asset;
+use craft\helpers\App;
 use craft\records\Volume as VolumeRecord;
 use craft\validators\HandleValidator;
 use craft\validators\UniqueValidator;
@@ -44,6 +45,8 @@ abstract class Volume extends SavableComponent implements VolumeInterface
     public function attributeLabels()
     {
         return [
+            'handle' => Craft::t('app', 'Handle'),
+            'name' => Craft::t('app', 'Name'),
             'url' => Craft::t('app', 'URL'),
         ];
     }
@@ -63,13 +66,15 @@ abstract class Volume extends SavableComponent implements VolumeInterface
             ['handle'],
             HandleValidator::class,
             'reservedWords' => [
-                'id',
                 'dateCreated',
                 'dateUpdated',
-                'uid',
+                'edit',
+                'id',
                 'title',
+                'uid',
             ],
         ];
+        $rules[] = [['fieldLayout'], 'validateFieldLayout'];
 
         // Require URLs for public Volumes.
         if ($this->hasUrls) {
@@ -80,12 +85,31 @@ abstract class Volume extends SavableComponent implements VolumeInterface
     }
 
     /**
+     * Validates the field layout.
+     *
+     * @return void
+     * @since 3.7.0
+     */
+    public function validateFieldLayout(): void
+    {
+        $fieldLayout = $this->getFieldLayout();
+        $fieldLayout->reservedFieldHandles = [
+            'folder',
+            'volume',
+        ];
+
+        if (!$fieldLayout->validate()) {
+            $this->addModelErrors($fieldLayout, 'fieldLayout');
+        }
+    }
+
+    /**
      * @inheritdoc
      * @since 3.5.0
      */
     public function getFieldLayout()
     {
-        /* @var FieldLayoutBehavior $behavior */
+        /** @var FieldLayoutBehavior $behavior */
         $behavior = $this->getBehavior('fieldLayout');
         return $behavior->getFieldLayout();
     }
@@ -99,7 +123,7 @@ abstract class Volume extends SavableComponent implements VolumeInterface
             return false;
         }
 
-        return rtrim(Craft::parseEnv($this->url), '/') . '/';
+        return rtrim(App::parseEnv($this->url), '/') . '/';
     }
 
     /**
@@ -124,6 +148,14 @@ abstract class Volume extends SavableComponent implements VolumeInterface
     public function renameDirectory(string $path, string $newName)
     {
         $this->renameDir($path, $newName);
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function directoryExists(string $path): bool
+    {
+        return $this->folderExists($path);
     }
 
     /**
@@ -158,5 +190,17 @@ abstract class Volume extends SavableComponent implements VolumeInterface
     public function renameDir(string $path, string $newName)
     {
         throw new NotSupportedException('renameDir() has not been implemented.');
+    }
+
+    /**
+     * Returns whether a folder exists at the given path.
+     *
+     * @param string $path The folder path to check
+     * @return bool
+     * @deprecated in 3.7.0. Use [[directoryExists()]] instead.
+     */
+    public function folderExists(string $path): bool
+    {
+        throw new NotSupportedException('folderExists() has not been implemented.');
     }
 }
