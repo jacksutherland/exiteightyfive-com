@@ -61,7 +61,7 @@
 			<div class="hero-text">
 				<h1 class="glitch" data-text="{{ entry.heroText }}">{{ entry.heroText }}</h1>
 				{% if entry.ctaText | length and entry.ctaUrl | length %}
-					<a href="{{ entry.ctaUrl }}" class="hero-cta">
+					<a href="{{ entry.ctaUrl }}" class="hero-cta"{% if 'http' in entry.ctaUrl %} target="_blank"{% endif %}>
 						<span>{{ entry.ctaText }}</span>
 					</a>
 				{% else %}
