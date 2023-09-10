@@ -21,7 +21,7 @@ class CreateDbCacheTable extends Migration
     /**
      * @inheritdoc
      */
-    public function safeUp()
+    public function safeUp(): bool
     {
         if ($this->db->getIsMysql()) {
             $dataType = 'longblob';
@@ -30,20 +30,23 @@ class CreateDbCacheTable extends Migration
         }
 
         $this->createTable(Table::CACHE, [
-            'id' => $this->char(128)->notNull(),
+            'id' => $this->string(128)->notNull(),
             'expire' => $this->integer(11),
             'data' => $dataType,
             'PRIMARY KEY([[id]])',
         ]);
 
         $this->createIndex(null, Table::CACHE, ['expire']);
+
+        return true;
     }
 
     /**
      * @inheritdoc
      */
-    public function safeDown()
+    public function safeDown(): bool
     {
         $this->dropTableIfExists(Table::CACHE);
+        return true;
     }
 }

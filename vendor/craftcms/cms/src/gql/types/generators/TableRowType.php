@@ -7,6 +7,7 @@
 
 namespace craft\gql\types\generators;
 
+use Craft;
 use craft\fields\Table as TableField;
 use craft\gql\base\GeneratorInterface;
 use craft\gql\base\ObjectType;
@@ -25,13 +26,13 @@ class TableRowType implements GeneratorInterface, SingleGeneratorInterface
     /**
      * @inheritdoc
      */
-    public static function generateTypes($context = null): array
+    public static function generateTypes(mixed $context = null): array
     {
         return [static::generateType($context)];
     }
 
     /**
-     * @inheritdoc
+     * Returns the generator name.
      */
     public static function getName($context = null): string
     {
@@ -42,16 +43,16 @@ class TableRowType implements GeneratorInterface, SingleGeneratorInterface
     /**
      * @inheritdoc
      */
-    public static function generateType($context): ObjectType
+    public static function generateType(mixed $context): ObjectType
     {
-        /** @var TableField $context */
         $typeName = self::getName($context);
-        $contentFields = TableRow::prepareRowFieldDefinition($context->columns, $typeName);
 
-        return GqlEntityRegistry::getEntity($typeName) ?: GqlEntityRegistry::createEntity($typeName, new TableRow([
+        return GqlEntityRegistry::getOrCreate($typeName, fn() => new TableRow([
             'name' => $typeName,
-            'fields' => function() use ($contentFields) {
-                return $contentFields;
+            'fields' => function() use ($context, $typeName) {
+                /** @var TableField $context */
+                $contentFields = TableRow::prepareRowFieldDefinition($context->columns);
+                return Craft::$app->getGql()->prepareFieldDefinitions($contentFields, $typeName);
             },
         ]));
     }

@@ -11,15 +11,12 @@ use Craft;
 use craft\base\Element;
 use craft\base\ElementAction;
 use craft\base\ElementInterface;
-use craft\db\Table;
 use craft\elements\db\ElementQueryInterface;
-use craft\helpers\Db;
-use craft\helpers\Json;
 
 /**
  * Delete represents a “Delete for site” element action.
  *
- * Element types that make this action available should implement [[ElementInterface::getIsDeletable()]] to explicitly state whether they can be
+ * Element types that make this action available should implement [[ElementInterface::canDelete()]] to explicitly state whether they can be
  * deleted by the current user.
  *
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
@@ -30,26 +27,24 @@ class DeleteForSite extends ElementAction
     /**
      * @var string|null The confirmation message that should be shown before the elements get deleted
      */
-    public $confirmationMessage;
+    public ?string $confirmationMessage = null;
 
     /**
      * @var string|null The message that should be shown after the elements get deleted
      */
-    public $successMessage;
+    public ?string $successMessage = null;
 
     /**
      * @inheritdoc
      */
     public function getTriggerHtml(): ?string
     {
-        // Only enable for deletable elements, per getIsDeletable()
-        $type = Json::encode(static::class);
-        $js = <<<JS
+        // Only enable for deletable elements, per canDelete()
+        Craft::$app->getView()->registerJsWithVars(fn($type) => <<<JS
 (() => {
     new Craft.ElementActionTrigger({
         type: $type,
-        validateSelection: function(\$selectedItems)
-        {
+        validateSelection: \$selectedItems => {
             for (let i = 0; i < \$selectedItems.length; i++) {
                 if (!Garnish.hasAttr(\$selectedItems.eq(i).find('.element'), 'data-deletable')) {
                     return false;
@@ -59,8 +54,7 @@ class DeleteForSite extends ElementAction
         },
     });
 })();
-JS;
-        Craft::$app->getView()->registerJs($js);
+JS, [static::class]);
 
         return null;
     }
@@ -84,9 +78,9 @@ JS;
     /**
      * @inheritdoc
      */
-    public function getConfirmationMessage()
+    public function getConfirmationMessage(): ?string
     {
-        if ($this->confirmationMessage !== null) {
+        if (isset($this->confirmationMessage)) {
             return $this->confirmationMessage;
         }
 
@@ -104,48 +98,20 @@ JS;
     public function performAction(ElementQueryInterface $query): bool
     {
         $elementsService = Craft::$app->getElements();
+        $user = Craft::$app->getUser()->getIdentity();
 
-        // Fetch the elements in some other site than the selected one
-        $otherSiteElements = (clone $query)
-            ->siteId(['not', $query->siteId])
-            ->unique()
-            ->indexBy('id')
-            ->all();
-        $multiSiteElementIds = array_keys($otherSiteElements);
+        // Ignore any elements the user doesn’t have permission to delete
+        $elements = array_filter(
+            $query->all(),
+            fn(ElementInterface $element) => (
+                $elementsService->canView($element, $user) &&
+                $elementsService->canDeleteForSite($element, $user)
+            ),
+        );
 
-        if (!empty($otherSiteElements)) {
-            // Delete their rows in elements_sites
-            Db::delete(Table::ELEMENTS_SITES, [
-                'elementId' => $multiSiteElementIds,
-                'siteId' => $query->siteId,
-            ]);
+        $elementsService->deleteElementsForSite($elements);
 
-            // Resave the elements
-            foreach ($otherSiteElements as $element) {
-                if (!$element->getIsDeletable()) {
-                    continue;
-                }
-
-                $element->setScenario(Element::SCENARIO_ESSENTIALS);
-                $element->resaving = true;
-                $elementsService->saveElement($element, true, true, false);
-            }
-        }
-
-        // If any selected elements are *only* available in the selected site, fully delete them
-        $singleSiteElements = (clone $query)
-            ->andWhere(['not', ['elements.id' => $multiSiteElementIds]])
-            ->all();
-
-        foreach ($singleSiteElements as $element) {
-            if (!$element->getIsDeletable()) {
-                continue;
-            }
-
-            $elementsService->deleteElement($element);
-        }
-
-        if ($this->successMessage !== null) {
+        if (isset($this->successMessage)) {
             $this->setMessage($this->successMessage);
         } else {
             /** @var ElementInterface|string $elementType */

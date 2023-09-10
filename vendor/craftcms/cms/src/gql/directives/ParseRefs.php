@@ -27,20 +27,16 @@ class ParseRefs extends Directive
      */
     public static function create(): GqlDirective
     {
-        if ($type = GqlEntityRegistry::getEntity(self::name())) {
-            return $type;
-        }
+        $typeName = static::name();
 
-        $type = GqlEntityRegistry::createEntity(static::name(), new self([
-            'name' => static::name(),
+        return GqlEntityRegistry::getOrCreate($typeName, fn() => new self([
+            'name' => $typeName,
             'locations' => [
                 DirectiveLocation::FIELD,
             ],
             'description' => 'Parses the element references on the field.',
             'args' => [],
         ]));
-
-        return $type;
     }
 
     /**
@@ -54,7 +50,7 @@ class ParseRefs extends Directive
     /**
      * @inheritdoc
      */
-    public static function apply($source, $value, array $arguments, ResolveInfo $resolveInfo)
+    public static function apply(mixed $source, mixed $value, array $arguments, ResolveInfo $resolveInfo): mixed
     {
         return Craft::$app->getElements()->parseRefs((string)$value);
     }

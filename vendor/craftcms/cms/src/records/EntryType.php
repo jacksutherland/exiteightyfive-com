@@ -11,22 +11,27 @@ use craft\db\ActiveRecord;
 use craft\db\SoftDeleteTrait;
 use craft\db\Table;
 use yii\db\ActiveQueryInterface;
+use yii2tech\ar\softdelete\SoftDeleteBehavior;
 
 /**
  * Class EntryType record.
  *
  * @property int $id ID
  * @property int $sectionId Section ID
- * @property int $fieldLayoutId Field layout ID
+ * @property int|null $fieldLayoutId Field layout ID
  * @property string $name Name
  * @property string $handle Handle
  * @property bool $hasTitleField Has title field
  * @property string $titleTranslationMethod Title translation method
  * @property string|null $titleTranslationKeyFormat Title translation key format
  * @property string|null $titleFormat Title format
+ * @property string $slugTranslationMethod Slug translation method
+ * @property string|null $slugTranslationKeyFormat Slug translation key format
+ * @property bool $showStatusField Whether to show the Status field
  * @property int $sortOrder Sort order
  * @property Section $section Section
  * @property FieldLayout $fieldLayout Field layout
+ * @mixin SoftDeleteBehavior
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
  */

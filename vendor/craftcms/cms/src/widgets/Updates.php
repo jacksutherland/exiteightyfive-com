@@ -47,7 +47,7 @@ class Updates extends Widget
     /**
      * @inheritdoc
      */
-    public static function icon()
+    public static function icon(): ?string
     {
         return Craft::getAlias('@appicons/excite.svg');
     }
@@ -55,11 +55,11 @@ class Updates extends Widget
     /**
      * @inheritdoc
      */
-    public function getBodyHtml()
+    public function getBodyHtml(): ?string
     {
         // Make sure the user actually has permission to perform updates
         if (!Craft::$app->getUser()->checkPermission('performUpdates')) {
-            return false;
+            return null;
         }
 
         $view = Craft::$app->getView();
@@ -71,7 +71,7 @@ class Updates extends Widget
         }
 
         if ($cached) {
-            return $view->renderTemplate('_components/widgets/Updates/body',
+            return $view->renderTemplate('_components/widgets/Updates/body.twig',
                 [
                     'total' => Craft::$app->getUpdates()->getTotalAvailableUpdates(),
                 ]);

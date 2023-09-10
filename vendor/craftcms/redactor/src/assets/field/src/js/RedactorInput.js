@@ -204,6 +204,17 @@ window.livePreviewHideFullscreen = false;
             $('body').removeClass('redactor-element-editor-open')
           );
         }
+
+        // https://github.com/craftcms/redactor/issues/445
+        Garnish.on(Craft.BaseElementSelectorModal, 'show', () => {
+          if (
+            $('#content').hasClass('redactor-body-fullscreen') || // for redactor fullscreen triggered from a page (not a slideout)
+            $('body').hasClass('redactor-body-fullscreen') // for redactor fullscreen triggered from a slideout
+          ) {
+            $('.modal-shade').css('z-index', '101');
+            $('.modal').css('z-index', '102');
+          }
+        });
       },
 
       initRedactor: function () {
@@ -433,34 +444,30 @@ window.livePreviewHideFullscreen = false;
             var matches = (matches = $img.attr('src').match(/#asset:(\d+)/i));
             if (matches) {
               var assetId = matches[1];
-              Craft.postActionRequest(
-                'redactor',
-                {assetId: assetId},
-                function (data) {
-                  if (data.success) {
-                    var buttons = {
-                      'image-editor': {
-                        title: this.redactor.lang.get('image-editor'),
-                        api: 'plugin.craftAssetImageEditor.open',
-                        args: assetId,
-                      },
-                      edit: {
-                        title: this.redactor.lang.get('edit'),
-                        api: 'module.image.open',
-                      },
-                      remove: {
-                        title: this.redactor.lang.get('delete'),
-                        api: 'module.image.remove',
-                        args: node,
-                      },
-                    };
+              Craft.sendActionRequest('POST', 'redactor', {data: {assetId}})
+                .then((response) => {
+                  var buttons = {
+                    'image-editor': {
+                      title: this.redactor.lang.get('image-editor'),
+                      api: 'plugin.craftAssetImageEditor.open',
+                      args: assetId,
+                    },
+                    edit: {
+                      title: this.redactor.lang.get('edit'),
+                      api: 'module.image.open',
+                    },
+                    remove: {
+                      title: this.redactor.lang.get('delete'),
+                      api: 'module.image.remove',
+                      args: node,
+                    },
+                  };
 
-                    contextbar.set(e, node, buttons);
-                  }
-
+                  contextbar.set(e, node, buttons);
+                })
+                .finally(() => {
                   repositionContextBar(e, contextbar);
-                }.bind(this)
-              );
+                });
             }
           }
         }

@@ -11,6 +11,7 @@ use Craft;
 use craft\base\ElementAction;
 use craft\base\ElementInterface;
 use craft\elements\db\ElementQueryInterface;
+use Throwable;
 
 /**
  * Duplicate represents a Duplicate element action.
@@ -23,12 +24,12 @@ class Duplicate extends ElementAction
     /**
      * @var bool Whether to also duplicate the selected elements’ descendants
      */
-    public $deep = false;
+    public bool $deep = false;
 
     /**
      * @var string|null The message that should be shown after the elements get deleted
      */
-    public $successMessage;
+    public ?string $successMessage = null;
 
     /**
      * @inheritdoc
@@ -38,6 +39,32 @@ class Duplicate extends ElementAction
         return $this->deep
             ? Craft::t('app', 'Duplicate (with descendants)')
             : Craft::t('app', 'Duplicate');
+    }
+
+    /**
+     * @inheritdoc
+     * @since 3.5.0
+     */
+    public function getTriggerHtml(): ?string
+    {
+        // Only enable for duplicatable elements, per canDuplicate()
+        Craft::$app->getView()->registerJsWithVars(fn($type) => <<<JS
+(() => {
+    new Craft.ElementActionTrigger({
+        type: $type,
+        validateSelection: \$selectedItems => {
+            for (let i = 0; i < \$selectedItems.length; i++) {
+                if (!Garnish.hasAttr(\$selectedItems.eq(i).find('.element'), 'data-duplicatable')) {
+                    return false;
+                }
+            }
+            return true;
+        },
+    });
+})();
+JS, [static::class]);
+
+        return null;
     }
 
     /**
@@ -78,7 +105,7 @@ class Duplicate extends ElementAction
      * @param int $failCount
      * @param ElementInterface|null $newParent
      */
-    private function _duplicateElements(ElementQueryInterface $query, array $elements, int &$successCount, int &$failCount, array &$duplicatedElementIds = [], ElementInterface $newParent = null)
+    private function _duplicateElements(ElementQueryInterface $query, array $elements, int &$successCount, int &$failCount, array &$duplicatedElementIds = [], ?ElementInterface $newParent = null): void
     {
         $elementsService = Craft::$app->getElements();
         $structuresService = Craft::$app->getStructures();
@@ -93,7 +120,7 @@ class Duplicate extends ElementAction
 
             try {
                 $duplicate = $elementsService->duplicateElement($element);
-            } catch (\Throwable $e) {
+            } catch (Throwable) {
                 // Validation error
                 $failCount++;
                 continue;
@@ -103,7 +130,7 @@ class Duplicate extends ElementAction
             $duplicatedElementIds[$element->id] = true;
 
             if ($newParent) {
-                // Append it to the duplicate of $element's parent
+                // Append it to the duplicate of $element’s parent
                 $structuresService->append($element->structureId, $duplicate, $newParent);
             } elseif ($element->structureId) {
                 // Place it right next to the original element
@@ -116,7 +143,7 @@ class Duplicate extends ElementAction
                     ->siteId($element->siteId)
                     ->descendantOf($element->id)
                     ->descendantDist(1)
-                    ->anyStatus()
+                    ->status(null)
                     ->all();
 
                 $this->_duplicateElements($query, $children, $successCount, $failCount, $duplicatedElementIds, $duplicate);

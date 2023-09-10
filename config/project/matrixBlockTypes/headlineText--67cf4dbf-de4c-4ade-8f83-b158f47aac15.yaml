@@ -1,0 +1,86 @@
+field: 9f5b59a8-2c1c-4bbd-8b5a-86b6e643ccb3 # Page Module
+fieldLayouts:
+  363c5258-4429-4cd5-bffd-3f201f77b931:
+    tabs:
+      -
+        elementCondition: null
+        elements:
+          -
+            elementCondition: null
+            fieldUid: b5df53a4-a5f2-40d3-affb-182a6be9069e # Headline
+            instructions: null
+            label: null
+            required: false
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            uid: e1c5f460-688a-40d6-8c0e-0d14d7831e21
+            userCondition: null
+            warning: null
+            width: 100
+          -
+            elementCondition: null
+            fieldUid: cae0baae-3430-4f6a-8c5f-e3da61be0151 # Rich Text
+            instructions: null
+            label: null
+            required: false
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            uid: 2cd49c07-5697-4eae-8be4-38fe84fe137c
+            userCondition: null
+            warning: null
+            width: 100
+        name: Content
+        uid: 4f6f37db-53b3-4560-ae44-1428bfb51ce6
+        userCondition: null
+fields:
+  b5df53a4-a5f2-40d3-affb-182a6be9069e: # Headline
+    columnSuffix: oavzuinp
+    contentColumnType: text
+    fieldGroup: null
+    handle: headline
+    instructions: null
+    name: Headline
+    searchable: true
+    settings:
+      byteLimit: null
+      charLimit: null
+      code: false
+      columnType: null
+      initialRows: 4
+      multiline: false
+      placeholder: null
+      uiMode: normal
+    translationKeyFormat: null
+    translationMethod: none
+    type: craft\fields\PlainText
+  cae0baae-3430-4f6a-8c5f-e3da61be0151: # Rich Text
+    columnSuffix: qzfsfalc
+    contentColumnType: text
+    fieldGroup: null
+    handle: richText
+    instructions: null
+    name: 'Rich Text'
+    searchable: true
+    settings:
+      availableTransforms: '*'
+      availableVolumes: '*'
+      columnType: text
+      configSelectionMode: choose
+      defaultTransform: ''
+      manualConfig: ''
+      purifierConfig: null
+      purifyHtml: true
+      redactorConfig: null
+      removeEmptyTags: false
+      removeInlineStyles: false
+      removeNbsp: false
+      showHtmlButtonForNonAdmins: false
+      showUnpermittedFiles: false
+      showUnpermittedVolumes: false
+      uiMode: enlarged
+    translationKeyFormat: null
+    translationMethod: none
+    type: craft\redactor\Field
+handle: headlineText
+name: 'Headline & Text'
+sortOrder: 1

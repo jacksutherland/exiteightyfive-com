@@ -7,6 +7,7 @@
 
 namespace craft\queue;
 
+use craft\console\ControllerTrait;
 use craft\helpers\Console;
 use yii\console\ExitCode;
 use yii\db\Exception as YiiDbException;
@@ -20,6 +21,8 @@ use yii\db\Exception as YiiDbException;
  */
 class Command extends \yii\queue\cli\Command
 {
+    use ControllerTrait;
+
     /**
      * @var Queue
      */
@@ -40,7 +43,7 @@ class Command extends \yii\queue\cli\Command
     /**
      * @inheritdoc
      */
-    protected function isWorkerAction($actionID)
+    protected function isWorkerAction($actionID): bool
     {
         return in_array($actionID, ['run', 'listen'], true);
     }
@@ -48,19 +51,7 @@ class Command extends \yii\queue\cli\Command
     /**
      * @inheritdoc
      */
-    public function beforeAction($action)
-    {
-        if (!parent::beforeAction($action)) {
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function actions()
+    public function actions(): array
     {
         return [
             'info' => InfoAction::class,
@@ -95,7 +86,7 @@ class Command extends \yii\queue\cli\Command
      * @return int
      * @since 3.1.21
      */
-    public function actionRetry($job): int
+    public function actionRetry(int|string $job): int
     {
         if (strtolower($job) === 'all') {
             $total = $this->queue->getTotalFailed();
@@ -103,7 +94,7 @@ class Command extends \yii\queue\cli\Command
                 $this->stdout('No failed jobs in the queue.' . PHP_EOL);
                 return ExitCode::OK;
             }
-            $this->stdout("Re-adding {$total} failed " . ($total === 1 ? 'job' : 'jobs') . ' back into the queue ... ');
+            $this->stdout("Re-adding $total failed " . ($total === 1 ? 'job' : 'jobs') . ' back into the queue ... ');
             $this->queue->retryAll();
         } else {
             $this->stdout('Re-adding 1 failed job back into the queue ... ');
@@ -128,7 +119,7 @@ class Command extends \yii\queue\cli\Command
      * @throws YiiDbException
      * @since 3.4.0
      */
-    public function actionRelease($job): int
+    public function actionRelease(string $job): int
     {
         if (strtolower($job) === 'all') {
             $this->stdout('Releasing all queue jobs ... ');

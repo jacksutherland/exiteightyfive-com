@@ -12,10 +12,6 @@ use craft\models\SystemMessage;
 use craft\web\Controller;
 use yii\web\Response;
 
-if (class_exists(Craft::class, false) && isset(Craft::$app)) {
-    Craft::$app->requireEdition(Craft::Pro);
-}
-
 /**
  * The SystemMessagesController class is a controller that handles various email message tasks such as saving email
  * messages.
@@ -29,12 +25,18 @@ class SystemMessagesController extends Controller
     /**
      * @inheritdoc
      */
-    public function beforeAction($action)
+    public function beforeAction($action): bool
     {
+        if (!parent::beforeAction($action)) {
+            return false;
+        }
+
+        Craft::$app->requireEdition(Craft::Pro);
+
         // Make sure they have access to the System Messages utility
         $this->requirePermission('utility:system-messages');
 
-        return parent::beforeAction($action);
+        return true;
     }
 
     /**
@@ -56,7 +58,7 @@ class SystemMessagesController extends Controller
         $message = Craft::$app->getSystemMessages()->getMessage($key, $language);
 
         return $this->asJson([
-            'body' => $this->getView()->renderTemplate('_components/utilities/SystemMessages/message-modal', [
+            'body' => $this->getView()->renderTemplate('_components/utilities/SystemMessages/message-modal.twig', [
                 'message' => $message,
                 'language' => $language,
             ]),
@@ -84,10 +86,10 @@ class SystemMessagesController extends Controller
             $language = Craft::$app->getSites()->getPrimarySite()->language;
         }
 
-        if (Craft::$app->getSystemMessages()->saveMessage($message, $language)) {
-            return $this->asJson(['success' => true]);
+        if (!Craft::$app->getSystemMessages()->saveMessage($message, $language)) {
+            return $this->asFailure(Craft::t('app', 'There was a problem saving your message.'));
         }
 
-        return $this->asErrorJson(Craft::t('app', 'There was a problem saving your message.'));
+        return $this->asSuccess();
     }
 }

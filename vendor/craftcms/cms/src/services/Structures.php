@@ -8,6 +8,7 @@
 namespace craft\services;
 
 use Craft;
+use craft\base\Element;
 use craft\base\ElementInterface;
 use craft\db\Query;
 use craft\db\Table;
@@ -16,6 +17,7 @@ use craft\events\MoveElementEvent;
 use craft\models\Structure;
 use craft\records\Structure as StructureRecord;
 use craft\records\StructureElement;
+use Throwable;
 use yii\base\Component;
 use yii\base\Exception;
 
@@ -30,38 +32,60 @@ use yii\base\Exception;
 class Structures extends Component
 {
     /**
-     * @event MoveElementEvent The event that is triggered before an element is moved.
+     * @event MoveElementEvent The event that is triggered before an element is inserted into a structure.
+     *
+     * You may set [[\yii\base\ModelEvent::$isValid]] to `false` to prevent the
+     * element from getting inserted.
+     *
+     * @since 4.5.0
      */
-    const EVENT_BEFORE_MOVE_ELEMENT = 'beforeMoveElement';
+    public const EVENT_BEFORE_INSERT_ELEMENT = 'beforeInsertElement';
+
+    /**
+     * @event MoveElementEvent The event that is triggered after an element is inserted into a structure.
+     * @since 4.5.0
+     */
+    public const EVENT_AFTER_INSERT_ELEMENT = 'afterInsertElement';
+
+    /**
+     * @event MoveElementEvent The event that is triggered before an element is moved.
+     *
+     * In Craft 4.5 and later, you may set [[\yii\base\ModelEvent::$isValid]] to `false` to prevent the
+     * element from getting moved.
+     */
+    public const EVENT_BEFORE_MOVE_ELEMENT = 'beforeMoveElement';
 
     /**
      * @event MoveElementEvent The event that is triggered after an element is moved.
      */
-    const EVENT_AFTER_MOVE_ELEMENT = 'afterMoveElement';
+    public const EVENT_AFTER_MOVE_ELEMENT = 'afterMoveElement';
 
-    /**
-     * @since 3.4.21
-     */
-    const MODE_INSERT = 'insert';
-    /**
-     * @since 3.4.21
-     */
-    const MODE_UPDATE = 'update';
-    /**
-     * @since 3.4.21
-     */
-    const MODE_AUTO = 'auto';
+    /** @since 3.4.21 */
+    public const MODE_INSERT = 'insert';
+    /** @since 3.4.21 */
+    public const MODE_UPDATE = 'update';
+    /** @since 3.4.21 */
+    public const MODE_AUTO = 'auto';
+
+    /** @since 4.5.0 */
+    public const ACTION_PREPEND = 'prepend';
+    /** @since 4.5.0 */
+    public const ACTION_APPEND = 'append';
+    /** @since 4.5.0 */
+    public const ACTION_PLACE_BEFORE = 'placeBefore';
+    /** @since 4.5.0 */
+    public const ACTION_PLACE_AFTER = 'placeAfter';
 
     /**
      * @var int The timeout to pass to [[\yii\mutex\Mutex::acquire()]] when acquiring a lock on the structure.
      * @since 3.0.19
      */
-    public $mutexTimeout = 3;
+    public int $mutexTimeout = 3;
 
     /**
-     * @var
+     * @var StructureElement[]
      */
-    private $_rootElementRecordsByStructureId;
+    private array $_rootElementRecordsByStructureId = [];
 
     // Structure CRUD
     // -------------------------------------------------------------------------
@@ -73,7 +97,7 @@ class Structures extends Component
      * @param bool $withTrashed
      * @return Structure|null
      */
-    public function getStructureById(int $structureId, bool $withTrashed = false)
+    public function getStructureById(int $structureId, bool $withTrashed = false): ?Structure
     {
         $query = (new Query())
             ->select([
@@ -99,7 +123,7 @@ class Structures extends Component
      * @param bool $withTrashed
      * @return Structure|null
      */
-    public function getStructureByUid(string $structureUid, bool $withTrashed = false)
+    public function getStructureByUid(string $structureUid, bool $withTrashed = false): ?Structure
     {
         $query = (new Query())
             ->select([
@@ -122,7 +146,6 @@ class Structures extends Component
      * Patches an array of entries, filling in any gaps in the tree.
      *
      * @param ElementInterface[] $elements
-     * @return void
      * @since 3.6.0
      */
     public function fillGapsInElements(array &$elements): void
@@ -142,7 +165,7 @@ class Structures extends Component
             ) {
                 // Merge in any missing ancestors
                 $ancestorQuery = $element->getAncestors()
-                    ->anyStatus();
+                    ->status(null);
 
                 if ($prevElement) {
                     $ancestorQuery->andWhere(['>', 'structureelements.lft', $prevElement->lft]);
@@ -165,7 +188,6 @@ class Structures extends Component
      *
      * @param ElementInterface[] $elements
      * @param int $branchLimit
-     * @return void
      * @since 3.6.0
      */
     public function applyBranchLimitToElements(array &$elements, int $branchLimit): void
@@ -199,12 +221,13 @@ class Structures extends Component
     public function saveStructure(Structure $structure): bool
     {
         if ($structure->id) {
+            /** @var StructureRecord|null $structureRecord */
             $structureRecord = StructureRecord::findWithTrashed()
                 ->andWhere(['id' => $structure->id])
                 ->one();
 
             if (!$structureRecord) {
-                throw new StructureNotFoundException("No structure exists with the ID '{$structure->id}'");
+                throw new StructureNotFoundException("No structure exists with the ID '$structure->id'");
             }
         } else {
             $structureRecord = new StructureRecord();
@@ -259,7 +282,7 @@ class Structures extends Component
     public function getElementLevelDelta(int $structureId, ElementInterface $element): int
     {
         $elementRecord = $this->_getElementRecord($structureId, $element);
-        /** @var StructureElement $deepestDescendant */
+        /** @var StructureElement|null $deepestDescendant */
         $deepestDescendant = $elementRecord
             ->children()
             ->orderBy(['level' => SORT_DESC])
@@ -280,12 +303,12 @@ class Structures extends Component
      *
      * @param int $structureId
      * @param ElementInterface $element
-     * @param ElementInterface|int $parentElement
+     * @param int|ElementInterface $parentElement
      * @param string $mode Whether this is an "insert", "update", or "auto".
      * @return bool
      * @throws Exception
      */
-    public function prepend(int $structureId, ElementInterface $element, $parentElement, string $mode = self::MODE_AUTO): bool
+    public function prepend(int $structureId, ElementInterface $element, ElementInterface|int $parentElement, string $mode = self::MODE_AUTO): bool
     {
         $parentElementRecord = $this->_getElementRecord($structureId, $parentElement);
 
@@ -293,7 +316,7 @@ class Structures extends Component
             throw new Exception('There was a problem getting the parent element.');
         }
 
-        return $this->_doIt($structureId, $element, $parentElementRecord, 'prependTo', $mode);
+        return $this->_doIt($structureId, $element, $parentElementRecord, self::ACTION_PREPEND, $mode);
     }
 
     /**
@@ -301,12 +324,12 @@ class Structures extends Component
      *
      * @param int $structureId
      * @param ElementInterface $element
-     * @param ElementInterface|int $parentElement
+     * @param int|ElementInterface $parentElement
      * @param string $mode Whether this is an "insert", "update", or "auto".
      * @return bool
      * @throws Exception
      */
-    public function append(int $structureId, ElementInterface $element, $parentElement, string $mode = self::MODE_AUTO): bool
+    public function append(int $structureId, ElementInterface $element, ElementInterface|int $parentElement, string $mode = self::MODE_AUTO): bool
     {
         $parentElementRecord = $this->_getElementRecord($structureId, $parentElement);
 
@@ -314,7 +337,7 @@ class Structures extends Component
             throw new Exception('There was a problem getting the parent element.');
         }
 
-        return $this->_doIt($structureId, $element, $parentElementRecord, 'appendTo', $mode);
+        return $this->_doIt($structureId, $element, $parentElementRecord, self::ACTION_APPEND, $mode);
     }
 
     /**
@@ -329,12 +352,7 @@ class Structures extends Component
     public function prependToRoot(int $structureId, ElementInterface $element, string $mode = self::MODE_AUTO): bool
     {
         $parentElementRecord = $this->_getRootElementRecord($structureId);
-
-        if ($parentElementRecord === null) {
-            throw new Exception('There was a problem getting the parent element.');
-        }
-
-        return $this->_doIt($structureId, $element, $parentElementRecord, 'prependTo', $mode);
+        return $this->_doIt($structureId, $element, $parentElementRecord, self::ACTION_PREPEND, $mode);
     }
 
     /**
@@ -349,12 +367,7 @@ class Structures extends Component
     public function appendToRoot(int $structureId, ElementInterface $element, string $mode = self::MODE_AUTO): bool
     {
         $parentElementRecord = $this->_getRootElementRecord($structureId);
-
-        if ($parentElementRecord === null) {
-            throw new Exception('There was a problem getting the parent element.');
-        }
-
-        return $this->_doIt($structureId, $element, $parentElementRecord, 'appendTo', $mode);
+        return $this->_doIt($structureId, $element, $parentElementRecord, self::ACTION_APPEND, $mode);
     }
 
     /**
@@ -362,12 +375,12 @@ class Structures extends Component
      *
      * @param int $structureId
      * @param ElementInterface $element
-     * @param ElementInterface|int $nextElement
+     * @param int|ElementInterface $nextElement
      * @param string $mode Whether this is an "insert", "update", or "auto".
      * @return bool
      * @throws Exception
      */
-    public function moveBefore(int $structureId, ElementInterface $element, $nextElement, string $mode = self::MODE_AUTO): bool
+    public function moveBefore(int $structureId, ElementInterface $element, ElementInterface|int $nextElement, string $mode = self::MODE_AUTO): bool
     {
         $nextElementRecord = $this->_getElementRecord($structureId, $nextElement);
 
@@ -375,7 +388,7 @@ class Structures extends Component
             throw new Exception('There was a problem getting the next element.');
         }
 
-        return $this->_doIt($structureId, $element, $nextElementRecord, 'insertBefore', $mode);
+        return $this->_doIt($structureId, $element, $nextElementRecord, self::ACTION_PLACE_BEFORE, $mode);
     }
 
     /**
@@ -383,12 +396,12 @@ class Structures extends Component
      *
      * @param int $structureId
      * @param ElementInterface $element
-     * @param ElementInterface|int $prevElement
+     * @param int|ElementInterface $prevElement
      * @param string $mode Whether this is an "insert", "update", or "auto".
      * @return bool
      * @throws Exception
      */
-    public function moveAfter(int $structureId, ElementInterface $element, $prevElement, string $mode = self::MODE_AUTO): bool
+    public function moveAfter(int $structureId, ElementInterface $element, ElementInterface|int $prevElement, string $mode = self::MODE_AUTO): bool
     {
         $prevElementRecord = $this->_getElementRecord($structureId, $prevElement);
 
@@ -396,7 +409,7 @@ class Structures extends Component
             throw new Exception('There was a problem getting the previous element.');
         }
 
-        return $this->_doIt($structureId, $element, $prevElementRecord, 'insertAfter', $mode);
+        return $this->_doIt($structureId, $element, $prevElementRecord, self::ACTION_PLACE_AFTER, $mode);
     }
 
     /**
@@ -428,10 +441,10 @@ class Structures extends Component
      * Returns a structure element record from given structure and element IDs.
      *
      * @param int $structureId
-     * @param ElementInterface|int $element
+     * @param int|ElementInterface $element
      * @return StructureElement|null
      */
-    private function _getElementRecord(int $structureId, $element)
+    private function _getElementRecord(int $structureId, ElementInterface|int $element): ?StructureElement
     {
         $elementId = is_numeric($element) ? $element : $element->id;
 
@@ -454,6 +467,7 @@ class Structures extends Component
     private function _getRootElementRecord(int $structureId): StructureElement
     {
         if (!isset($this->_rootElementRecordsByStructureId[$structureId])) {
+            /** @var StructureElement|null $elementRecord */
             $elementRecord = StructureElement::find()
                 ->where(['structureId' => $structureId])
                 ->roots()
@@ -478,12 +492,12 @@ class Structures extends Component
      * @param int $structureId
      * @param ElementInterface $element
      * @param StructureElement $targetElementRecord
-     * @param string $action
-     * @param string $mode
+     * @param self::ACTION_* $action
+     * @param self::MODE_* $mode
      * @return bool Whether it was done
-     * @throws \Throwable if reasons
+     * @throws Throwable if reasons
      */
-    private function _doIt($structureId, ElementInterface $element, StructureElement $targetElementRecord, $action, $mode): bool
+    private function _doIt(int $structureId, ElementInterface $element, StructureElement $targetElementRecord, string $action, string $mode): bool
     {
         // Get a lock or bust
         $lockName = 'structure:' . $structureId;
@@ -494,6 +508,7 @@ class Structures extends Component
 
         $elementRecord = null;
 
+        /** @var Element $element */
         // Figure out what we're doing
         if ($mode !== self::MODE_INSERT) {
             // See if there's an existing structure element record
@@ -512,12 +527,26 @@ class Structures extends Component
             $mode = self::MODE_INSERT;
         }
 
-        if ($mode === self::MODE_UPDATE && $this->hasEventHandlers(self::EVENT_BEFORE_MOVE_ELEMENT)) {
-            // Fire a 'beforeMoveElement' event
-            $this->trigger(self::EVENT_BEFORE_MOVE_ELEMENT, new MoveElementEvent([
-                'structureId' => $structureId,
+        [$beforeEvent, $afterEvent] = match ($mode) {
+            self::MODE_INSERT => [self::EVENT_BEFORE_INSERT_ELEMENT, self::EVENT_AFTER_INSERT_ELEMENT],
+            self::MODE_UPDATE => [self::EVENT_BEFORE_MOVE_ELEMENT, self::EVENT_AFTER_MOVE_ELEMENT],
+        };
+
+        $targetElementId = $targetElementRecord->isRoot() ? null : $targetElementRecord->elementId;
+
+        if ($this->hasEventHandlers($beforeEvent)) {
+            // Fire a 'beforeInsertElement' or 'beforeMoveElement' event
+            $event = new MoveElementEvent([
                 'element' => $element,
-            ]));
+                'structureId' => $structureId,
+                'targetElementId' => $targetElementId,
+                'action' => $action,
+            ]);
+            $this->trigger($beforeEvent, $event);
+            if (!$event->isValid) {
+                $mutex->release($lockName);
+                return false;
+            }
         }
 
         // Tell the element about it
@@ -526,9 +555,16 @@ class Structures extends Component
             return false;
         }
 
+        $method = match ($action) {
+            self::ACTION_PREPEND => 'prependTo',
+            self::ACTION_APPEND => 'appendTo',
+            self::ACTION_PLACE_BEFORE => 'insertBefore',
+            self::ACTION_PLACE_AFTER => 'insertAfter',
+        };
+
         $transaction = Craft::$app->getDb()->beginTransaction();
         try {
-            if (!$elementRecord->$action($targetElementRecord)) {
+            if (!$elementRecord->$method($targetElementRecord)) {
                 $transaction->rollBack();
                 $mutex->release($lockName);
                 return false;
@@ -556,17 +592,19 @@ class Structures extends Component
             $element->afterMoveInStructure($structureId);
 
             $transaction->commit();
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $transaction->rollBack();
             $mutex->release($lockName);
             throw $e;
         }
 
-        if ($mode === self::MODE_UPDATE && $this->hasEventHandlers(self::EVENT_AFTER_MOVE_ELEMENT)) {
+        if ($this->hasEventHandlers($afterEvent)) {
             // Fire an 'afterMoveElement' event
-            $this->trigger(self::EVENT_AFTER_MOVE_ELEMENT, new MoveElementEvent([
-                'structureId' => $structureId,
+            $this->trigger($afterEvent, new MoveElementEvent([
                 'element' => $element,
+                'structureId' => $structureId,
+                'targetElementId' => $targetElementId,
+                'action' => $action,
             ]));
         }
 

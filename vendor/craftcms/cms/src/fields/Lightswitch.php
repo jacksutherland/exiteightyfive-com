@@ -14,10 +14,12 @@ use craft\base\PreviewableFieldInterface;
 use craft\base\SortableFieldInterface;
 use craft\elements\db\ElementQuery;
 use craft\elements\db\ElementQueryInterface;
+use craft\fields\conditions\LightswitchFieldConditionRule;
 use craft\helpers\ArrayHelper;
 use craft\helpers\Cp;
 use craft\helpers\Db;
 use craft\helpers\ElementHelper;
+use craft\helpers\Html;
 use GraphQL\Type\Definition\Type;
 use yii\db\Schema;
 
@@ -40,6 +42,14 @@ class Lightswitch extends Field implements PreviewableFieldInterface, SortableFi
     /**
      * @inheritdoc
      */
+    public static function isRequirable(): bool
+    {
+        return false;
+    }
+
+    /**
+     * @inheritdoc
+     */
     public static function valueType(): string
     {
         return 'bool';
@@ -48,46 +58,31 @@ class Lightswitch extends Field implements PreviewableFieldInterface, SortableFi
     /**
      * @var bool Whether the lightswitch should be enabled by default
      */
-    public $default = false;
+    public bool $default = false;
 
     /**
      * @var string|null The label text to display beside the lightswitch’s enabled state
      * @since 3.5.4
      */
-    public $onLabel;
+    public ?string $onLabel = null;
 
     /**
      * @var string|null The label text to display beside the lightswitch’s disabled state
      * @since 3.5.4
      */
-    public $offLabel;
+    public ?string $offLabel = null;
 
     /**
      * @inheritdoc
      */
     public function __construct($config = [])
     {
+        // Config normalization
         if (($onLabel = ArrayHelper::remove($config, 'label')) !== null) {
             $config['onLabel'] = $onLabel;
         }
 
         parent::__construct($config);
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function init()
-    {
-        parent::init();
-
-        $this->default = (bool)$this->default;
-        if ($this->onLabel === '') {
-            $this->onLabel = null;
-        }
-        if ($this->offLabel === '') {
-            $this->offLabel = null;
-        }
     }
 
     /**
@@ -101,7 +96,7 @@ class Lightswitch extends Field implements PreviewableFieldInterface, SortableFi
     /**
      * @inheritdoc
      */
-    public function getSettingsHtml()
+    public function getSettingsHtml(): ?string
     {
         return
             Cp::lightswitchFieldHtml([
@@ -129,36 +124,24 @@ class Lightswitch extends Field implements PreviewableFieldInterface, SortableFi
     /**
      * @inheritdoc
      */
-    protected function inputHtml($value, ElementInterface $element = null): string
+    protected function inputHtml(mixed $value, ?ElementInterface $element = null): string
     {
         $id = $this->getInputId();
-        return Craft::$app->getView()->renderTemplate('_includes/forms/lightswitch', [
+        return Craft::$app->getView()->renderTemplate('_includes/forms/lightswitch.twig', [
             'id' => $id,
-            'labelId' => "$id-label",
+            'labelId' => $this->getLabelId(),
             'describedBy' => $this->describedBy,
             'name' => $this->handle,
             'on' => (bool)$value,
-            'onLabel' => $this->onLabel,
-            'offLabel' => $this->offLabel,
+            'onLabel' => Craft::t('site', $this->onLabel),
+            'offLabel' => Craft::t('site', $this->offLabel),
         ]);
     }
 
     /**
      * @inheritdoc
      */
-    public function getTableAttributeHtml($value, ElementInterface $element): string
-    {
-        if ($value) {
-            return '<div class="status enabled" title="' . Craft::t('app', 'Enabled') . '"></div>';
-        }
-
-        return '<div class="status" title="' . Craft::t('app', 'Not enabled') . '"></div>';
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function normalizeValue($value, ElementInterface $element = null)
+    public function normalizeValue(mixed $value, ?ElementInterface $element = null): mixed
     {
         // If this is a new entry, look for a default option
         if ($value === null) {
@@ -171,22 +154,29 @@ class Lightswitch extends Field implements PreviewableFieldInterface, SortableFi
     /**
      * @inheritdoc
      */
-    public function modifyElementsQuery(ElementQueryInterface $query, $value)
+    public function getElementConditionRuleType(): array|string|null
     {
-        /** @var ElementQuery $query */
-        if ($value === null) {
-            return null;
-        }
-
-        $column = ElementHelper::fieldColumnFromField($this);
-        $query->subQuery->andWhere(Db::parseBooleanParam("content.$column", $value, (bool)$this->default));
-        return null;
+        return LightswitchFieldConditionRule::class;
     }
 
     /**
      * @inheritdoc
      */
-    public function getContentGqlType()
+    public function modifyElementsQuery(ElementQueryInterface $query, mixed $value): void
+    {
+        /** @var ElementQuery $query */
+        if ($value === null) {
+            return;
+        }
+
+        $column = ElementHelper::fieldColumnFromField($this);
+        $query->subQuery->andWhere(Db::parseBooleanParam("content.$column", $value, $this->default));
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function getContentGqlType(): Type|array
     {
         return Type::boolean();
     }
@@ -195,7 +185,7 @@ class Lightswitch extends Field implements PreviewableFieldInterface, SortableFi
      * @inheritdoc
      * @since 3.5.0
      */
-    public function getContentGqlMutationArgumentType()
+    public function getContentGqlMutationArgumentType(): Type|array
     {
         return [
             'name' => $this->handle,
@@ -208,11 +198,32 @@ class Lightswitch extends Field implements PreviewableFieldInterface, SortableFi
      * @inheritdoc
      * @since 3.5.0
      */
-    public function getContentGqlQueryArgumentType()
+    public function getContentGqlQueryArgumentType(): Type|array
     {
         return [
             'name' => $this->handle,
             'type' => Type::boolean(),
         ];
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function getTableAttributeHtml(mixed $value, ElementInterface $element): string
+    {
+        if (!$value) {
+            return '';
+        }
+        
+        $label = $this->onLabel ?: Craft::t('app', 'Enabled');
+
+        return Html::tag('span', '', [
+            'class' => 'checkbox-icon',
+            'role' => 'img',
+            'title' => $label,
+            'aria' => [
+                'label' => $label,
+            ],
+        ]);
     }
 }

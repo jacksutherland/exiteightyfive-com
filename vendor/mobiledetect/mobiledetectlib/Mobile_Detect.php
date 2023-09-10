@@ -769,7 +769,7 @@ class Mobile_Detect
         // http://scottcate.com/technology/windows-phone-8-ie10-desktop-or-mobile/
         // https://github.com/serbanghita/Mobile-Detect/issues/57#issuecomment-15024011
         // https://developers.facebook.com/docs/sharing/webmasters/crawler/
-        'Bot'         => 'Googlebot|facebookexternalhit|Google-AMPHTML|s~amp-validator|AdsBot-Google|Google Keyword Suggestion|Facebot|YandexBot|YandexMobileBot|bingbot|ia_archiver|AhrefsBot|Ezooms|GSLFbot|WBSearchBot|Twitterbot|TweetmemeBot|Twikle|PaperLiBot|Wotbox|UnwindFetchor|Exabot|MJ12bot|YandexImages|TurnitinBot|Pingdom|contentkingapp|AspiegelBot',
+        'Bot'         => 'Googlebot|facebookexternalhit|Google-AMPHTML|s~amp-validator|AdsBot-Google|Google Keyword Suggestion|Facebot|YandexBot|YandexMobileBot|bingbot|ia_archiver|AhrefsBot|Ezooms|GSLFbot|WBSearchBot|Twitterbot|TweetmemeBot|Twikle|PaperLiBot|Wotbox|UnwindFetchor|Exabot|MJ12bot|YandexImages|TurnitinBot|Pingdom|contentkingapp|AspiegelBot|Semrush|DotBot|PetalBot|MetadataScraper',
         'MobileBot'   => 'Googlebot-Mobile|AdsBot-Google-Mobile|YahooSeeker/M1A1-R2D2',
         'DesktopMode' => 'WPDesktop',
         'TV'          => 'SonyDTV|HbbTV', // experimental
@@ -1180,10 +1180,10 @@ class Mobile_Detect
 
         if (!$rules) {
             $rules = array_merge(
-                self::$phoneDevices,
-                self::$tabletDevices,
-                self::$operatingSystems,
-                self::$browsers
+                static::getPhoneDevices(),
+                static::getTabletDevices(),
+                static::getOperatingSystems(),
+                static::getBrowsers()
             );
         }
 
@@ -1208,11 +1208,11 @@ class Mobile_Detect
         if (!$rules) {
             // Merge all rules together.
             $rules = array_merge(
-                self::$phoneDevices,
-                self::$tabletDevices,
-                self::$operatingSystems,
-                self::$browsers,
-                self::$utilities
+                static::getPhoneDevices(),
+                static::getTabletDevices(),
+                static::getOperatingSystems(),
+                static::getBrowsers(),
+                static::getUtilities()
             );
         }
 
@@ -1406,7 +1406,7 @@ class Mobile_Detect
 
         $this->setDetectionType(self::DETECTION_TYPE_MOBILE);
 
-        foreach (self::$tabletDevices as $_regex) {
+        foreach (static::getTabletDevices() as $_regex) {
             if ($this->match($_regex, $userAgent)) {
                 return true;
             }
@@ -1462,7 +1462,7 @@ class Mobile_Detect
             return false;
         }
 
-        $match = (bool) preg_match(sprintf('#%s#is', $regex), (false === empty($userAgent) ? $userAgent : $this->userAgent), $matches);
+        $match = (bool) preg_match(sprintf('#%s#is', $regex), (false === empty($userAgent) ? $userAgent : (is_string($this->userAgent) ? $this->userAgent : '')), $matches);
         // If positive match is found, store the results for debug.
         if ($match) {
             $this->matchingRegex = $regex;
@@ -1531,7 +1531,7 @@ class Mobile_Detect
             $type = self::VERSION_TYPE_STRING;
         }
 
-        $properties = self::getProperties();
+        $properties = static::getProperties();
 
         // Check if the property exists in the properties array.
         if (true === isset($properties[$propertyName])) {
@@ -1545,7 +1545,7 @@ class Mobile_Detect
                 $propertyPattern = str_replace('[VER]', self::VER, $propertyMatchString);
 
                 // Identify and extract the version.
-                preg_match(sprintf('#%s#is', $propertyPattern), $this->userAgent, $match);
+                preg_match(sprintf('#%s#is', $propertyPattern), (is_string($this->userAgent) ? $this->userAgent : ''), $match);
 
                 if (false === empty($match[1])) {
                     $version = ($type == self::VERSION_TYPE_FLOAT ? $this->prepareVersionNo($match[1]) : $match[1]);

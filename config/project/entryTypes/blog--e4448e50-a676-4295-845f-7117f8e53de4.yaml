@@ -1,0 +1,96 @@
+fieldLayouts:
+  6b61ddef-e18d-40c5-ad12-9d1f7a68b17d:
+    tabs:
+      -
+        elements:
+          -
+            autocapitalize: true
+            autocomplete: false
+            autocorrect: true
+            class: null
+            disabled: false
+            id: null
+            instructions: null
+            label: null
+            max: null
+            min: null
+            name: null
+            orientation: null
+            placeholder: null
+            readonly: false
+            requirable: false
+            size: null
+            step: null
+            tip: null
+            title: null
+            type: craft\fieldlayoutelements\entries\EntryTitleField
+            warning: null
+            width: 100
+          -
+            fieldUid: 06f99f25-a062-45f4-a274-4dcbcb0d6d03
+            instructions: ''
+            label: ''
+            required: '1'
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
+          -
+            fieldUid: 22251e1a-5b1d-4b41-ad44-8a40d91873eb
+            instructions: ''
+            label: ''
+            required: '1'
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
+          -
+            fieldUid: 60b734c9-66e9-4743-84a4-310f6f31036c
+            instructions: null
+            label: null
+            required: false
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
+          -
+            fieldUid: 724bf21b-cea5-4e49-a9c9-da4f85771259
+            instructions: null
+            label: null
+            required: false
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
+          -
+            fieldUid: 7c1b1669-fb76-4b7a-96c2-002b0a135163
+            instructions: 'This will darken and grayscale the hero image. Use it when the Hero Text doesn''t contrast well.'
+            label: ''
+            required: ''
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
+        name: Overview
+        sortOrder: 1
+      -
+        elements:
+          -
+            fieldUid: 213965e8-4866-41f8-933d-4ae85aab0f1f
+            instructions: null
+            label: null
+            required: false
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            warning: null
+            width: 100
+        name: Content
+        sortOrder: 2
+handle: blog
+hasTitleField: true
+name: Blog
+section: fa5a5a45-8f91-4811-87ca-f70f8c3c5774
+sortOrder: 1
+titleFormat: null
+titleTranslationKeyFormat: null
+titleTranslationMethod: site

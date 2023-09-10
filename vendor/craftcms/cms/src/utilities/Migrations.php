@@ -37,7 +37,7 @@ class Migrations extends Utility
     /**
      * @inheritdoc
      */
-    public static function iconPath()
+    public static function iconPath(): ?string
     {
         return Craft::getAlias('@appicons/arrow-up.svg');
     }
@@ -62,7 +62,7 @@ class Migrations extends Utility
         $migrationHistory = $migrator->getMigrationHistory();
         $newMigrations = $migrator->getNewMigrations();
 
-        return $view->renderTemplate('_components/utilities/Migrations', [
+        return $view->renderTemplate('_components/utilities/Migrations.twig', [
             'migrationHistory' => $migrationHistory,
             'newMigrations' => $newMigrations,
         ]);

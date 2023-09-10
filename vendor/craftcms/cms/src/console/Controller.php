@@ -11,8 +11,14 @@ use craft\console\controllers\ResaveController;
 use craft\events\DefineConsoleActionsEvent;
 use craft\helpers\ArrayHelper;
 use craft\helpers\Console;
+use craft\helpers\FileHelper;
+use craft\helpers\Json;
 use craft\helpers\StringHelper;
+use ReflectionFunction;
+use ReflectionFunctionAbstract;
+use ReflectionMethod;
 use Seld\CliPrompt\CliPrompt;
+use Throwable;
 use yii\base\Action;
 use yii\base\InvalidConfigException;
 use yii\console\Controller as YiiController;
@@ -28,7 +34,11 @@ use yii\helpers\Inflector;
  */
 class Controller extends YiiController
 {
-    use ControllerTrait;
+    use ControllerTrait {
+        ControllerTrait::init as private traitInit;
+        ControllerTrait::options as private traitOptions;
+        ControllerTrait::runAction as private traitRunAction;
+    }
 
     /**
      * @event DefineConsoleActionsEvent The event that is triggered when defining custom actions for this controller.
@@ -61,25 +71,25 @@ class Controller extends YiiController
      * );
      * ```
      */
-    const EVENT_DEFINE_ACTIONS = 'defineActions';
+    public const EVENT_DEFINE_ACTIONS = 'defineActions';
 
     /**
      * @var array Custom actions that should be available.
      * @see defineActions()
      */
-    private $_actions;
+    private array $_actions;
 
     /**
-     * @var \ReflectionFunction[] Memoized reflection objects
+     * @var ReflectionFunctionAbstract[] Memoized reflection objects
      * @see getActionMethodReflection()
      */
-    private $_reflections = [];
+    private array $_reflections = [];
 
     /**
      * @var string|null The active action ID.
      * @see runAction()
      */
-    private $_actionId;
+    private ?string $_actionId = null;
 
     /**
      * @inheritdoc
@@ -122,10 +132,9 @@ class Controller extends YiiController
      * @inheritdoc
      * @throws InvalidConfigException
      */
-    public function init()
+    public function init(): void
     {
-        parent::init();
-        $this->checkTty();
+        $this->traitInit();
 
         $this->_actions = [];
         foreach ($this->defineActions() as $id => $action) {
@@ -134,7 +143,7 @@ class Controller extends YiiController
             }
 
             if (!isset($action['action'])) {
-                throw new InvalidConfigException("Action '{$id}' is missing an 'action' key.");
+                throw new InvalidConfigException("Action '$id' is missing an 'action' key.");
             }
 
             if (is_callable($action['action'])) {
@@ -164,20 +173,7 @@ class Controller extends YiiController
     /**
      * @inheritdoc
      */
-    public function beforeAction($action)
-    {
-        // Make sure this isn't a root user
-        if (!$this->checkRootUser()) {
-            return false;
-        }
-
-        return parent::beforeAction($action);
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function actions()
+    public function actions(): array
     {
         return ArrayHelper::getColumn($this->_actions, 'action');
     }
@@ -185,9 +181,9 @@ class Controller extends YiiController
     /**
      * @inheritdoc
      */
-    public function options($actionID)
+    public function options($actionID): array
     {
-        $options = parent::options($actionID);
+        $options = $this->traitOptions($actionID);
 
         if (isset($this->_actions[$actionID]['options'])) {
             $options = array_merge($options, array_keys($this->_actions[$actionID]['options']));
@@ -215,10 +211,10 @@ class Controller extends YiiController
     /**
      * @inheritdoc
      */
-    public function runAction($id, $params = [])
+    public function runAction($id, $params = []): int
     {
         $this->_actionId = $id;
-        $result = parent::runAction($id, $params);
+        $result = $this->traitRunAction($id, $params);
         $this->_actionId = null;
         return $result;
     }
@@ -226,7 +222,7 @@ class Controller extends YiiController
     /**
      * @inheritdoc
      */
-    public function getActionHelpSummary($action)
+    public function getActionHelpSummary($action): string
     {
         if (isset($this->_actions[$action->id])) {
             $help = $this->_actions[$action->id]['helpSummary'] ?? $this->_actions[$action->id]['help'] ?? '';
@@ -239,7 +235,7 @@ class Controller extends YiiController
     /**
      * @inheritdoc
      */
-    public function getActionHelp($action)
+    public function getActionHelp($action): string
     {
         if (isset($this->_actions[$action->id])) {
             return $this->_actions[$action->id]['help'] ?? $this->_actions[$action->id]['helpSummary'] ?? '';
@@ -251,7 +247,7 @@ class Controller extends YiiController
     /**
      * @inheritdoc
      */
-    public function getActionArgsHelp($action)
+    public function getActionArgsHelp($action): array
     {
         $args = parent::getActionArgsHelp($action);
 
@@ -269,7 +265,7 @@ class Controller extends YiiController
     /**
      * @inheritdoc
      */
-    public function getActionOptionsHelp($action)
+    public function getActionOptionsHelp($action): array
     {
         $options = parent::getActionOptionsHelp($action);
 
@@ -313,16 +309,16 @@ class Controller extends YiiController
 
     /**
      * @param Action $action
-     * @return \ReflectionMethod
+     * @return ReflectionFunctionAbstract
      */
-    protected function getActionMethodReflection($action)
+    protected function getActionMethodReflection($action): ReflectionFunctionAbstract
     {
         if ($action instanceof CallableAction) {
             if (!isset($this->_reflections[$action->id])) {
                 if (is_array($action->callable)) {
-                    $this->_reflections[$action->id] = new \ReflectionMethod($action->callable[0], $action->callable[1]);
+                    $this->_reflections[$action->id] = new ReflectionMethod($action->callable[0], $action->callable[1]);
                 } else {
-                    $this->_reflections[$action->id] = new \ReflectionFunction($action->callable);
+                    $this->_reflections[$action->id] = new ReflectionFunction($action->callable);
                 }
             }
             return $this->_reflections[$action->id];
@@ -340,7 +336,7 @@ class Controller extends YiiController
     private function _isCustomOption(string $name): bool
     {
         return (
-            $this->_actionId !== null &&
+            isset($this->_actionId) &&
             isset($this->_actions[$this->_actionId]['options']) &&
             array_key_exists($name, $this->_actions[$this->_actionId]['options'])
         );
@@ -401,13 +397,14 @@ class Controller extends YiiController
         $error = null;
 
         if ($options['validator'] && !$options['validator']($input, $error)) {
+            /** @var string|null $error */
             $this->stdout(($error ?? $options['error']) . PHP_EOL);
             goto top;
         }
 
         if ($options['confirm']) {
             $this->stdout('Confirm: ');
-            if (!($matched = ($input === CliPrompt::hiddenPrompt(true)))) {
+            if ($input !== CliPrompt::hiddenPrompt(true)) {
                 $this->stdout('Passwords didn\'t match, try again.' . PHP_EOL, Console::FG_RED);
                 goto top;
             }
@@ -431,5 +428,85 @@ class Controller extends YiiController
         ];
 
         Console::table($headers, $data, $options);
+    }
+
+    /**
+     * Performs an action with descriptive output.
+     *
+     * @param string $description The action description. Supports Markdown formatting.
+     * @param callable $action The action callable
+     * @param bool $withDuration Whether to output the action duration upon completion
+     * @since 4.3.5
+     */
+    public function do(string $description, callable $action, bool $withDuration = false): void
+    {
+        $this->stdout(' → ', Console::FG_GREY);
+        $this->stdout($this->markdownToAnsi($description));
+        $this->stdout(' … ', Console::FG_GREY);
+
+        if ($withDuration) {
+            $time = microtime(true);
+        }
+
+        try {
+            $action();
+        } catch (Throwable $e) {
+            $this->stdout('✕' . PHP_EOL, Console::FG_RED, Console::BOLD);
+            $this->stdout("   Error: {$e->getMessage()}" . PHP_EOL, Console::FG_RED);
+            throw $e;
+        }
+
+        $this->stdout('✓', Console::FG_GREEN, Console::BOLD);
+        if ($withDuration) {
+            $this->stdout(sprintf(' (time: %.3fs', microtime(true) - $time), Console::FG_GREY);
+        }
+        $this->stdout(PHP_EOL);
+    }
+
+    /**
+     * Creates a directory, and outputs to the console.
+     *
+     * @param string $path The path to the directory
+     * @since 4.3.5
+     */
+    public function createDirectory(string $path): void
+    {
+        $path = FileHelper::relativePath($path);
+        $this->do(
+            sprintf('Creating %s', $this->ansiFormat("$path/", Console::FG_CYAN)),
+            function() use ($path) {
+                FileHelper::createDirectory($path);
+            },
+        );
+    }
+
+    /**
+     * Writes contents to a file, and outputs to the console.
+     *
+     * @param string $file The path to the file to write to
+     * @param string $contents The file contents
+     * @param array $options Options for [[FileHelper::writeToFile()]]
+     * @since 4.3.5
+     */
+    public function writeToFile(string $file, string $contents, array $options = []): void
+    {
+        $file = FileHelper::relativePath($file);
+        $description = file_exists($file) ? "Updating `$file`" : "Creating `$file`";
+        $this->do($description, function() use ($file, $contents, $options) {
+            FileHelper::writeToFile($file, $contents, $options);
+        });
+    }
+
+    /**
+     * JSON-encodes a value and writes it to a file.
+     *
+     * @param string $file The path to the file to write to
+     * @param mixed $value The value to be JSON-encoded and written out
+     * @since 4.3.5
+     */
+    public function writeJson(string $file, mixed $value): void
+    {
+        $json = Json::encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n";
+        $this->writeToFile($file, "$json\n");
     }
 }

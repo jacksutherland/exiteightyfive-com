@@ -3,15 +3,6 @@
 $vendorDir = dirname(__DIR__);
 
 return array (
-  'yiisoft/yii2-swiftmailer' => 
-  array (
-    'name' => 'yiisoft/yii2-swiftmailer',
-    'version' => '2.1.3.0',
-    'alias' => 
-    array (
-      '@yii/swiftmailer' => $vendorDir . '/yiisoft/yii2-swiftmailer/src',
-    ),
-  ),
   'yiisoft/yii2-queue' => 
   array (
     'name' => 'yiisoft/yii2-queue',
@@ -49,10 +40,29 @@ return array (
       '@creocoder/nestedsets' => $vendorDir . '/creocoder/yii2-nested-sets/src',
     ),
   ),
+  'yiisoft/yii2-symfonymailer' => 
+  array (
+    'name' => 'yiisoft/yii2-symfonymailer',
+    'version' => '2.0.4.0',
+    'alias' => 
+    array (
+      '@yii/symfonymailer' => $vendorDir . '/yiisoft/yii2-symfonymailer/src',
+    ),
+  ),
+  'samdark/yii2-psr-log-target' => 
+  array (
+    'name' => 'samdark/yii2-psr-log-target',
+    'version' => '1.1.3.0',
+    'alias' => 
+    array (
+      '@samdark/log' => $vendorDir . '/samdark/yii2-psr-log-target/src',
+      '@samdark/log/tests' => $vendorDir . '/samdark/yii2-psr-log-target/tests',
+    ),
+  ),
   'yiisoft/yii2-shell' => 
   array (
     'name' => 'yiisoft/yii2-shell',
-    'version' => '2.0.5.0',
+    'version' => 'dev-master',
     'alias' => 
     array (
       '@yii/shell' => $vendorDir . '/yiisoft/yii2-shell',

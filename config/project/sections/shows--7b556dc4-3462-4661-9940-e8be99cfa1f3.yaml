@@ -1,0 +1,57 @@
+enableVersioning: true
+entryTypes:
+  30363997-572e-4765-8a02-875c5c89a7e6:
+    fieldLayouts:
+      d5ef2d73-691b-409d-8705-d41e6016b8f2:
+        tabs:
+          -
+            fields:
+              9c676ca6-7717-4d0d-9cb6-bcdfdd522e3b:
+                required: false
+                sortOrder: 1
+              60b734c9-66e9-4743-84a4-310f6f31036c:
+                required: false
+                sortOrder: 4
+              081fbcad-46eb-45f8-9649-7d6a3bca2228:
+                required: false
+                sortOrder: 2
+              bfb4b7c2-c2ae-4758-afeb-08676c116d14:
+                required: false
+                sortOrder: 6
+              c1680c04-0cb7-4c86-b5db-f01dd31e5d89:
+                required: false
+                sortOrder: 3
+              d5954740-8080-4d14-a342-c6b7de8fc700:
+                required: false
+                sortOrder: 5
+              e9c3142e-3cb9-4d97-b5ad-413431e2b5d6:
+                required: false
+                sortOrder: 7
+            name: 'Show Info'
+            sortOrder: 1
+          -
+            fields:
+              57842349-6cca-4fc9-9ba1-552326a89b01:
+                required: false
+                sortOrder: 1
+              c523cd68-86c4-45b9-ad5e-6a862ade0976:
+                required: false
+                sortOrder: 2
+            name: 'Internal Info'
+            sortOrder: 2
+    handle: shows
+    hasTitleField: true
+    name: Shows
+    sortOrder: 1
+    titleFormat: ''
+    titleLabel: Title
+handle: shows
+name: Shows
+propagationMethod: all
+siteSettings:
+  3c0b1454-ae0e-451e-b505-cf0eaea80e50:
+    enabledByDefault: true
+    hasUrls: true
+    template: shows/_entry
+    uriFormat: 'shows/{slug}'
+type: channel

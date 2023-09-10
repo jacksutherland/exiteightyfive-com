@@ -9,7 +9,7 @@ namespace craft\elements\actions;
 
 use Craft;
 use craft\base\ElementAction;
-use craft\helpers\Json;
+use craft\base\ElementInterface;
 
 /**
  * NewChild represents a New Child element action.
@@ -22,25 +22,31 @@ class NewChild extends ElementAction
     /**
      * @var string|null The trigger label
      */
-    public $label;
+    public ?string $label = null;
 
     /**
      * @var int|null The maximum number of levels that the structure is allowed to have
      */
-    public $maxLevels;
+    public ?int $maxLevels = null;
 
     /**
      * @var string|null The URL that the user should be taken to after clicking on this element action
      */
-    public $newChildUrl;
+    public ?string $newChildUrl = null;
 
     /**
      * @inheritdoc
      */
-    public function init()
+    public function setElementType(string $elementType): void
     {
-        if ($this->label === null) {
-            $this->label = Craft::t('app', 'New child');
+        /** @var string|ElementInterface $elementType */
+        /** @phpstan-var class-string<ElementInterface> $elementType */
+        parent::setElementType($elementType);
+
+        if (!isset($this->label)) {
+            $this->label = Craft::t('app', 'Create a new child {type}', [
+                'type' => $elementType::lowerDisplayName(),
+            ]);
         }
     }
 
@@ -55,35 +61,32 @@ class NewChild extends ElementAction
     /**
      * @inheritdoc
      */
-    public function getTriggerHtml()
+    public function getTriggerHtml(): ?string
     {
-        $type = Json::encode(static::class);
-        $maxLevels = Json::encode($this->maxLevels);
-        $newChildUrl = Json::encode($this->newChildUrl);
-
-        $js = <<<JS
+        Craft::$app->getView()->registerJsWithVars(fn($type, $maxLevels, $newChildUrl) => <<<JS
 (() => {
     let trigger = new Craft.ElementActionTrigger({
-        type: {$type},
-        batch: false,
-        validateSelection: function(\$selectedItems)
-        {
-            return (!$maxLevels || $maxLevels > \$selectedItems.find('.element').data('level'));
+        type: $type,
+        bulk: false,
+        validateSelection: (selectedItems) => {
+            const element = selectedItems.find('.element');
+            return (
+                (!$maxLevels || $maxLevels > element.data('level')) &&
+                !Garnish.hasAttr(element, 'data-disallow-new-children')
+            );
         },
-        activate: function(\$selectedItems)
-        {
-            Craft.redirectTo(Craft.getUrl($newChildUrl, 'parentId='+\$selectedItems.find('.element').data('id')));
-        }
+        activate: \$selectedItems => {
+            const url = Craft.getUrl($newChildUrl, 'parentId=' + \$selectedItems.find('.element').data('id'));
+            Craft.redirectTo(url);
+        },
     });
 
-    if (Craft.elementIndex.view.structureTableSort)
-    {
+    if (Craft.elementIndex.view.structureTableSort) {
         Craft.elementIndex.view.structureTableSort.on('positionChange', $.proxy(trigger, 'updateTrigger'));
     }
 })();
-JS;
+JS, [static::class, $this->maxLevels, $this->newChildUrl]);
 
-        Craft::$app->getView()->registerJs($js);
         return null;
     }
 }

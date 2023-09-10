@@ -33,7 +33,8 @@ class Paginate extends BaseObject
         $pageResults = $paginator->getPageResults();
         $pageOffset = $paginator->getPageOffset();
 
-        return new static([
+        return Craft::createObject([
+            'class' => static::class,
             'first' => $pageOffset + 1,
             'last' => $pageOffset + count($pageResults),
             'total' => $paginator->getTotalResults(),
@@ -45,34 +46,54 @@ class Paginate extends BaseObject
     /**
      * @var int
      */
-    public $first;
+    public int $first;
 
     /**
      * @var int
      */
-    public $last;
+    public int $last;
 
     /**
      * @var int
      */
-    public $total = 0;
+    public int $total = 0;
 
     /**
      * @var int
      */
-    public $currentPage;
+    public int $currentPage;
 
     /**
      * @var int
      */
-    public $totalPages = 0;
+    public int $totalPages = 0;
+
+    /**
+     * @var string
+     * @since 3.7.64
+     */
+    public string $pageTrigger;
 
     /**
      * @var string Base path
      * @see getBasePath()
      * @see setBasePath()
      */
-    private $_basePath;
+    private string $_basePath;
+
+    /**
+     * @inheritdoc
+     */
+    public function init()
+    {
+        parent::init();
+
+        if (!isset($this->pageTrigger)) {
+            $this->pageTrigger = Craft::$app->getRequest()->getIsCpRequest()
+                ? 'p'
+                : Craft::$app->getConfig()->getGeneral()->getPageTrigger();
+        }
+    }
 
     /**
      * Returns the base path that should be used for pagination URLs.
@@ -81,7 +102,7 @@ class Paginate extends BaseObject
      */
     public function getBasePath(): string
     {
-        if ($this->_basePath !== null) {
+        if (isset($this->_basePath)) {
             return $this->_basePath;
         }
         return $this->_basePath = Craft::$app->getRequest()->getPathInfo();
@@ -93,7 +114,7 @@ class Paginate extends BaseObject
      * @param string $basePath
      * @since 3.1.28
      */
-    public function setBasePath(string $basePath)
+    public function setBasePath(string $basePath): void
     {
         $this->_basePath = $basePath;
     }
@@ -104,14 +125,13 @@ class Paginate extends BaseObject
      * @param int $page
      * @return string|null
      */
-    public function getPageUrl(int $page)
+    public function getPageUrl(int $page): ?string
     {
         if ($page < 1 || $page > $this->totalPages) {
             return null;
         }
 
-        $pageTrigger = Craft::$app->getConfig()->getGeneral()->getPageTrigger();
-        $useQueryParam = strpos($pageTrigger, '?') === 0;
+        $useQueryParam = str_starts_with($this->pageTrigger, '?');
 
         $path = $this->getBasePath();
 
@@ -121,7 +141,7 @@ class Paginate extends BaseObject
                 $path .= '/';
             }
 
-            $path .= $pageTrigger . $page;
+            $path .= $this->pageTrigger . $page;
         }
 
         // Build the URL with the same query string as the current request
@@ -129,7 +149,7 @@ class Paginate extends BaseObject
 
         // If using a query param, append or remove it
         if ($useQueryParam) {
-            $param = trim($pageTrigger, '?=');
+            $param = trim($this->pageTrigger, '?=');
             if ($page != 1) {
                 $url = UrlHelper::urlWithParams($url, [$param => $page]);
             } else {
@@ -145,7 +165,7 @@ class Paginate extends BaseObject
      *
      * @return string|null
      */
-    public function getFirstUrl()
+    public function getFirstUrl(): ?string
     {
         return $this->getPageUrl(1);
     }
@@ -155,7 +175,7 @@ class Paginate extends BaseObject
      *
      * @return string|null
      */
-    public function getLastUrl()
+    public function getLastUrl(): ?string
     {
         return $this->getPageUrl($this->totalPages);
     }
@@ -165,7 +185,7 @@ class Paginate extends BaseObject
      *
      * @return string|null
      */
-    public function getPrevUrl()
+    public function getPrevUrl(): ?string
     {
         return $this->getPageUrl($this->currentPage - 1);
     }
@@ -175,7 +195,7 @@ class Paginate extends BaseObject
      *
      * @return string|null
      */
-    public function getNextUrl()
+    public function getNextUrl(): ?string
     {
         return $this->getPageUrl($this->currentPage + 1);
     }
@@ -186,7 +206,7 @@ class Paginate extends BaseObject
      * @param int|null $dist
      * @return array
      */
-    public function getPrevUrls(int $dist = null): array
+    public function getPrevUrls(?int $dist = null): array
     {
         if ($dist !== null) {
             $start = $this->currentPage - $dist;
@@ -203,7 +223,7 @@ class Paginate extends BaseObject
      * @param int|null $dist
      * @return array
      */
-    public function getNextUrls(int $dist = null): array
+    public function getNextUrls(?int $dist = null): array
     {
         if ($dist !== null) {
             $end = $this->currentPage + $dist;
@@ -246,7 +266,7 @@ class Paginate extends BaseObject
      * @param int $max The maximum number of links to return
      * @return string[]
      */
-    public function getDynamicRangeUrls($max = 10)
+    public function getDynamicRangeUrls(int $max = 10): array
     {
         $start = max(1, $this->currentPage - floor($max / 2));
         $end = min($this->totalPages, $start + $max - 1);

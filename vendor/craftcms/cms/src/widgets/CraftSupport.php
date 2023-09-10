@@ -48,7 +48,7 @@ class CraftSupport extends Widget
     /**
      * @inheritdoc
      */
-    public static function icon()
+    public static function icon(): ?string
     {
         return Craft::getAlias('@appicons/buoey.svg');
     }
@@ -56,19 +56,19 @@ class CraftSupport extends Widget
     /**
      * @inheritdoc
      */
-    public function getTitle(): string
+    public function getTitle(): ?string
     {
-        return '';
+        return null;
     }
 
     /**
      * @inheritdoc
      */
-    public function getBodyHtml()
+    public function getBodyHtml(): ?string
     {
         // Only admins get the Craft Support widget.
         if (!Craft::$app->getUser()->getIsAdmin()) {
-            return false;
+            return null;
         }
 
         $view = Craft::$app->getView();
@@ -83,11 +83,7 @@ class CraftSupport extends Widget
         }
 
         $db = Craft::$app->getDb();
-        if ($db->getIsMysql()) {
-            $dbDriver = 'MySQL';
-        } else {
-            $dbDriver = 'PostgreSQL';
-        }
+        $dbDriver = $db->getDriverLabel();
 
         $imagesService = Craft::$app->getImages();
         if ($imagesService->getIsGd()) {
@@ -141,7 +137,7 @@ JS;
         // Only show the DB backup option if DB backups haven't been disabled
         $showBackupOption = (Craft::$app->getConfig()->getGeneral()->backupCommand !== false);
 
-        return $view->renderTemplate('_components/widgets/CraftSupport/body', [
+        return $view->renderTemplate('_components/widgets/CraftSupport/body.twig', [
             'widget' => $this,
             'buoeyIcon' => file_get_contents($iconsDir . '/buoey.svg'),
             'bullhornIcon' => file_get_contents($iconsDir . '/bullhorn.svg'),

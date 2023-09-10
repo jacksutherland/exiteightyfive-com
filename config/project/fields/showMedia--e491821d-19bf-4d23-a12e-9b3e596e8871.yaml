@@ -1,0 +1,14 @@
+columnSuffix: pjbxxytu
+contentColumnType: boolean
+fieldGroup: 605f37ce-123b-46f5-9da2-fadf43eae62c # Pages
+handle: showMedia
+instructions: null
+name: 'Show Media'
+searchable: false
+settings:
+  default: false
+  offLabel: Hide
+  onLabel: Show
+translationKeyFormat: null
+translationMethod: none
+type: craft\fields\Lightswitch

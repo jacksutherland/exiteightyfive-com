@@ -13,17 +13,22 @@ use craft\errors\ImageException;
 use craft\helpers\App;
 use craft\helpers\FileHelper;
 use craft\helpers\Image as ImageHelper;
+use Imagick;
 use Imagine\Exception\NotSupportedException;
 use Imagine\Exception\RuntimeException;
 use Imagine\Gd\Imagine as GdImagine;
 use Imagine\Image\AbstractFont as Font;
 use Imagine\Image\AbstractImage;
+use Imagine\Image\AbstractImagine;
 use Imagine\Image\Box;
-use Imagine\Image\ImageInterface as Imagine;
+use Imagine\Image\BoxInterface;
+use Imagine\Image\ImageInterface;
 use Imagine\Image\Metadata\ExifMetadataReader;
+use Imagine\Image\Palette\Color\ColorInterface;
 use Imagine\Image\Palette\RGB;
 use Imagine\Image\Point;
 use Imagine\Imagick\Imagine as ImagickImagine;
+use Throwable;
 use yii\base\ErrorException;
 
 /**
@@ -37,42 +42,47 @@ class Raster extends Image
     /**
      * @var string|null
      */
-    private $_imageSourcePath;
+    private ?string $_imageSourcePath = null;
 
     /**
      * @var string|null
      */
-    private $_extension;
+    private ?string $_extension = null;
 
     /**
      * @var bool
      */
-    private $_isAnimated = false;
+    private bool $_isAnimated = false;
 
     /**
      * @var int
      */
-    private $_quality = 0;
+    private int $_quality = 0;
 
     /**
-     * @var AbstractImage|null
+     * @var ImageInterface|null
      */
-    private $_image;
+    private ?ImageInterface $_image = null;
 
     /**
-     * @var Imagine|null
+     * @var AbstractImagine|null
      */
-    private $_instance;
+    private ?AbstractImagine $_instance = null;
 
     /**
      * @var RGB|null
      */
-    private $_palette;
+    private ?RGB $_palette = null;
 
     /**
      * @var Font|null
      */
-    private $_font;
+    private ?Font $_font = null;
+
+    /**
+     * @var ColorInterface|null
+     */
+    private ?ColorInterface $_fill = null;
 
     /**
      * @inheritdoc
@@ -109,7 +119,7 @@ class Raster extends Image
      *
      * @return AbstractImage|null
      */
-    public function getImagineImage()
+    public function getImagineImage(): ?AbstractImage
     {
         return $this->_image;
     }
@@ -141,7 +151,7 @@ class Raster extends Image
     /**
      * @inheritdoc
      */
-    public function loadImage(string $path)
+    public function loadImage(string $path): self
     {
         $imageService = Craft::$app->getImages();
 
@@ -158,14 +168,18 @@ class Raster extends Image
         // Make sure the image says it's an image
         $mimeType = FileHelper::getMimeType($path, null, false);
 
-        if ($mimeType !== null && strpos($mimeType, 'image/') !== 0 && strpos($mimeType, 'application/pdf') !== 0) {
-            throw new ImageException(Craft::t('app', 'The file “{name}” does not appear to be an image.', ['name' => basename($path)]));
+        if ($mimeType !== null && !str_starts_with($mimeType, 'image/') && !str_starts_with($mimeType, 'application/pdf')) {
+            throw new ImageException(Craft::t('app', 'The file “{name}” does not appear to be an image.', [
+                'name' => basename($path),
+            ]));
         }
 
         try {
             $this->_image = $this->_instance->open($path);
-        } catch (\Throwable $e) {
-            throw new ImageException(Craft::t('app', 'The file “{path}” does not appear to be an image.', ['path' => $path]), 0, $e);
+        } catch (Throwable $e) {
+            throw new ImageException(Craft::t('app', 'The file “{name}” does not appear to be an image.', [
+                'name' => basename($path),
+            ]), 0, $e);
         }
 
         // For Imagick, convert CMYK to RGB, save and re-open.
@@ -173,12 +187,13 @@ class Raster extends Image
             !Craft::$app->getImages()->getIsGd()
             && !Craft::$app->getConfig()->getGeneral()->preserveCmykColorspace
             && method_exists($this->_image->getImagick(), 'getImageColorspace')
-            && $this->_image->getImagick()->getImageColorspace() === \Imagick::COLORSPACE_CMYK
+            && $this->_image->getImagick()->getImageColorspace() === Imagick::COLORSPACE_CMYK
             && method_exists($this->_image->getImagick(), 'transformImageColorspace')
         ) {
-            $this->_image->getImagick()->transformImageColorspace(\Imagick::COLORSPACE_SRGB);
+            $this->_image->getImagick()->transformImageColorspace(Imagick::COLORSPACE_SRGB);
             $this->_image->save();
 
+            /** @noinspection PhpIncompatibleReturnTypeInspection */
             return Craft::$app->getImages()->loadImage($path);
         }
 
@@ -197,7 +212,7 @@ class Raster extends Image
     /**
      * @inheritdoc
      */
-    public function crop(int $x1, int $x2, int $y1, int $y2)
+    public function crop(int $x1, int $x2, int $y1, int $y2): self
     {
         $width = $x2 - $x1;
         $height = $y2 - $y1;
@@ -214,10 +229,8 @@ class Raster extends Image
                 $croppedLayer = $layer->crop($startingPoint, $newSize);
                 $gif->layers()->add($croppedLayer);
 
-                // Let's update dateUpdated in case this is going to take awhile.
-                if ($index = Craft::$app->getAssetTransforms()->getActiveTransformIndex()) {
-                    Craft::$app->getAssetTransforms()->storeTransformIndexData($index);
-                }
+                // Since it might take a while, send a heartbeat back
+                $this->heartbeat();
             }
 
             $this->_image = $gif;
@@ -231,11 +244,11 @@ class Raster extends Image
     /**
      * @inheritdoc
      */
-    public function scaleToFit(int $targetWidth = null, int $targetHeight = null, bool $scaleIfSmaller = true)
+    public function scaleToFit(?int $targetWidth, ?int $targetHeight, bool $scaleIfSmaller = null): self
     {
         $this->normalizeDimensions($targetWidth, $targetHeight);
 
-        $scaleIfSmaller = $scaleIfSmaller && Craft::$app->getConfig()->getGeneral()->upscaleImages;
+        $scaleIfSmaller = $scaleIfSmaller ?? Craft::$app->getConfig()->getGeneral()->upscaleImages;
 
         if ($scaleIfSmaller || $this->getWidth() > $targetWidth || $this->getHeight() > $targetHeight) {
             $factor = max($this->getWidth() / $targetWidth, $this->getHeight() / $targetHeight);
@@ -246,9 +259,68 @@ class Raster extends Image
     }
 
     /**
+     * Scales an image to the target size and fills empty pixels with color.
+     *
+     * @param int|null $targetWidth
+     * @param int|null $targetHeight
+     * @param string|null $fill
+     * @param string|array $position
+     * @param bool|null $upscale
+     * @return Raster
+     * @since 4.4.0
+     */
+    public function scaleToFitAndFill(?int $targetWidth, ?int $targetHeight, string $fill = null, string|array $position = 'center-center', bool $upscale = null): static
+    {
+        $upscale = $upscale ?? Craft::$app->getConfig()->getGeneral()->upscaleImages;
+
+        $this->normalizeDimensions($targetWidth, $targetHeight);
+        $this->scaleToFit($targetWidth, $targetHeight, $upscale);
+        $this->setFill($fill);
+
+        $box = new Box($targetWidth, $targetHeight);
+        $canvas = $this->_instance->create($box, $this->_fill);
+
+        [$verticalPosition, $horizontalPosition] = explode('-', $position);
+
+        $y = match ($verticalPosition) {
+            'top' => 0,
+            'bottom' => ($box->getHeight() - $this->getHeight()),
+            default => ($box->getHeight() - $this->getHeight()) / 2,
+        };
+
+        $x = match ($horizontalPosition) {
+            'left' => 0,
+            'right' => ($box->getWidth() - $this->getWidth()),
+            default => ($box->getWidth() - $this->getWidth()) / 2,
+        };
+
+        $point = new Point($x, $y);
+
+        if ($this->_isAnimated) {
+            $canvas->layers()->remove(0);
+            $this->_image->layers()->coalesce();
+
+            foreach ($this->_image->layers() as $layer) {
+                $newLayer = $this->_instance->create($box, $this->_fill);
+                $newLayer->paste($layer, $point);
+                $canvas->layers()->add($newLayer);
+
+                // Hopefully this doesn't take _too_ long, but it might
+                $this->heartbeat();
+            }
+        } else {
+            $canvas->paste($this->_image, $point);
+        }
+
+        $this->_image = $canvas;
+
+        return $this;
+    }
+
+    /**
      * @inheritdoc
      */
-    public function scaleAndCrop(int $targetWidth = null, int $targetHeight = null, bool $scaleIfSmaller = true, $cropPosition = 'center-center')
+    public function scaleAndCrop(?int $targetWidth, ?int $targetHeight, bool $scaleIfSmaller = true, array|string $cropPosition = 'center-center'): self
     {
         $this->normalizeDimensions($targetWidth, $targetHeight);
 
@@ -354,7 +426,7 @@ class Raster extends Image
     /**
      * @inheritdoc
      */
-    public function resize(int $targetWidth = null, int $targetHeight = null)
+    public function resize(?int $targetWidth, ?int $targetHeight): self
     {
         $this->normalizeDimensions($targetWidth, $targetHeight);
 
@@ -369,10 +441,8 @@ class Raster extends Image
                 $resizedLayer = $layer->resize($newSize, $this->_getResizeFilter());
                 $gif->layers()->add($resizedLayer);
 
-                // Let's update dateUpdated in case this is going to take awhile.
-                if ($index = Craft::$app->getAssetTransforms()->getActiveTransformIndex()) {
-                    Craft::$app->getAssetTransforms()->storeTransformIndexData($index);
-                }
+                // Since it might take a while, send a heartbeat back
+                $this->heartbeat();
             }
 
             $this->_image = $gif;
@@ -397,9 +467,9 @@ class Raster extends Image
      * Rotates the image by the given degrees.
      *
      * @param float $degrees
-     * @return static Self reference
+     * @return self Self reference
      */
-    public function rotate(float $degrees)
+    public function rotate(float $degrees): self
     {
         $this->_image->rotate($degrees);
 
@@ -413,24 +483,22 @@ class Raster extends Image
     /**
      * Flips the image horizontally.
      *
-     * @return static Self reference
+     * @return self Self reference
      */
-    public function flipHorizontally()
+    public function flipHorizontally(): self
     {
         $this->_image->flipHorizontally();
-
         return $this;
     }
 
     /**
      * Flips the image vertically.
      *
-     * @return static Self reference
+     * @return self Self reference
      */
-    public function flipVertically()
+    public function flipVertically(): self
     {
         $this->_image->flipVertically();
-
         return $this;
     }
 
@@ -438,12 +506,11 @@ class Raster extends Image
      * Sets the image quality.
      *
      * @param int $quality
-     * @return static Self reference
+     * @return self Self reference
      */
-    public function setQuality(int $quality)
+    public function setQuality(int $quality): self
     {
         $this->_quality = $quality;
-
         return $this;
     }
 
@@ -451,11 +518,30 @@ class Raster extends Image
      * Sets the interlace setting.
      *
      * @param string $interlace
-     * @return static Self reference
+     * @return self Self reference
      */
-    public function setInterlace(string $interlace)
+    public function setInterlace(string $interlace): self
     {
         $this->_image->interlace($interlace);
+
+        return $this;
+    }
+
+    /**
+     * Sets the fill color based on the image's palette.
+     *
+     * @param string $fill Hex color of the fill.
+     * @return $this Self reference
+     * @since 4.4.0
+     */
+    public function setFill(string $fill = null): self
+    {
+        $fill = $fill ?? 'transparent';
+        if ($fill === 'transparent') {
+            $this->_fill = $this->_image->palette()->color('#ffffff', 0);
+        } else {
+            $this->_fill = $this->_image->palette()->color($fill);
+        }
 
         return $this;
     }
@@ -480,7 +566,7 @@ class Raster extends Image
                 try {
                     rename($tempFile, $targetPath);
                 } catch (ErrorException $e) {
-                    Craft::warning("Unable to rename \"{$tempFile}\" to \"{$targetPath}\": " . $e->getMessage(), __METHOD__);
+                    Craft::warning("Unable to rename \"$tempFile\" to \"$targetPath\": " . $e->getMessage(), __METHOD__);
                 }
             } else {
                 if (Craft::$app->getImages()->getIsImagick()) {
@@ -499,14 +585,14 @@ class Raster extends Image
      * Loads an image from an SVG string.
      *
      * @param string $svgContent
-     * @return static Self reference
+     * @return self Self reference
      * @throws ImageException if the SVG string cannot be loaded.
      */
-    public function loadFromSVG(string $svgContent)
+    public function loadFromSVG(string $svgContent): self
     {
         try {
             $this->_image = $this->_instance->load($svgContent);
-        } catch (RuntimeException $e) {
+        } catch (RuntimeException) {
             try {
                 // Invalid SVG. Maybe it's missing its DTD?
                 $svgContent = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>' . $svgContent;
@@ -527,8 +613,13 @@ class Raster extends Image
      */
     public function getIsTransparent(): bool
     {
-        if (Craft::$app->getImages()->getIsImagick() && method_exists(\Imagick::class, 'getImageAlphaChannel')) {
-            return $this->_image->getImagick()->getImageAlphaChannel();
+        if (Craft::$app->getImages()->getIsImagick()) {
+            // https://github.com/php-imagine/Imagine/issues/842#issuecomment-1402748019
+            $alphaRange = $this->_image->getImagick()->getImageChannelRange(Imagick::CHANNEL_ALPHA);
+            return (
+                isset($alphaRange['minima'], $alphaRange['maxima']) &&
+                $alphaRange['minima'] < $alphaRange['maxima']
+            );
         }
 
         return false;
@@ -562,9 +653,9 @@ class Raster extends Image
      * @param int $size font size to use
      * @param string $color font color to use in hex format
      */
-    public function setFontProperties(string $fontFile, int $size, string $color)
+    public function setFontProperties(string $fontFile, int $size, string $color): void
     {
-        if ($this->_palette === null) {
+        if (!isset($this->_palette)) {
             $this->_palette = new RGB();
         }
 
@@ -576,12 +667,12 @@ class Raster extends Image
      *
      * @param string $text
      * @param int $angle
-     * @return \Imagine\Image\BoxInterface
+     * @return BoxInterface
      * @throws ImageException if attempting to create text box with no font properties
      */
-    public function getTextBox(string $text, int $angle = 0)
+    public function getTextBox(string $text, int $angle = 0): BoxInterface
     {
-        if ($this->_font === null) {
+        if (!isset($this->_font)) {
             throw new ImageException(Craft::t('app', 'No font properties have been set. Call Raster::setFontProperties() first.'));
         }
 
@@ -597,9 +688,9 @@ class Raster extends Image
      * @param int $angle
      * @throws ImageException If attempting to create text box with no font properties et.
      */
-    public function writeText(string $text, int $x, int $y, int $angle = 0)
+    public function writeText(string $text, int $x, int $y, int $angle = 0): void
     {
-        if ($this->_font === null) {
+        if (!isset($this->_font)) {
             throw new ImageException(Craft::t('app', 'No font properties have been set. Call ImageHelper::setFontProperties() first.'));
         }
 
@@ -610,9 +701,9 @@ class Raster extends Image
     /**
      * Disable animation if this is an animated image.
      *
-     * @return $this
+     * @return self Self-reference
      */
-    public function disableAnimation()
+    public function disableAnimation(): self
     {
         $this->_isAnimated = false;
 
@@ -638,7 +729,9 @@ class Raster extends Image
     private function _autoGuessImageQuality(string $tempFileName, int $originalSize, string $extension, int $minQuality, int $maxQuality, int $step = 0): string
     {
         if ($step === 0) {
-            $tempFileName = pathinfo($tempFileName, PATHINFO_DIRNAME) . DIRECTORY_SEPARATOR . pathinfo($tempFileName, PATHINFO_FILENAME) . '-temp.' . $extension;
+            $tempFileName = pathinfo($tempFileName, PATHINFO_DIRNAME) .
+                DIRECTORY_SEPARATOR .
+                FileHelper::uniqueName(sprintf('%s.%s', pathinfo($tempFileName, PATHINFO_FILENAME), $extension));
         }
 
         // Find our target quality by splitting the min and max qualities
@@ -679,11 +772,11 @@ class Raster extends Image
     }
 
     /**
-     * @return mixed
+     * @return string
      */
-    private function _getResizeFilter()
+    private function _getResizeFilter(): string
     {
-        return (Craft::$app->getImages()->getIsGd() ? Imagine::FILTER_UNDEFINED : Imagine::FILTER_LANCZOS);
+        return (Craft::$app->getImages()->getIsGd() ? ImageInterface::FILTER_UNDEFINED : ImageInterface::FILTER_LANCZOS);
     }
 
     /**
@@ -693,7 +786,7 @@ class Raster extends Image
      * @param string|null $extension
      * @return array
      */
-    private function _getSaveOptions(int $quality = null, string $extension = null): array
+    private function _getSaveOptions(?int $quality, ?string $extension = null): array
     {
         // Because it's possible for someone to set the quality to 0.
         $quality = $quality ?: $this->_quality;

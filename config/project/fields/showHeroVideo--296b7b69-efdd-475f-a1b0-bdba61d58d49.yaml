@@ -1,0 +1,11 @@
+contentColumnType: boolean
+fieldGroup: 170555c3-76ee-4a23-ba64-9dc060c99120
+handle: showHeroVideo
+instructions: ''
+name: 'Show Hero Video'
+searchable: true
+settings:
+  default: ''
+translationKeyFormat: null
+translationMethod: none
+type: craft\fields\Lightswitch

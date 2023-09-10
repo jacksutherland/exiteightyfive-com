@@ -8,8 +8,10 @@
 namespace craft\helpers;
 
 use Craft;
+use craft\queue\BaseBatchedJob;
 use yii\base\NotSupportedException;
 use yii\queue\JobInterface;
+use yii\queue\Queue as BaseQueue;
 
 /**
  * Queue helper.
@@ -26,11 +28,25 @@ class Queue
      * @param int|null $priority
      * @param int|null $delay
      * @param int|null $ttr
+     * @param BaseQueue|null $queue The queue to push to
      * @return string|null The new job ID
      */
-    public static function push(JobInterface $job, ?int $priority = null, ?int $delay = null, ?int $ttr = null): ?string
-    {
-        $queue = Craft::$app->getQueue();
+    public static function push(
+        JobInterface $job,
+        ?int $priority = null,
+        ?int $delay = null,
+        ?int $ttr = null,
+        ?BaseQueue $queue = null,
+    ): ?string {
+        if ($queue === null) {
+            $queue = Craft::$app->getQueue();
+        }
+
+        if ($job instanceof BaseBatchedJob) {
+            // Keep track of the priority and TTR in case there will be additional jobs
+            $job->priority = $priority;
+            $job->ttr = $ttr;
+        }
 
         try {
             return $queue
@@ -38,7 +54,7 @@ class Queue
                 ->delay($delay)
                 ->ttr($ttr)
                 ->push($job);
-        } catch (NotSupportedException $e) {
+        } catch (NotSupportedException) {
             // Some queue drivers don't support priority
             return $queue
                 ->delay($delay)

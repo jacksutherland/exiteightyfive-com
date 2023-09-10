@@ -32,7 +32,7 @@ class TestsController extends Controller
      *
      * @return int
      */
-    public function actionSetup(string $dst = null): int
+    public function actionSetup(?string $dst = null): int
     {
         if ($dst === null) {
             $dst = getcwd();
@@ -46,7 +46,7 @@ class TestsController extends Controller
 
         $handle = opendir($src);
         if ($handle === false) {
-            throw new InvalidArgumentException("Unable to open directory: {$src}");
+            throw new InvalidArgumentException("Unable to open directory: $src");
         }
 
         while (($file = readdir($handle)) !== false) {
@@ -68,11 +68,11 @@ class TestsController extends Controller
             $this->stdout('The following files/folders will be overwritten:' . PHP_EOL . PHP_EOL, Console::FG_YELLOW);
 
             foreach ($conflicts as $file) {
-                $this->stdout("- {$file}" . PHP_EOL, Console::FG_YELLOW);
+                $this->stdout("- $file" . PHP_EOL, Console::FG_YELLOW);
             }
 
             $this->stdout(PHP_EOL);
-            if (!$this->confirm('Are you sure you want to continue?')) {
+            if ($this->interactive && !$this->confirm('Are you sure you want to continue?')) {
                 $this->stdout('Aborting.' . PHP_EOL);
                 return ExitCode::UNSPECIFIED_ERROR;
             }
@@ -82,10 +82,10 @@ class TestsController extends Controller
         // Confirm
         $this->stdout('The following files/folders will be created:' . PHP_EOL . PHP_EOL);
         foreach ($plan as $file) {
-            $this->stdout("- {$file}" . PHP_EOL);
+            $this->stdout("- $file" . PHP_EOL);
         }
         $this->stdout(PHP_EOL);
-        if (!$this->confirm('Continue?', true)) {
+        if ($this->interactive && !$this->confirm('Continue?', true)) {
             $this->stdout('Aborting.' . PHP_EOL);
             return ExitCode::UNSPECIFIED_ERROR;
         }

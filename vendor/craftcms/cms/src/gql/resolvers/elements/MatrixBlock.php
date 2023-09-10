@@ -7,8 +7,10 @@
 
 namespace craft\gql\resolvers\elements;
 
+use craft\elements\db\ElementQuery;
 use craft\elements\MatrixBlock as MatrixBlockElement;
 use craft\gql\base\ElementResolver;
+use yii\base\UnknownMethodException;
 
 /**
  * Class MatrixBlock
@@ -21,7 +23,7 @@ class MatrixBlock extends ElementResolver
     /**
      * @inheritdoc
      */
-    public static function prepareQuery($source, array $arguments, $fieldName = null)
+    public static function prepareQuery(mixed $source, array $arguments, ?string $fieldName = null): mixed
     {
         // If this is the beginning of a resolver chain, start fresh
         if ($source === null) {
@@ -32,12 +34,18 @@ class MatrixBlock extends ElementResolver
         }
 
         // If it's preloaded, it's preloaded.
-        if (is_array($query)) {
+        if (!$query instanceof ElementQuery) {
             return $query;
         }
 
         foreach ($arguments as $key => $value) {
-            $query->$key($value);
+            try {
+                $query->$key($value);
+            } catch (UnknownMethodException $e) {
+                if ($value !== null) {
+                    throw $e;
+                }
+            }
         }
 
         return $query;

@@ -15,6 +15,7 @@ use craft\fields\PlainText;
 use craft\helpers\ArrayHelper;
 use craft\helpers\UrlHelper;
 use craft\models\FieldGroup;
+use craft\models\FieldLayoutTab;
 use craft\web\assets\fieldsettings\FieldSettingsAsset;
 use craft\web\Controller;
 use yii\web\BadRequestHttpException;
@@ -35,12 +36,16 @@ class FieldsController extends Controller
     /**
      * @inheritdoc
      */
-    public function beforeAction($action)
+    public function beforeAction($action): bool
     {
+        if (!parent::beforeAction($action)) {
+            return false;
+        }
+
         // All field actions require an admin
         $this->requireAdmin();
 
-        return parent::beforeAction($action);
+        return true;
     }
 
     // Groups
@@ -72,15 +77,10 @@ class FieldsController extends Controller
         $group->name = $this->request->getRequiredBodyParam('name');
 
         if (!$fieldsService->saveGroup($group)) {
-            return $this->asJson([
-                'errors' => $group->getErrors(),
-            ]);
+            return $this->asModelFailure($group);
         }
 
-        return $this->asJson([
-            'success' => true,
-            'group' => $group->getAttributes(),
-        ]);
+        return $this->asModelSuccess($group, modelName: 'group');
     }
 
     /**
@@ -96,11 +96,9 @@ class FieldsController extends Controller
         $groupId = $this->request->getRequiredBodyParam('id');
         $success = Craft::$app->getFields()->deleteGroupById($groupId);
 
-        $this->setSuccessFlash(Craft::t('app', 'Group deleted.'));
-
-        return $this->asJson([
-            'success' => $success,
-        ]);
+        return $success ?
+            $this->asSuccess(Craft::t('app', 'Group deleted.')) :
+            $this->asFailure();
     }
 
     // Fields
@@ -116,7 +114,7 @@ class FieldsController extends Controller
      * @throws NotFoundHttpException if the requested field/field group cannot be found
      * @throws ServerErrorHttpException if no field groups exist
      */
-    public function actionEditField(int $fieldId = null, FieldInterface $field = null, int $groupId = null): Response
+    public function actionEditField(?int $fieldId = null, ?FieldInterface $field = null, ?int $groupId = null): Response
     {
         $this->requireAdmin();
 
@@ -198,17 +196,26 @@ class FieldsController extends Controller
             throw new ServerErrorHttpException('No field groups exist');
         }
 
-        if ($groupId === null) {
-            $groupId = ($field !== null && $field->groupId !== null) ? $field->groupId : $allGroups[0]->id;
+        if ($groupId === null && isset($field->groupId)) {
+            $groupId = $field->groupId;
         }
 
-        $fieldGroup = $fieldsService->getGroupById($groupId);
-
-        if ($fieldGroup === null) {
-            throw new NotFoundHttpException('Field group not found');
+        if ($groupId) {
+            $fieldGroup = $fieldsService->getGroupById($groupId);
+            if ($fieldGroup === null) {
+                throw new NotFoundHttpException('Field group not found');
+            }
+        } elseif (!$field->id && !$field->hasErrors()) {
+            $fieldGroup = reset($allGroups);
+        } else {
+            $fieldGroup = null;
         }
 
         $groupOptions = [];
+
+        if (!$fieldGroup) {
+            $groupOptions[] = ['value' => '', 'label' => ''];
+        }
 
         foreach ($allGroups as $group) {
             $groupOptions[] = [
@@ -229,11 +236,14 @@ class FieldsController extends Controller
                 'label' => Craft::t('app', 'Fields'),
                 'url' => UrlHelper::url('settings/fields'),
             ],
-            [
+        ];
+
+        if ($fieldGroup) {
+            $crumbs[] = [
                 'label' => Craft::t('site', $fieldGroup->name),
                 'url' => UrlHelper::url('settings/fields/' . $groupId),
-            ],
-        ];
+            ];
+        }
 
         if ($fieldId !== null) {
             $title = trim($field->name) ?: Craft::t('app', 'Edit Field');
@@ -251,7 +261,7 @@ JS;
         $view->registerAssetBundle(FieldSettingsAsset::class);
         $view->registerJs($js);
 
-        return $this->renderTemplate('settings/fields/_edit', compact(
+        return $this->renderTemplate('settings/fields/_edit.twig', compact(
             'fieldId',
             'field',
             'allFieldTypes',
@@ -281,7 +291,7 @@ JS;
         $field = Craft::$app->getFields()->createField($type);
 
         $view = Craft::$app->getView();
-        $html = $view->renderTemplate('settings/fields/_type-settings', [
+        $html = $view->renderTemplate('settings/fields/_type-settings.twig', [
             'field' => $field,
             'namespace' => $this->request->getBodyParam('namespace'),
         ]);
@@ -289,7 +299,7 @@ JS;
         return $this->asJson([
             'settingsHtml' => $html,
             'headHtml' => $view->getHeadHtml(),
-            'footHtml' => $view->getBodyHtml(),
+            'bodyHtml' => $view->getBodyHtml(),
         ]);
     }
 
@@ -299,7 +309,7 @@ JS;
      * @return Response|null
      * @throws BadRequestHttpException
      */
-    public function actionSaveField()
+    public function actionSaveField(): ?Response
     {
         $this->requirePostRequest();
 
@@ -350,55 +360,83 @@ JS;
     /**
      * Deletes a field.
      *
-     * @return Response
+     * @return Response|null
      * @throws BadRequestHttpException
      * @throws ServerErrorHttpException
      */
-    public function actionDeleteField(): Response
+    public function actionDeleteField(): ?Response
     {
         $this->requirePostRequest();
 
         $fieldId = $this->request->getBodyParam('fieldId') ?? $this->request->getRequiredBodyParam('id');
         $fieldsService = Craft::$app->getFields();
+        /** @var FieldInterface|Field|null $field */
         $field = $fieldsService->getFieldById($fieldId);
 
         if (!$field) {
             throw new BadRequestHttpException("Invalid field ID: $fieldId");
         }
 
-        $success = $fieldsService->deleteField($field);
-
-        if ($this->request->getAcceptsJson()) {
-            return $this->asJson(['success' => $success]);
+        if (!$fieldsService->deleteField($field)) {
+            return $this->asModelFailure($field, Craft::t('app', 'Couldn’t delete “{name}”.', [
+                'name' => $field->name,
+            ]));
         }
 
-        if (!$success) {
-            throw new ServerErrorHttpException("Unable to delete field ID $fieldId");
-        }
-
-        Craft::$app->getSession()->setNotice(Craft::t('app', '“{name}” deleted.', [
+        return $this->asModelSuccess($field, Craft::t('app', '“{name}” deleted.', [
             'name' => $field->name,
         ]));
-        return $this->redirectToPostedUrl();
     }
 
     // Field Layouts
     // -------------------------------------------------------------------------
 
     /**
-     * Renders a field layout element’s selector HTML.
+     * Applies a field layout tab’s settings.
      *
      * @return Response
      * @throws BadRequestHttpException
-     * @since 3.5.0
+     * @since 4.0.0
      */
-    public function actionRenderLayoutElementSelector(): Response
+    public function actionApplyLayoutTabSettings(): Response
     {
-        $config = $this->request->getRequiredBodyParam('config');
-        $element = Craft::$app->getFields()->createLayoutElement($config);
+        $tab = new FieldLayoutTab($this->_fldComponentConfig());
 
         return $this->asJson([
-            'html' => $element->selectorHtml(),
+            'config' => $tab->toArray(),
+            'hasConditions' => $tab->hasConditions(),
         ]);
+    }
+
+    /**
+     * Applies a field layout element’s settings.
+     *
+     * @return Response
+     * @throws BadRequestHttpException
+     * @since 4.0.0
+     */
+    public function actionApplyLayoutElementSettings(): Response
+    {
+        $element = Craft::$app->getFields()->createLayoutElement($this->_fldComponentConfig());
+
+        return $this->asJson([
+            'config' => ['type' => get_class($element)] + $element->toArray(),
+            'selectorHtml' => $element->selectorHtml(),
+            'hasConditions' => $element->hasConditions(),
+        ]);
+    }
+
+    /**
+     * Returns the posted settings.
+     *
+     * @return array
+     */
+    private function _fldComponentConfig(): array
+    {
+        $config = $this->request->getRequiredBodyParam('config');
+        $settingsNamespace = $this->request->getRequiredBodyParam('settingsNamespace');
+        $settingsStr = $this->request->getRequiredBodyParam('settings');
+        parse_str($settingsStr, $settings);
+        return array_merge($config, ArrayHelper::getValue($settings, $settingsNamespace, []));
     }
 }

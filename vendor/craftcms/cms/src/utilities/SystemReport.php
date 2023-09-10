@@ -14,6 +14,7 @@ use craft\base\Utility;
 use craft\db\Connection;
 use craft\helpers\App;
 use craft\helpers\Db;
+use OutOfBoundsException;
 use RequirementsChecker;
 use yii\base\Module;
 
@@ -44,7 +45,7 @@ class SystemReport extends Utility
     /**
      * @inheritdoc
      */
-    public static function iconPath()
+    public static function iconPath(): ?string
     {
         return Craft::getAlias('@appicons/check.svg');
     }
@@ -82,7 +83,7 @@ class SystemReport extends Utility
         }
         ksort($aliases);
 
-        return Craft::$app->getView()->renderTemplate('_components/utilities/SystemReport', [
+        return Craft::$app->getView()->renderTemplate('_components/utilities/SystemReport.twig', [
             'appInfo' => self::_appInfo(),
             'plugins' => Craft::$app->getPlugins()->getAllPlugins(),
             'modules' => $modules,
@@ -131,7 +132,7 @@ class SystemReport extends Utility
     {
         try {
             $version = InstalledVersions::getPrettyVersion($packageName) ?? InstalledVersions::getVersion($packageName);
-        } catch (\OutOfBoundsException $e) {
+        } catch (OutOfBoundsException) {
             return;
         }
 
@@ -148,14 +149,9 @@ class SystemReport extends Utility
     private static function _dbDriver(): string
     {
         $db = Craft::$app->getDb();
-
-        if ($db->getIsMysql()) {
-            $driverName = 'MySQL';
-        } else {
-            $driverName = 'PostgreSQL';
-        }
-
-        return $driverName . ' ' . App::normalizeVersion($db->getSchema()->getServerVersion());
+        $label = $db->getDriverLabel();
+        $version = App::normalizeVersion($db->getSchema()->getServerVersion());
+        return "$label $version";
     }
 
     /**

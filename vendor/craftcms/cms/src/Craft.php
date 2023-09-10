@@ -15,10 +15,12 @@ use craft\helpers\Component;
 use craft\helpers\FileHelper;
 use craft\helpers\StringHelper;
 use GuzzleHttp\Client;
+use Symfony\Component\VarDumper\Cloner\VarCloner;
 use yii\base\ExitException;
 use yii\db\Expression;
 use yii\helpers\VarDumper;
 use yii\web\Request;
+use function GuzzleHttp\default_user_agent;
 
 /**
  * Craft is helper class serving common Craft and Yii framework functionality.
@@ -31,28 +33,19 @@ use yii\web\Request;
 class Craft extends Yii
 {
     // Edition constants
-    const Solo = 0;
-    const Pro = 1;
-
-    /**
-     * @deprecated in 3.0.0. Use [[Solo]] instead.
-     */
-    const Personal = 0;
-    /**
-     * @deprecated in 3.0.0. Use [[Pro]] instead.
-     */
-    const Client = 1;
+    public const Solo = 0;
+    public const Pro = 1;
 
     /**
      * @var array The default cookie configuration.
      */
-    private static $_baseCookieConfig;
+    private static array $_baseCookieConfig;
 
     /**
      * @inheritdoc
-     *
      * @template T
-     * @param class-string<T>|array{class: class-string<T>}|callable(): T $type
+     * @param string|array|callable $type
+     * @phpstan-param class-string<T>|array{class:class-string<T>}|callable():T $type
      * @param array $params
      * @return T
      */
@@ -76,12 +69,12 @@ class Craft extends Yii
      * ```
      *
      * @param string|null $str
-     * @return string|bool|null The parsed value, or the original value if it didn’t
-     * reference an environment variable and/or alias.
+     * @return string|null|false The parsed value, or the original value if it didn’t
+     * reference an environment variable or alias.
      * @since 3.1.0
      * @deprecated in 3.7.29. [[App::parseEnv()]] should be used instead.
      */
-    public static function parseEnv(string $str = null)
+    public static function parseEnv(?string $str = null): string|null|false
     {
         return App::parseEnv($str);
     }
@@ -101,7 +94,7 @@ class Craft extends Yii
      * @since 3.7.22
      * @deprecated in 3.7.29. [[App::parseBooleanEnv()]] should be used instead.
      */
-    public static function parseBooleanEnv($value): ?bool
+    public static function parseBooleanEnv(mixed $value): ?bool
     {
         return App::parseBooleanEnv($value);
     }
@@ -110,24 +103,35 @@ class Craft extends Yii
      * Displays a variable.
      *
      * @param mixed $var The variable to be dumped.
-     * @param int $depth The maximum depth that the dumper should go into the variable. Defaults to 10.
-     * @param bool $highlight Whether the result should be syntax-highlighted. Defaults to true.
+     * @param int $depth The maximum depth that the dumper should go into the variable.
+     * @param bool $highlight Whether the result should be syntax-highlighted.
+     * @param bool $return Whether the dump result should be returned instead of output.
+     * @return string|null The output, if `$return` is true
      */
-    public static function dump($var, int $depth = 10, bool $highlight = true)
+    public static function dump(mixed $var, int $depth = 20, bool $highlight = true, bool $return = false): ?string
     {
-        VarDumper::dump($var, $depth, $highlight);
+        if (!$highlight) {
+            if ($return) {
+                ob_start();
+            }
+            VarDumper::dump($var, $depth);
+            echo "\n";
+            return $return ? ob_get_clean() : null;
+        }
+
+        $data = (new VarCloner())->cloneVar($var)->withMaxDepth($depth);
+        return Craft::$app->getDumper()->dump($data, $return ? true : null);
     }
 
     /**
      * Displays a variable and ends the request. (“Dump and die”)
      *
      * @param mixed $var The variable to be dumped.
-     * @param int $depth The maximum depth that the dumper should go into the variable. Defaults to 10.
-     * @param bool|null $highlight Whether the result should be syntax-highlighted.
-     * Defaults to `true` for web requests and `false` for console requests.
+     * @param int $depth The maximum depth that the dumper should go into the variable.
+     * @param bool $highlight Whether the result should be syntax-highlighted.
      * @throws ExitException if the application is in testing mode
      */
-    public static function dd($var, int $depth = 10, bool $highlight = null)
+    public static function dd(mixed $var, int $depth = 20, bool $highlight = true): void
     {
         // Turn off output buffering and discard OB contents
         while (ob_get_length() !== false) {
@@ -138,11 +142,7 @@ class Craft extends Yii
             }
         }
 
-        if ($highlight === null) {
-            $highlight = !static::$app->getRequest()->getIsConsoleRequest();
-        }
-
-        VarDumper::dump($var, $depth, $highlight);
+        static::dump($var, $depth, $highlight);
         exit();
     }
 
@@ -153,17 +153,17 @@ class Craft extends Yii
      * @param Request|null $request The request object
      * @return array The cookie config array.
      */
-    public static function cookieConfig(array $config = [], Request $request = null): array
+    public static function cookieConfig(array $config = [], ?Request $request = null): array
     {
-        if (self::$_baseCookieConfig === null) {
+        if (!isset(self::$_baseCookieConfig)) {
             $generalConfig = static::$app->getConfig()->getGeneral();
 
             if ($generalConfig->useSecureCookies === 'auto') {
-                if ($request === null) {
-                    $request = static::$app->getRequest();
-                }
+                $request = $request ?? static::$app->getRequest();
 
-                $generalConfig->useSecureCookies = $request->getIsSecureConnection();
+                if (!$request->getIsConsoleRequest()) {
+                    $generalConfig->useSecureCookies = $request->getIsSecureConnection();
+                }
             }
 
             self::$_baseCookieConfig = [
@@ -181,8 +181,9 @@ class Craft extends Yii
      * Class autoloader.
      *
      * @param string $className
+     * @phpstan-param class-string $className
      */
-    public static function autoload($className)
+    public static function autoload($className): void
     {
         if ($className === CustomFieldBehavior::class) {
             self::_autoloadCustomFieldBehavior();
@@ -192,8 +193,13 @@ class Craft extends Yii
     /**
      * Autoloads (and possibly generates) `CustomFieldBehavior.php`
      */
-    private static function _autoloadCustomFieldBehavior()
+    private static function _autoloadCustomFieldBehavior(): void
     {
+        if (!isset(static::$app)) {
+            // Nothing we can do about it yet
+            return;
+        }
+
         if (!static::$app->getIsInstalled()) {
             // Just load an empty CustomFieldBehavior into memory
             self::_generateCustomFieldBehavior([], null, false, true);
@@ -242,7 +248,7 @@ class Craft extends Yii
                 }
                 foreach ($types as $type) {
                     $type = trim($type, ' \\');
-                    // Add a leading `\` if it's not a variable, self-reference, or primitive type
+                    // Add a leading `\` if it’s not a variable, self-reference, or primitive type
                     if (!preg_match('/^(\$.*|(self|static|bool|boolean|int|integer|float|double|string|array|object|callable|callback|iterable|resource|null|mixed|number|void)(\[\])?)$/i', $type)) {
                         $type = '\\' . $type;
                     }
@@ -256,7 +262,7 @@ class Craft extends Yii
         if (!$fieldVersionExists) {
             try {
                 $fieldsService->updateFieldVersion();
-            } catch (\Throwable $e) {
+            } catch (Throwable) {
                 // Craft probably isn't installed yet.
             }
         }
@@ -269,7 +275,7 @@ class Craft extends Yii
      * @param bool $load
      * @throws \yii\base\ErrorException
      */
-    private static function _generateCustomFieldBehavior(array $fieldHandles, ?string $filePath, bool $write, bool $load)
+    private static function _generateCustomFieldBehavior(array $fieldHandles, ?string $filePath, bool $write, bool $load): void
     {
         $methods = [];
         $handles = [];
@@ -277,19 +283,19 @@ class Craft extends Yii
 
         foreach ($fieldHandles as $handle => $types) {
             $methods[] = <<<EOD
- * @method \$this {$handle}(mixed \$value) Sets the [[{$handle}]] property
+ * @method static $handle(mixed \$value) Sets the [[$handle]] property
 EOD;
 
             $handles[] = <<<EOD
-        '{$handle}' => true,
+        '$handle' => true,
 EOD;
 
             $phpDocTypes = implode('|', array_keys($types));
             $properties[] = <<<EOD
     /**
-     * @var {$phpDocTypes} Value for field with the handle “{$handle}”.
+     * @var $phpDocTypes Value for field with the handle “{$handle}”.
      */
-    public \${$handle};
+    public \$$handle;
 EOD;
         }
 
@@ -330,7 +336,7 @@ EOD;
                     $b = basename($path);
                     return (
                         $b !== $basename &&
-                        strpos($b, 'CustomFieldBehavior') === 0 &&
+                        str_starts_with($b, 'CustomFieldBehavior') &&
                         filemtime($path) < $time
                     );
                 },
@@ -371,7 +377,7 @@ EOD;
         // Set the Craft header by default.
         $defaultConfig = [
             'headers' => [
-                'User-Agent' => 'Craft/' . static::$app->getVersion() . ' ' . \GuzzleHttp\default_user_agent(),
+                'User-Agent' => 'Craft/' . static::$app->getVersion() . ' ' . default_user_agent(),
             ],
         ];
 

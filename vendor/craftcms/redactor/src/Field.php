@@ -9,7 +9,6 @@ namespace craft\redactor;
 
 use Craft;
 use craft\base\ElementInterface;
-use craft\base\Volume;
 use craft\elements\Asset;
 use craft\elements\Category;
 use craft\elements\Entry;
@@ -42,12 +41,12 @@ class Field extends HtmlField
     /**
      * @event RegisterPluginPathsEvent The event that is triggered when registering paths that contain Redactor plugins.
      */
-    const EVENT_REGISTER_PLUGIN_PATHS = 'registerPluginPaths';
+    public const EVENT_REGISTER_PLUGIN_PATHS = 'registerPluginPaths';
 
     /**
      * @event RegisterLinkOptionsEvent The event that is triggered when registering the link options for the field.
      */
-    const EVENT_REGISTER_LINK_OPTIONS = 'registerLinkOptions';
+    public const EVENT_REGISTER_LINK_OPTIONS = 'registerLinkOptions';
 
     /**
      * @event ModifyPurifierConfigEvent The event that is triggered when creating HTML Purifier config
@@ -69,7 +68,7 @@ class Field extends HtmlField
      * );
      * ```
      */
-    const EVENT_MODIFY_PURIFIER_CONFIG = 'modifyPurifierConfig';
+    public const EVENT_MODIFY_PURIFIER_CONFIG = 'modifyPurifierConfig';
 
     /**
      * @event ModifyRedactorConfigEvent The event that is triggered when loading redactor config.
@@ -87,43 +86,28 @@ class Field extends HtmlField
      * });
      * ```
      */
-    const EVENT_DEFINE_REDACTOR_CONFIG = 'defineRedactorConfig';
+    public const EVENT_DEFINE_REDACTOR_CONFIG = 'defineRedactorConfig';
 
     /**
      * @var array List of the Redactor plugins that have already been registered for this request
      */
-    private static $_registeredPlugins = [];
+    private static array $_registeredPlugins = [];
 
     /**
      * @var array|null List of the paths that may contain Redactor plugins
      */
-    private static $_pluginPaths;
+    private static ?array $_pluginPaths = null;
 
     /**
      * @var string The UI mode of the field.
      * @since 2.7.0
      */
-    public $uiMode = 'enlarged';
+    public string $uiMode = 'enlarged';
 
     /**
      * @var string|null The Redactor config file to use
      */
-    public $redactorConfig;
-
-    /**
-     * @inheritdoc
-     */
-    public $removeInlineStyles = true;
-
-    /**
-     * @inheritdoc
-     */
-    public $removeEmptyTags = true;
-
-    /**
-     * @inheritdoc
-     */
-    public $removeNbsp = true;
+    public ?string $redactorConfig = null;
 
     /**
      * @var string|array|null The volumes that should be available for Image selection.
@@ -139,37 +123,37 @@ class Field extends HtmlField
      * @var bool Whether to show input sources for volumes the user doesn’t have permission to view.
      * @since 2.6.0
      */
-    public $showUnpermittedVolumes = false;
+    public bool $showUnpermittedVolumes = false;
 
     /**
      * @var bool Whether to show files the user doesn’t have permission to view, per the
      * “View files uploaded by other users” permission.
      * @since 2.6.0
      */
-    public $showUnpermittedFiles = false;
+    public bool $showUnpermittedFiles = false;
 
     /**
      * @var bool Whether "view source" button should only be displayed to admins.
      * @since 2.7.0
      */
-    public $showHtmlButtonForNonAdmins = false;
+    public bool $showHtmlButtonForNonAdmins = false;
 
     /**
      * @var string Config selection mode ('choose' or 'manual')
      * @since 2.7.0
      */
-    public $configSelectionMode = 'choose';
+    public string $configSelectionMode = 'choose';
 
     /**
      * @var string Manual config to use
      * @since 2.7.0
      */
-    public $manualConfig = '';
+    public string $manualConfig = '';
 
     /**
      * @var string The default transform to use.
      */
-    public $defaultTransform = '';
+    public string $defaultTransform = '';
 
     /**
      * @inheritdoc
@@ -239,16 +223,6 @@ class Field extends HtmlField
     /**
      * @inheritdoc
      */
-    public function init()
-    {
-        $this->showUnpermittedVolumes = (bool)$this->showUnpermittedVolumes;
-        $this->showUnpermittedFiles = (bool)$this->showUnpermittedFiles;
-        parent::init();
-    }
-
-    /**
-     * @inheritdoc
-     */
     public static function displayName(): string
     {
         return Craft::t('redactor', 'Redactor');
@@ -261,7 +235,7 @@ class Field extends HtmlField
      * @return void
      * @throws InvalidConfigException if the plugin can't be found
      */
-    public static function registerRedactorPlugin(string $plugin)
+    public static function registerRedactorPlugin(string $plugin): void
     {
         if (isset(self::$_registeredPlugins[$plugin])) {
             return;
@@ -271,15 +245,15 @@ class Field extends HtmlField
         $view = Craft::$app->getView();
 
         foreach ($paths as $registeredPath) {
-            foreach (["{$registeredPath}/{$plugin}", $registeredPath] as $path) {
-                if (file_exists("{$path}/{$plugin}.js")) {
+            foreach (["$registeredPath/$plugin", $registeredPath] as $path) {
+                if (file_exists("$path/$plugin.js")) {
                     $baseUrl = Craft::$app->getAssetManager()->getPublishedUrl($path, true);
-                    $view->registerJsFile("{$baseUrl}/{$plugin}.js", [
+                    $view->registerJsFile("$baseUrl/$plugin.js", [
                         'depends' => RedactorAsset::class,
                     ]);
                     // CSS file too?
-                    if (file_exists("{$path}/{$plugin}.css")) {
-                        $view->registerCssFile("{$baseUrl}/{$plugin}.css");
+                    if (file_exists("$path/$plugin.css")) {
+                        $view->registerCssFile("$baseUrl/$plugin.css");
                     }
                     // Don't do this twice
                     self::$_registeredPlugins[$plugin] = true;
@@ -316,12 +290,11 @@ class Field extends HtmlField
     /**
      * @inheritdoc
      */
-    public function getSettingsHtml()
+    public function getSettingsHtml(): ?string
     {
         $volumeOptions = [];
-        foreach (Craft::$app->getVolumes()->getPublicVolumes() as $volume) {
-            /** @var $volume Volume */
-            if ($volume->hasUrls) {
+        foreach (Craft::$app->getVolumes()->getAllVolumes() as $volume) {
+            if ($volume->getFs()->hasUrls) {
                 $volumeOptions[] = [
                     'label' => $volume->name,
                     'value' => $volume->uid,
@@ -330,7 +303,7 @@ class Field extends HtmlField
         }
 
         $transformOptions = [];
-        foreach (Craft::$app->getAssetTransforms()->getAllTransforms() as $transform) {
+        foreach (Craft::$app->getImageTransforms()->getAllTransforms() as $transform) {
             $transformOptions[] = [
                 'label' => $transform->name,
                 'value' => $transform->uid,
@@ -387,7 +360,7 @@ class Field extends HtmlField
     /**
      * @inheritdoc
      */
-    protected function inputHtml($value, ElementInterface $element = null): string
+    protected function inputHtml(mixed $value, ElementInterface $element = null): string
     {
         // register the asset/redactor bundles
         $view = Craft::$app->getView();
@@ -417,7 +390,7 @@ class Field extends HtmlField
 
         $defaultTransform = '';
 
-        if (!empty($this->defaultTransform) && $transform = Craft::$app->getAssetTransforms()->getTransformByUid($this->defaultTransform)) {
+        if (!empty($this->defaultTransform) && $transform = Craft::$app->getImageTransforms()->getTransformByUid($this->defaultTransform)) {
             $defaultTransform = $transform->handle;
         }
 
@@ -476,7 +449,7 @@ class Field extends HtmlField
     /**
      * @inheritdoc
      */
-    public function getStaticHtml($value, ElementInterface $element): string
+    public function getStaticHtml(mixed $value, ElementInterface $element): string
     {
         return
             Html::beginTag('div', [
@@ -492,7 +465,7 @@ class Field extends HtmlField
     /**
      * @inheritdoc
      */
-    public function serializeValue($value, ElementInterface $element = null)
+    public function serializeValue(mixed $value, ?\craft\base\ElementInterface $element = null): mixed
     {
         if ($value instanceof HtmlFieldData) {
             $value = $value->getRawContent();
@@ -655,34 +628,12 @@ class Field extends HtmlField
 
         foreach ($allVolumes as $volume) {
             $allowedBySettings = $this->availableVolumes === '*' || (is_array($this->availableVolumes) && in_array($volume->uid, $this->availableVolumes));
-            if ($allowedBySettings && ($this->showUnpermittedVolumes || $userService->checkPermission("viewVolume:{$volume->uid}"))) {
-                $allowedVolumes[] = $volume->uid;
+            if ($allowedBySettings && ($this->showUnpermittedVolumes || $userService->checkPermission("viewAssets:$volume->uid"))) {
+                $allowedVolumes[] = 'volume:' . $volume->uid;
             }
         }
 
-        $criteria['volumeId'] = Db::idsByUids('{{%volumes}}', $allowedVolumes);
-
-        $folders = Craft::$app->getAssets()->findFolders($criteria);
-
-        // Sort volumes in the same order as they are sorted in the CP
-        $sortedVolumeIds = Craft::$app->getVolumes()->getAllVolumeIds();
-        $sortedVolumeIds = array_flip($sortedVolumeIds);
-
-        $volumeKeys = [];
-
-        usort($folders, function($a, $b) use ($sortedVolumeIds) {
-            // In case Temporary volumes ever make an appearance in RTF modals, sort them to the end of the list.
-            $aOrder = $sortedVolumeIds[$a->volumeId] ?? PHP_INT_MAX;
-            $bOrder = $sortedVolumeIds[$b->volumeId] ?? PHP_INT_MAX;
-
-            return $aOrder - $bOrder;
-        });
-
-        foreach ($folders as $folder) {
-            $volumeKeys[] = 'folder:' . $folder->uid;
-        }
-
-        return $volumeKeys;
+        return $allowedVolumes;
     }
 
     /**
@@ -696,7 +647,7 @@ class Field extends HtmlField
             return [];
         }
 
-        $allTransforms = Craft::$app->getAssetTransforms()->getAllTransforms();
+        $allTransforms = Craft::$app->getImageTransforms()->getAllTransforms();
         $transformList = [];
 
         foreach ($allTransforms as $transform) {

@@ -125,9 +125,9 @@ var plugin = $.extend({}, Craft.Redactor.PluginBase, {
     (transform ? 'transform:' + transform : 'url'),
 
   _removeTransformFromUrl: (url) =>
-    url.replace(/(.*)(_[a-z0-9+].*\/)(.*)/, '$1$3'),
+    url.replace(/(^|\/)(_[^\/]+\/)([^\/]+)$/, '$1$3'),
 
-  _isTransformUrl: (url) => /(.*)(_[a-z0-9+].*\/)(.*)/.test(url),
+  _isTransformUrl: (url) => /(^|\/)_[^\/]+\/[^\/]+$/.test(url),
 
   _getTransformUrl: function (assetId, handle, callback) {
     var data = {
@@ -135,19 +135,16 @@ var plugin = $.extend({}, Craft.Redactor.PluginBase, {
       handle: handle,
     };
 
-    Craft.postActionRequest(
-      'assets/generate-transform',
-      data,
-      function (response, textStatus) {
-        if (textStatus === 'success') {
-          if (response.url) {
-            callback(response.url);
-          } else {
-            alert('There was an error generating the transform URL.');
-          }
+    Craft.sendActionRequest('POST', 'assets/generate-transform', {data})
+      .then((response) => {
+        const url = response.data && response.data.url;
+        if (url) {
+          callback(url);
         }
-      }
-    );
+      })
+      .catch(({response}) => {
+        alert('There was an error generating the transform URL.');
+      });
   },
 
   _getAssetUrlComponents: (url) => {

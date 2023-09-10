@@ -8,9 +8,11 @@
 namespace craft\helpers;
 
 use Craft;
+use craft\console\MarkdownParser;
 use yii\base\InvalidConfigException;
 use yii\base\InvalidValueException;
 use yii\console\Controller;
+use const STDOUT;
 
 /**
  * Console helper
@@ -32,11 +34,11 @@ class Console extends \yii\helpers\Console
      * ```
      *
      * @param string $string the string to print
-     * @return int|bool Number of bytes printed or false on error
+     * @return int|false Number of bytes printed or false on error
      */
-    public static function stdout($string)
+    public static function stdout($string): int|false
     {
-        if (static::streamSupportsAnsiColors(\STDOUT)) {
+        if (static::streamSupportsAnsiColors(STDOUT)) {
             $args = func_get_args();
             array_shift($args);
             if (!empty($args)) {
@@ -60,18 +62,27 @@ class Console extends \yii\helpers\Console
     }
 
     /**
+     * @inheritdoc
+     */
+    public static function markdownToAnsi($markdown)
+    {
+        $parser = new MarkdownParser();
+        return $parser->parse($markdown);
+    }
+
+    /**
      * Outputs a terminal command.
      *
      * @param string $command The command to output
      * @param bool $withScriptName Whether the current script name (e.g. `craft`) should be prepended to the command.
      * @since 3.0.38
      */
-    public static function outputCommand(string $command, bool $withScriptName = true)
+    public static function outputCommand(string $command, bool $withScriptName = true): void
     {
         if ($withScriptName) {
             try {
                 $file = Craft::$app->getRequest()->getScriptFilename();
-            } catch (InvalidConfigException $e) {
+            } catch (InvalidConfigException) {
                 $file = 'craft';
             }
             $command = $file . ' ' . $command;
@@ -91,7 +102,7 @@ class Console extends \yii\helpers\Console
      * @param bool $center
      * @since 3.0.38
      */
-    public static function outputWarning(string $text, bool $center = true)
+    public static function outputWarning(string $text, bool $center = true): void
     {
         $xPad = 4;
         $lines = explode("\n", $text);
@@ -112,7 +123,7 @@ class Console extends \yii\helpers\Console
         foreach ($lines as $line) {
             $extra = $width - strlen($line);
             if ($center) {
-                static::output(static::ansiFormat(str_repeat(' ', floor($extra / 2) + $xPad) . $line . str_repeat(' ', ceil($extra / 2) + $xPad), $format));
+                static::output(static::ansiFormat(str_repeat(' ', (int)floor($extra / 2) + $xPad) . $line . str_repeat(' ', (int)ceil($extra / 2) + $xPad), $format));
             } else {
                 static::output(static::ansiFormat(str_repeat(' ', $xPad) . $line . str_repeat(' ', $extra + $xPad), $format));
             }
@@ -147,7 +158,7 @@ class Console extends \yii\helpers\Console
      * @param string[]|array[] $headers The table headers
      * @param array[] $data The table data
      * @param array $options
-     * @throwns InvalidValueException if an `align` value is invalid
+     * @throws InvalidValueException if an `align` value is invalid
      * @since 3.7.23
      */
     public static function table(array $headers, array $data, array $options = []): void
@@ -203,24 +214,17 @@ class Console extends \yii\helpers\Console
 
             if ($len < $size) {
                 if (isset($cell['align'])) {
-                    switch ($cell['align']) {
-                        case 'left':
-                            $padType = STR_PAD_RIGHT;
-                            break;
-                        case 'right':
-                            $padType = STR_PAD_LEFT;
-                            break;
-                        case 'center':
-                            $padType = STR_PAD_BOTH;
-                            break;
-                        default:
-                            throw new InvalidValueException("Invalid align value: {$cell['align']}");
-                    }
+                    $padType = match ($cell['align']) {
+                        'left' => STR_PAD_RIGHT,
+                        'right' => STR_PAD_LEFT,
+                        'center' => STR_PAD_BOTH,
+                        default => throw new InvalidValueException("Invalid align value: {$cell['align']}"),
+                    };
                 } else {
                     $padType = STR_PAD_RIGHT;
                 }
 
-                $value = str_pad($value, $size, ' ', $padType ?? STR_PAD_RIGHT);
+                $value = str_pad($value, $size, ' ', $padType);
             } elseif ($len > $size) {
                 $value = substr($value, 0, $size - 1) . '…';
             }
@@ -240,13 +244,13 @@ class Console extends \yii\helpers\Console
      *
      * @since 3.5.0
      */
-    public static function ensureProjectConfigFileExists()
+    public static function ensureProjectConfigFileExists(): void
     {
         $projectConfig = Craft::$app->getProjectConfig();
 
-        if ($projectConfig->writeYamlAutomatically && !$projectConfig->getDoesYamlExist()) {
+        if ($projectConfig->writeYamlAutomatically && !$projectConfig->getDoesExternalConfigExist()) {
             static::stdout('Generating project config files from the loaded project config ... ', static::FG_YELLOW);
-            $projectConfig->regenerateYamlFromConfig();
+            $projectConfig->regenerateExternalConfig();
             static::stdout('done' . PHP_EOL, static::FG_GREEN);
         }
     }

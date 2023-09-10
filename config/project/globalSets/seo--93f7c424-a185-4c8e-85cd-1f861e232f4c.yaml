@@ -1,0 +1,18 @@
+fieldLayouts:
+  2021c27b-aaf7-4eb7-be86-8747ae37197a:
+    tabs:
+      -
+        fields:
+          3afef6f8-fabd-4191-ad1d-2dc31094c3e9:
+            required: false
+            sortOrder: 1
+          cd11b4d4-14c7-43a2-9b24-e64f97b06735:
+            required: false
+            sortOrder: 2
+          d057435f-fec0-4f6f-a9b8-decb9d2e9a62:
+            required: false
+            sortOrder: 3
+        name: SEO
+        sortOrder: 1
+handle: seo
+name: SEO

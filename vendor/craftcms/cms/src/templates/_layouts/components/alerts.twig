@@ -10,11 +10,9 @@
       style: {
         'display': 'block',
         'position': 'relative',
-        'background-color': '#ffe3e3',
-        'border-left': '5px solid #cf1124',
-        'padding': '11px 0',
-        'text-align': 'center',
-        'color': '#cf1124',
+        'background-color': 'var(--red-050)',
+        'border-left': '6px solid var(--error-color)',
+        'color': 'var(--error-color)',
       },
     } only %}
       {% block content %}
@@ -24,18 +22,19 @@
             type: 'li',
             style: {
               'display': 'block',
-              'padding': '4px 24px',
             },
           } only %}
             {% block content %}
-              {% include '_layouts/components/tag.twig' with {
-                type: 'span',
-                attributes: {
-                  'aria-label': 'Error'|t('app'),
-                  'data-icon': 'alert',
-                },
-              } only %}
-              {{ alert|raw }}
+              {% if alert is string or alert.showIcon ?? true %}
+                {% include '_layouts/components/tag.twig' with {
+                  type: 'span',
+                  attributes: {
+                    'aria-label': 'Error'|t('app'),
+                    'data-icon': 'alert',
+                  },
+                } only %}
+              {% endif %}
+              {{ (alert is array ? alert.content : alert)|raw }}
             {% endblock %}
           {% endembed %}
         {% endfor %}
@@ -44,6 +43,8 @@
   {% endif %}
 {% else %}
   {% js %}
-    Craft.cp.fetchAlerts();
+    Craft.cp.fetchAlerts().then(alerts => {
+      Craft.cp.displayAlerts(alerts);
+    });
   {% endjs %}
 {% endif %}

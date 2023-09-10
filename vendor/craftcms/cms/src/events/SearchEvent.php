@@ -21,56 +21,44 @@ use yii\base\Event as BaseEvent;
 class SearchEvent extends BaseEvent
 {
     /**
-     * @var ElementQuery|null The element query being executed.
+     * @var ElementQuery The element query being executed.
      * @since 3.7.14
      */
-    public $elementQuery;
+    public ElementQuery $elementQuery;
 
     /**
-     * @var SearchQuery|null The search query
+     * @var SearchQuery The search query
      */
-    public $query;
+    public SearchQuery $query;
 
     /**
      * @var int|int[]|null The site ID(s) to filter by
      */
-    public $siteId;
+    public array|int|null $siteId = null;
 
     /**
      * @var array|null The raw search result data
+     *
+     * This will only be set ahead of time for [[\craft\services\Search::EVENT_BEFORE_SCORE_RESULTS]] and
+     * [[\craft\services\Search::EVENT_AFTER_SEARCH]].
+     *
+     * If an event handler modifies this from [[\craft\services\Search::EVENT_BEFORE_SCORE_RESULTS]], then
+     * [[\craft\services\Search::searchElements()]] will score the results set on the event rather than the original results.
+     *
      * @since 3.6.0
      */
-    public $results;
+    public ?array $results = null;
 
     /**
-     * @see getElementIds()
-     * @see setElementIds()
-     */
-    private $_elementIds;
-
-    /**
-     * For [[\craft\services\Search::EVENT_BEFORE_SEARCH]], this will be the list of element IDs to filter
-     * with the search query.
+     * @var array|null The result scores, indexed by element ID
      *
-     * For [[\craft\services\Search::EVENT_AFTER_SEARCH]], this will be the resulting list of element IDs that
-     * match the search query.
+     * This will only be set ahead of time for [[\craft\services\Search::EVENT_AFTER_SEARCH]].
      *
-     * @return int[]|null
+     * If an event handler sets this from [[\craft\services\Search::EVENT_BEFORE_SCORE_RESULTS]] or modifies it from
+     * [[\craft\services\Search::EVENT_AFTER_SEARCH]], then [[\craft\services\Search::searchElements()]] will return its
+     * value rather than calculate the result scores itself.
+     *
+     * @since 4.3.0
      */
-    public function getElementIds(): ?array
-    {
-        if ($this->_elementIds === null && $this->elementQuery !== null) {
-            $this->_elementIds = $this->elementQuery->ids();
-        }
-        return $this->_elementIds;
-    }
-
-    /**
-     * @param int[]|null $elementIds
-     * @since 3.7.14
-     */
-    public function setElementIds(?array $elementIds): void
-    {
-        $this->_elementIds = $elementIds;
-    }
+    public ?array $scores = null;
 }

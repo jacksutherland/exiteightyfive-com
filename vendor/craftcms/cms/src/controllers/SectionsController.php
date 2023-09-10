@@ -34,12 +34,16 @@ class SectionsController extends Controller
     /**
      * @inheritdoc
      */
-    public function beforeAction($action)
+    public function beforeAction($action): bool
     {
+        if (!parent::beforeAction($action)) {
+            return false;
+        }
+
         // All section actions require an admin
         $this->requireAdmin();
 
-        return parent::beforeAction($action);
+        return true;
     }
 
     /**
@@ -52,19 +56,19 @@ class SectionsController extends Controller
     {
         $variables['sections'] = Craft::$app->getSections()->getAllSections();
 
-        return $this->renderTemplate('settings/sections/_index', $variables);
+        return $this->renderTemplate('settings/sections/_index.twig', $variables);
     }
 
     /**
      * Edit a section.
      *
-     * @param int|null $sectionId The section’s id, if any.
+     * @param int|null $sectionId The section’s ID, if any.
      * @param Section|null $section The section being edited, if there were any validation errors.
      * @return Response
      * @throws NotFoundHttpException if the requested section cannot be found
      * @throws BadRequestHttpException if attempting to do something not allowed by the current Craft edition
      */
-    public function actionEditSection(int $sectionId = null, Section $section = null): Response
+    public function actionEditSection(?int $sectionId = null, ?Section $section = null): Response
     {
         $variables = [
             'sectionId' => $sectionId,
@@ -105,7 +109,7 @@ class SectionsController extends Controller
 
         $this->getView()->registerAssetBundle(EditSectionAsset::class);
 
-        return $this->renderTemplate('settings/sections/_edit', $variables);
+        return $this->renderTemplate('settings/sections/_edit.twig', $variables);
     }
 
     /**
@@ -114,7 +118,7 @@ class SectionsController extends Controller
      * @return Response|null
      * @throws BadRequestHttpException if any invalid site IDs are specified in the request
      */
-    public function actionSaveSection()
+    public function actionSaveSection(): ?Response
     {
         $this->requirePostRequest();
 
@@ -138,7 +142,7 @@ class SectionsController extends Controller
         $section->previewTargets = $this->request->getBodyParam('previewTargets') ?: [];
 
         if ($section->type === Section::TYPE_STRUCTURE) {
-            $section->maxLevels = $this->request->getBodyParam('maxLevels');
+            $section->maxLevels = $this->request->getBodyParam('maxLevels') ?: null;
             $section->defaultPlacement = $this->request->getBodyParam('defaultPlacement') ?? $section->defaultPlacement;
         }
 
@@ -202,7 +206,7 @@ class SectionsController extends Controller
 
         Craft::$app->getSections()->deleteSectionById($sectionId);
 
-        return $this->asJson(['success' => true]);
+        return $this->asSuccess();
     }
 
     // Entry Types
@@ -225,7 +229,7 @@ class SectionsController extends Controller
         $title = Craft::t('app', '{section} Entry Types',
             ['section' => Craft::t('site', $section->name)]);
 
-        return $this->renderTemplate('settings/sections/_entrytypes/index', [
+        return $this->renderTemplate('settings/sections/_entrytypes/index.twig', [
             'sectionId' => $sectionId,
             'section' => $section,
             'title' => $title,
@@ -242,7 +246,7 @@ class SectionsController extends Controller
      * @throws NotFoundHttpException if the requested section/entry type cannot be found
      * @throws BadRequestHttpException if the requested entry type does not belong to the requested section
      */
-    public function actionEditEntryType(int $sectionId, int $entryTypeId = null, EntryType $entryType = null): Response
+    public function actionEditEntryType(int $sectionId, ?int $entryTypeId = null, ?EntryType $entryType = null): Response
     {
         $section = Craft::$app->getSections()->getSectionById($sectionId);
 
@@ -293,7 +297,7 @@ class SectionsController extends Controller
             ],
         ];
 
-        return $this->renderTemplate('settings/sections/_entrytypes/edit', [
+        return $this->renderTemplate('settings/sections/_entrytypes/edit.twig', [
             'sectionId' => $sectionId,
             'section' => $section,
             'entryTypeId' => $entryTypeId,
@@ -311,7 +315,7 @@ class SectionsController extends Controller
      * @return Response|null
      * @throws BadRequestHttpException
      */
-    public function actionSaveEntryType()
+    public function actionSaveEntryType(): ?Response
     {
         $this->requirePostRequest();
 
@@ -335,6 +339,9 @@ class SectionsController extends Controller
         $entryType->titleTranslationMethod = $this->request->getBodyParam('titleTranslationMethod', $entryType->titleTranslationMethod);
         $entryType->titleTranslationKeyFormat = $this->request->getBodyParam('titleTranslationKeyFormat', $entryType->titleTranslationKeyFormat);
         $entryType->titleFormat = $this->request->getBodyParam('titleFormat', $entryType->titleFormat);
+        $entryType->slugTranslationMethod = $this->request->getBodyParam('slugTranslationMethod', $entryType->slugTranslationMethod);
+        $entryType->slugTranslationKeyFormat = $this->request->getBodyParam('slugTranslationKeyFormat', $entryType->slugTranslationKeyFormat);
+        $entryType->showStatusField = $this->request->getBodyParam('showStatusField', $entryType->showStatusField);
 
         // Set the field layout
         $fieldLayout = Craft::$app->getFields()->assembleLayoutFromPost();
@@ -370,7 +377,7 @@ class SectionsController extends Controller
         $entryTypeIds = Json::decode($this->request->getRequiredBodyParam('ids'));
         Craft::$app->getSections()->reorderEntryTypes($entryTypeIds);
 
-        return $this->asJson(['success' => true]);
+        return $this->asSuccess();
     }
 
     /**
@@ -386,6 +393,6 @@ class SectionsController extends Controller
         $entryTypeId = $this->request->getRequiredBodyParam('id');
 
         $success = Craft::$app->getSections()->deleteEntryTypeById($entryTypeId);
-        return $this->asJson(['success' => $success]);
+        return $success ? $this->asSuccess() : $this->asFailure();
     }
 }

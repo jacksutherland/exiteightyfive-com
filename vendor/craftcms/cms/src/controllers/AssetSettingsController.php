@@ -23,12 +23,16 @@ class AssetSettingsController extends Controller
     /**
      * @inheritdoc
      */
-    public function beforeAction($action)
+    public function beforeAction($action): bool
     {
+        if (!parent::beforeAction($action)) {
+            return false;
+        }
+
         // All user settings actions require an admin
         $this->requireAdmin();
 
-        return parent::beforeAction($action);
+        return true;
     }
 
     /**
@@ -36,7 +40,7 @@ class AssetSettingsController extends Controller
      *
      * @return Response|null
      */
-    public function actionSaveAssetSettings()
+    public function actionSaveAssetSettings(): ?Response
     {
         $this->requirePostRequest();
         $projectConfig = Craft::$app->getProjectConfig();
@@ -53,7 +57,6 @@ class AssetSettingsController extends Controller
             $projectConfig->remove('assets', 'Update Temporary Upload Volume settings.');
         }
 
-        $this->setSuccessFlash(Craft::t('app', 'Asset settings saved.'));
-        return $this->redirectToPostedUrl();
+        return $this->asSuccess(Craft::t('app', 'Asset settings saved.'));
     }
 }

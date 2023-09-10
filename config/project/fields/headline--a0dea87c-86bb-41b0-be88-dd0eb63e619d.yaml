@@ -1,0 +1,19 @@
+columnSuffix: fnfjwpvv
+contentColumnType: text
+fieldGroup: 605f37ce-123b-46f5-9da2-fadf43eae62c # Pages
+handle: headline
+instructions: null
+name: Headline
+searchable: true
+settings:
+  byteLimit: null
+  charLimit: null
+  code: false
+  columnType: null
+  initialRows: 4
+  multiline: false
+  placeholder: null
+  uiMode: normal
+translationKeyFormat: null
+translationMethod: none
+type: craft\fields\PlainText

@@ -1,0 +1,86 @@
+field: 9f5b59a8-2c1c-4bbd-8b5a-86b6e643ccb3 # Page Module
+fieldLayouts:
+  2c537c73-413c-4f41-bb10-be2f480de558:
+    tabs:
+      -
+        elementCondition: null
+        elements:
+          -
+            elementCondition: null
+            fieldUid: 03c1d943-5731-4e0a-b4cd-c301940c61a1 # Video
+            instructions: null
+            label: null
+            required: false
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            uid: 3ff011ea-97cb-42f0-86b5-08220669f02a
+            userCondition: null
+            warning: null
+            width: 100
+        name: Content
+        uid: d73c4dc5-3577-4216-b020-96751b789bd8
+        userCondition: null
+fields:
+  03c1d943-5731-4e0a-b4cd-c301940c61a1: # Video
+    columnSuffix: ygjlutfb
+    contentColumnType: text
+    fieldGroup: null
+    handle: video
+    instructions: null
+    name: Video
+    searchable: true
+    settings:
+      addRowLabel: 'Add a row'
+      columnType: text
+      columns:
+        __assoc__:
+          -
+            - col1
+            -
+              __assoc__:
+                -
+                  - heading
+                  - 'Video ID'
+                -
+                  - handle
+                  - videoId
+                -
+                  - width
+                  - ''
+                -
+                  - type
+                  - singleline
+          -
+            - col2
+            -
+              __assoc__:
+                -
+                  - heading
+                  - Caption
+                -
+                  - handle
+                  - caption
+                -
+                  - width
+                  - ''
+                -
+                  - type
+                  - singleline
+      defaults:
+        -
+          __assoc__:
+            -
+              - col1
+              - ''
+            -
+              - col2
+              - ''
+      maxRows: null
+      minRows: null
+      staticRows: false
+    translationKeyFormat: null
+    translationMethod: none
+    type: craft\fields\Table
+handle: video
+name: Video
+sortOrder: 6

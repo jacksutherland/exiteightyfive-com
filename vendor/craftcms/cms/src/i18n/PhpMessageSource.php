@@ -8,6 +8,7 @@
 namespace craft\i18n;
 
 use Craft;
+use craft\helpers\App;
 use yii\base\Exception;
 
 /**
@@ -21,12 +22,12 @@ class PhpMessageSource extends \yii\i18n\PhpMessageSource
     /**
      * @var bool Whether the messages can be overridden by translations in the site’s translations folder
      */
-    public $allowOverrides = false;
+    public bool $allowOverrides = false;
 
     /**
      * @inheritdoc
      */
-    protected function loadMessages($category, $language)
+    protected function loadMessages($category, $language): array
     {
         $messages = parent::loadMessages($category, $language);
 
@@ -45,21 +46,13 @@ class PhpMessageSource extends \yii\i18n\PhpMessageSource
     {
         if ($category === 'yii') {
             // Map Craft’s language IDs to Yii’s when necessary
-            switch ($language) {
-                case 'de-CH':
-                    $language = 'de';
-                    break;
-                case 'fr-CA':
-                    $language = 'fr';
-                    break;
-                case 'nb':
-                case 'nn':
-                    $language = 'nb-NO';
-                    break;
-                case 'zh':
-                    $language = 'zh-CN';
-                    break;
-            }
+            $language = match ($language) {
+                'de-CH' => 'de',
+                'fr-CA' => 'fr',
+                'nb', 'nn' => 'nb-NO',
+                'zh' => 'zh-CN',
+                default => $language,
+            };
         }
 
         return parent::getMessageFilePath($category, $language);
@@ -68,11 +61,11 @@ class PhpMessageSource extends \yii\i18n\PhpMessageSource
     /**
      * @inheritdoc
      */
-    protected function loadMessagesFromFile($messageFile)
+    protected function loadMessagesFromFile($messageFile): ?array
     {
         $messages = parent::loadMessagesFromFile($messageFile);
 
-        if ($messages === null && !YII_DEBUG) {
+        if ($messages === null && !App::devMode()) {
             // avoid logs about missing translation files
             $messages = [];
         }
@@ -114,7 +107,7 @@ class PhpMessageSource extends \yii\i18n\PhpMessageSource
             } elseif (!empty($fallbackMessages)) {
                 foreach ($fallbackMessages as $key => $value) {
                     if (!empty($value) && empty($messages[$key])) {
-                        $messages[$key] = $fallbackMessages[$key];
+                        $messages[$key] = $value;
                     }
                 }
             }

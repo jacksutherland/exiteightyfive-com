@@ -9,8 +9,11 @@ namespace craft\gql\resolvers\elements;
 
 use Craft;
 use craft\elements\Asset as AssetElement;
+use craft\elements\db\ElementQuery;
 use craft\gql\base\ElementResolver;
 use craft\helpers\Gql as GqlHelper;
+use Illuminate\Support\Collection;
+use yii\base\UnknownMethodException;
 
 /**
  * Class Asset
@@ -23,7 +26,7 @@ class Asset extends ElementResolver
     /**
      * @inheritdoc
      */
-    public static function prepareQuery($source, array $arguments, $fieldName = null)
+    public static function prepareQuery(mixed $source, array $arguments, ?string $fieldName = null): mixed
     {
         // If this is the beginning of a resolver chain, start fresh
         if ($source === null) {
@@ -34,18 +37,24 @@ class Asset extends ElementResolver
         }
 
         // If it's preloaded, it's preloaded.
-        if (is_array($query)) {
+        if (!$query instanceof ElementQuery) {
             return $query;
         }
 
         foreach ($arguments as $key => $value) {
-            $query->$key($value);
+            try {
+                $query->$key($value);
+            } catch (UnknownMethodException $e) {
+                if ($value !== null) {
+                    throw $e;
+                }
+            }
         }
 
         $pairs = GqlHelper::extractAllowedEntitiesFromSchema('read');
 
         if (!GqlHelper::canQueryAssets()) {
-            return [];
+            return Collection::empty();
         }
 
         $volumesService = Craft::$app->getVolumes();

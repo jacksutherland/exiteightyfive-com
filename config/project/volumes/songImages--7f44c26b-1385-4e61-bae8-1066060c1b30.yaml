@@ -1,0 +1,6 @@
+fs: songImages
+handle: songImages
+hasUrls: true
+name: 'Song Images'
+sortOrder: 2
+url: /files/songs/images

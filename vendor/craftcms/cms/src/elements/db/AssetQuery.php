@@ -8,8 +8,8 @@
 namespace craft\elements\db;
 
 use Craft;
-use craft\base\VolumeInterface;
 use craft\db\Query;
+use craft\db\QueryAbortedException;
 use craft\db\Table;
 use craft\elements\Asset;
 use craft\elements\User;
@@ -17,16 +17,18 @@ use craft\helpers\ArrayHelper;
 use craft\helpers\Assets;
 use craft\helpers\Db;
 use craft\helpers\StringHelper;
+use craft\models\Volume;
 use yii\base\InvalidArgumentException;
 use yii\db\Connection;
+use yii\db\Schema;
 
 /**
  * AssetQuery represents a SELECT SQL statement for assets in a way that is independent of DBMS.
  *
- * @property-write string|string[]|VolumeInterface|null $volume The volume(s) that resulting assets must belong to
+ * @property-write string|string[]|Volume|null $volume The volume(s) that resulting assets must belong to
  * @method Asset[]|array all($db = null)
  * @method Asset|array|null one($db = null)
- * @method Asset|array|null nth(int $n, Connection $db = null)
+ * @method Asset|array|null nth(int $n, ?Connection $db = null)
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
  * @doc-path assets.md
@@ -40,33 +42,25 @@ use yii\db\Connection;
  */
 class AssetQuery extends ElementQuery
 {
-    /**
-     * @var bool
-     * @see _supportsUploaderParam()
-     */
-    private static $_supportsUploaderParam;
-
-    /**
-     * Returns whether the `uploader` param is supported yet.
-     *
-     * @return bool
-     * @todo remove after next beakpoint
-     */
-    private static function _supportsUploaderParam(): bool
-    {
-        if (self::$_supportsUploaderParam !== null) {
-            return self::$_supportsUploaderParam;
-        }
-
-        $schemaVersion = Craft::$app->getInstalledSchemaVersion();
-        return self::$_supportsUploaderParam = version_compare($schemaVersion, '3.4.5', '>=');
-    }
-
     // General parameters
     // -------------------------------------------------------------------------
 
     /**
-     * @var int|int[]|string|null The volume ID(s) that the resulting assets must be in.
+     * @var bool|null Whether to only return assets that the user has permission to view.
+     * @used-by editable()
+     * @since 4.4.0
+     */
+    public ?bool $editable = null;
+
+    /**
+     * @var bool|null Whether to only return entries that the user has permission to save.
+     * @used-by savable()
+     * @since 4.4.0
+     */
+    public ?bool $savable = null;
+
+    /**
+     * @var mixed The volume ID(s) that the resulting assets must be in.
      * ---
      * ```php
      * // fetch assets in the Logos volume
@@ -83,29 +77,29 @@ class AssetQuery extends ElementQuery
      * @used-by volume()
      * @used-by volumeId()
      */
-    public $volumeId;
+    public mixed $volumeId = null;
 
     /**
-     * @var int|int[]|null The asset folder ID(s) that the resulting assets must be in.
+     * @var mixed The asset folder ID(s) that the resulting assets must be in.
      * @used-by folderId()
      */
-    public $folderId;
+    public mixed $folderId = null;
 
     /**
      * @var int|null The user ID that the resulting assets must have been uploaded by.
      * @used-by uploader()
      * @since 3.4.0
      */
-    public $uploaderId;
+    public ?int $uploaderId = null;
 
     /**
-     * @var string|string[]|null The filename(s) that the resulting assets must have.
+     * @var mixed The filename(s) that the resulting assets must have.
      * @used-by filename()
      */
-    public $filename;
+    public mixed $filename = null;
 
     /**
-     * @var string|string[]|null The file kind(s) that the resulting assets must be.
+     * @var mixed The file kind(s) that the resulting assets must be.
      *
      * Supported file kinds:
      * - access
@@ -144,7 +138,14 @@ class AssetQuery extends ElementQuery
      * ```
      * @used-by kind()
      */
-    public $kind;
+    public mixed $kind = null;
+
+    /**
+     * @var bool|null Whether the query should filter assets depending on whether they have alternative text.
+     * @used-by hasAlt()
+     * @since 4.0.0
+     */
+    public ?bool $hasAlt = null;
 
     /**
      * @var mixed The width (in pixels) that the resulting assets must have.
@@ -165,7 +166,7 @@ class AssetQuery extends ElementQuery
      * ```
      * @used-by width()
      */
-    public $width;
+    public mixed $width = null;
 
     /**
      * @var mixed The height (in pixels) that the resulting assets must have.
@@ -186,35 +187,35 @@ class AssetQuery extends ElementQuery
      * ```
      * @used-by height()
      */
-    public $height;
+    public mixed $height = null;
 
     /**
      * @var mixed The size (in bytes) that the resulting assets must have.
      * @used-by size()
      */
-    public $size;
+    public mixed $size = null;
 
     /**
      * @var mixed The Date Modified that the resulting assets must have.
      * @used-by dateModified()
      */
-    public $dateModified;
+    public mixed $dateModified = null;
 
     /**
      * @var bool Whether the query should search the subfolders of [[folderId]].
      * @used-by includeSubfolders()
      */
-    public $includeSubfolders = false;
+    public bool $includeSubfolders = false;
 
     /**
      * @var string|null The folder path that resulting assets must live within
      * @used-by folderPath()
      * @since 3.7.39
      */
-    public $folderPath;
+    public ?string $folderPath = null;
 
     /**
-     * @var string|array|null The asset transform indexes that should be eager-loaded, if they exist
+     * @var mixed The asset transform indexes that should be eager-loaded, if they exist
      * ---
      * ```php{4}
      * // fetch images with their 'thumb' transforms preloaded
@@ -232,7 +233,7 @@ class AssetQuery extends ElementQuery
      * ```
      * @used-by withTransforms()
      */
-    public $withTransforms;
+    public mixed $withTransforms = null;
 
     /**
      * @inheritdoc
@@ -247,6 +248,34 @@ class AssetQuery extends ElementQuery
     }
 
     /**
+     * Sets the [[$editable]] property.
+     *
+     * @param bool|null $value The property value (defaults to true)
+     * @return self self reference
+     * @uses $editable
+     * @since 4.4.0
+     */
+    public function editable(?bool $value = true): self
+    {
+        $this->editable = $value;
+        return $this;
+    }
+
+    /**
+     * Sets the [[$savable]] property.
+     *
+     * @param bool|null $value The property value (defaults to true)
+     * @return self self reference
+     * @uses $savable
+     * @since 4.4.0
+     */
+    public function savable(?bool $value = true): self
+    {
+        $this->savable = $value;
+        return $this;
+    }
+
+    /**
      * Narrows the query results based on the volume the assets belong to.
      *
      * Possible values include:
@@ -257,7 +286,7 @@ class AssetQuery extends ElementQuery
      * | `'not foo'` | not in a volume with a handle of `foo`.
      * | `['foo', 'bar']` | in a volume with a handle of `foo` or `bar`.
      * | `['not', 'foo', 'bar']` | not in a volume with a handle of `foo` or `bar`.
-     * | a [[VolumeInterface|volume]] object | in a volume represented by the object.
+     * | a [[Volume]] object | in a volume represented by the object.
      *
      * ---
      *
@@ -275,17 +304,17 @@ class AssetQuery extends ElementQuery
      *     ->all();
      * ```
      *
-     * @param string|string[]|VolumeInterface|VolumeInterface[]|null $value The property value
-     * @return static self reference
+     * @param mixed $value The property value
+     * @return self self reference
      * @uses $volumeId
      */
-    public function volume($value)
+    public function volume(mixed $value): self
     {
         if (Db::normalizeParam($value, function($item) {
             if (is_string($item)) {
                 $item = Craft::$app->getVolumes()->getVolumeByHandle($item);
             }
-            return $item instanceof VolumeInterface ? $item->id : null;
+            return $item instanceof Volume ? $item->id : null;
         })) {
             $this->volumeId = $value;
         } elseif ($value !== null) {
@@ -300,20 +329,6 @@ class AssetQuery extends ElementQuery
         }
 
         return $this;
-    }
-
-    /**
-     * Narrows the query results based on the volume the assets belong to.
-     *
-     * @param string|string[]|VolumeInterface $value The property value
-     * @return static self reference
-     * @deprecated in 3.0.0. Use [[volume()]] instead.
-     */
-    public function source($value)
-    {
-        Craft::$app->getDeprecator()->log('AssetQuery::source()', 'The `source` asset query param has been deprecated. Use `volume` instead.');
-
-        return $this->volume($value);
     }
 
     /**
@@ -345,28 +360,14 @@ class AssetQuery extends ElementQuery
      *     ->all();
      * ```
      *
-     * @param int|int[]|string|null $value The property value
-     * @return static self reference
+     * @param mixed $value The property value
+     * @return self self reference
      * @uses $volumeId
      */
-    public function volumeId($value)
+    public function volumeId(mixed $value): self
     {
         $this->volumeId = $value;
         return $this;
-    }
-
-    /**
-     * Narrows the query results based on the volumes the assets belong to, per the volumes’ IDs.
-     *
-     * @param int|int[] $value The property value
-     * @return static self reference
-     * @deprecated in Craft 3.0.0. Use [[volumeId()]] instead.
-     */
-    public function sourceId($value)
-    {
-        Craft::$app->getDeprecator()->log('AssetQuery::sourceId()', 'The `sourceId` asset query param has been deprecated. Use `volumeId` instead.');
-
-        return $this->volumeId($value);
     }
 
     /**
@@ -403,11 +404,11 @@ class AssetQuery extends ElementQuery
      * This can be combined with [[includeSubfolders()]] if you want to include assets in all the subfolders of a certain folder.
      * :::
      *
-     * @param int|int[]|null $value The property value
-     * @return static self reference
+     * @param mixed $value The property value
+     * @return self self reference
      * @uses $folderId
      */
-    public function folderId($value)
+    public function folderId(mixed $value): self
     {
         $this->folderId = $value;
         return $this;
@@ -440,11 +441,11 @@ class AssetQuery extends ElementQuery
      * ```
      *
      * @param int|User|null $value The property value
-     * @return static self reference
+     * @return self self reference
      * @uses $uploaderId
      * @since 3.4.0
      */
-    public function uploader($value)
+    public function uploader(int|User|null $value): self
     {
         if ($value instanceof User) {
             $this->uploaderId = $value->id;
@@ -487,11 +488,11 @@ class AssetQuery extends ElementQuery
      *     ->all();
      * ```
      *
-     * @param string|string[]|null $value The property value
-     * @return static self reference
+     * @param mixed $value The property value
+     * @return self self reference
      * @uses $filename
      */
-    public function filename($value)
+    public function filename(mixed $value): self
     {
         $this->filename = $value;
         return $this;
@@ -546,13 +547,26 @@ class AssetQuery extends ElementQuery
      *     ->all();
      * ```
      *
-     * @param string|string[]|null $value The property value
-     * @return static self reference
+     * @param mixed $value The property value
+     * @return self self reference
      * @uses $kind
      */
-    public function kind($value)
+    public function kind(mixed $value): self
     {
         $this->kind = $value;
+        return $this;
+    }
+
+    /**
+     * Narrows the query results based on whether the assets have alternative text.
+     *
+     * @param bool|null $value The property value
+     * @return self self reference
+     * @uses $hasAlt
+     */
+    public function hasAlt(?bool $value = true): self
+    {
+        $this->hasAlt = $value;
         return $this;
     }
 
@@ -586,10 +600,10 @@ class AssetQuery extends ElementQuery
      * ```
      *
      * @param mixed $value The property value
-     * @return static self reference
+     * @return self self reference
      * @uses $width
      */
-    public function width($value)
+    public function width(mixed $value): self
     {
         $this->width = $value;
         return $this;
@@ -625,10 +639,10 @@ class AssetQuery extends ElementQuery
      * ```
      *
      * @param mixed $value The property value
-     * @return static self reference
+     * @return self self reference
      * @uses $height
      */
-    public function height($value)
+    public function height(mixed $value): self
     {
         $this->height = $value;
         return $this;
@@ -662,10 +676,10 @@ class AssetQuery extends ElementQuery
      * ```
      *
      * @param mixed $value The property value
-     * @return static self reference
+     * @return self self reference
      * @uses $size
      */
-    public function size($value)
+    public function size(mixed $value): self
     {
         $this->size = $value;
         return $this;
@@ -679,8 +693,9 @@ class AssetQuery extends ElementQuery
      * | Value | Fetches assets…
      * | - | -
      * | `'>= 2018-04-01'` | that were modified on or after 2018-04-01.
-     * | `'< 2018-05-01'` | that were modified before 2018-05-01
+     * | `'< 2018-05-01'` | that were modified before 2018-05-01.
      * | `['and', '>= 2018-04-04', '< 2018-05-01']` | that were modified between 2018-04-01 and 2018-05-01.
+     * | `now`/`today`/`tomorrow`/`yesterday` | that were modified at midnight of the specified relative date.
      *
      * ---
      *
@@ -703,10 +718,10 @@ class AssetQuery extends ElementQuery
      * ```
      *
      * @param mixed $value The property value
-     * @return static self reference
+     * @return self self reference
      * @uses $dateModified
      */
-    public function dateModified($value)
+    public function dateModified(mixed $value): self
     {
         $this->dateModified = $value;
         return $this;
@@ -740,10 +755,10 @@ class AssetQuery extends ElementQuery
      * :::
      *
      * @param bool $value The property value (defaults to true)
-     * @return static self reference
+     * @return self self reference
      * @uses $includeSubfolders
      */
-    public function includeSubfolders(bool $value = true)
+    public function includeSubfolders(bool $value = true): self
     {
         $this->includeSubfolders = $value;
         return $this;
@@ -783,7 +798,7 @@ class AssetQuery extends ElementQuery
      * @uses $folderPath
      * @since 3.7.39
      */
-    public function folderPath($value): self
+    public function folderPath(mixed $value): self
     {
         $this->folderPath = $value;
         return $this;
@@ -836,7 +851,7 @@ class AssetQuery extends ElementQuery
      * @return self The query object itself
      * @uses $withTransforms
      */
-    public function withTransforms(array $value = null)
+    public function withTransforms(string|array|null $value = null): self
     {
         $this->withTransforms = $value;
         return $this;
@@ -847,6 +862,7 @@ class AssetQuery extends ElementQuery
      */
     public function afterPopulate(array $elements): array
     {
+        /** @var Asset[] $elements */
         $elements = parent::afterPopulate($elements);
 
         // Eager-load transforms?
@@ -856,7 +872,7 @@ class AssetQuery extends ElementQuery
                 $transforms = is_string($transforms) ? StringHelper::split($transforms) : [$transforms];
             }
 
-            Craft::$app->getAssetTransforms()->eagerLoadTransforms($elements, $transforms);
+            Craft::$app->getImageTransforms()->eagerLoadTransforms($elements, $transforms);
         }
 
         return $elements;
@@ -874,13 +890,14 @@ class AssetQuery extends ElementQuery
             return false;
         }
 
-        $this->joinElementTable('assets');
+        $this->joinElementTable(Table::ASSETS);
         $this->subQuery->innerJoin(['volumeFolders' => Table::VOLUMEFOLDERS], '[[volumeFolders.id]] = [[assets.folderId]]');
         $this->query->innerJoin(['volumeFolders' => Table::VOLUMEFOLDERS], '[[volumeFolders.id]] = [[assets.folderId]]');
 
         $this->query->select([
             'assets.volumeId',
             'assets.folderId',
+            'assets.uploaderId',
             'assets.filename',
             'assets.kind',
             'assets.width',
@@ -892,8 +909,9 @@ class AssetQuery extends ElementQuery
             'volumeFolders.path AS folderPath',
         ]);
 
-        if (self::_supportsUploaderParam()) {
-            $this->query->addSelect('assets.uploaderId');
+        // todo: cleanup after next breakpoint
+        if (Craft::$app->getDb()->columnExists(Table::ASSETS, 'alt')) {
+            $this->query->addSelect(['assets.alt']);
         }
 
         if ($this->volumeId) {
@@ -905,7 +923,7 @@ class AssetQuery extends ElementQuery
         }
 
         if ($this->folderId) {
-            $folderCondition = Db::parseParam('assets.folderId', $this->folderId);
+            $folderCondition = Db::parseNumericParam('assets.folderId', $this->folderId);
             if (is_numeric($this->folderId) && $this->includeSubfolders) {
                 $assetsService = Craft::$app->getAssets();
                 $descendants = $assetsService->getAllDescendantFolders($assetsService->getFolderById($this->folderId));
@@ -918,7 +936,7 @@ class AssetQuery extends ElementQuery
             $this->subQuery->andWhere(Db::parseParam('volumeFolders.path', $this->folderPath));
         }
 
-        if (self::_supportsUploaderParam() && $this->uploaderId) {
+        if ($this->uploaderId) {
             $this->subQuery->andWhere(['uploaderId' => $this->uploaderId]);
         }
 
@@ -932,36 +950,117 @@ class AssetQuery extends ElementQuery
             foreach ((array)$this->kind as $kind) {
                 if (isset($kinds[$kind])) {
                     foreach ($kinds[$kind]['extensions'] as $extension) {
-                        $kindCondition[] = ['like', 'assets.filename', "%.{$extension}", false];
+                        $kindCondition[] = ['like', 'assets.filename', "%.$extension", false];
                     }
                 }
             }
             $this->subQuery->andWhere($kindCondition);
         }
 
+        if ($this->hasAlt !== null) {
+            $this->subQuery->andWhere($this->hasAlt ? ['not', ['assets.alt' => null]] : ['assets.alt' => null]);
+        }
+
         if ($this->width) {
-            $this->subQuery->andWhere(Db::parseParam('assets.width', $this->width));
+            $this->subQuery->andWhere(Db::parseNumericParam('assets.width', $this->width));
         }
 
         if ($this->height) {
-            $this->subQuery->andWhere(Db::parseParam('assets.height', $this->height));
+            $this->subQuery->andWhere(Db::parseNumericParam('assets.height', $this->height));
         }
 
         if ($this->size) {
-            $this->subQuery->andWhere(Db::parseParam('assets.size', $this->size));
+            $this->subQuery->andWhere(Db::parseNumericParam('assets.size', $this->size, '=', Schema::TYPE_BIGINT));
         }
 
         if ($this->dateModified) {
             $this->subQuery->andWhere(Db::parseDateParam('assets.dateModified', $this->dateModified));
         }
 
+        $this->_applyAuthParam($this->editable, 'viewAssets', 'viewPeerAssets');
+        $this->_applyAuthParam($this->savable, 'saveAssets', 'savePeerAssets');
+
         return parent::beforePrepare();
+    }
+
+    /**
+     * @param bool|null $value
+     * @param string $permissionPrefix
+     * @param string $peerPermissionPrefix
+     * @throws QueryAbortedException
+     */
+    private function _applyAuthParam(?bool $value, string $permissionPrefix, string $peerPermissionPrefix): void
+    {
+        if ($value === null) {
+            return;
+        }
+
+        $user = Craft::$app->getUser()->getIdentity();
+
+        if (!$user) {
+            throw new QueryAbortedException();
+        }
+
+        $fullyAuthorizedVolumeIds = [];
+        $partiallyAuthorizedVolumeIds = [];
+        $unauthorizedVolumeIds = [];
+
+        foreach (Craft::$app->getVolumes()->getAllVolumes() as $volume) {
+            if ($user->can("$peerPermissionPrefix:$volume->uid")) {
+                $fullyAuthorizedVolumeIds[] = $volume->id;
+            } elseif ($user->can("$permissionPrefix:$volume->uid")) {
+                $partiallyAuthorizedVolumeIds[] = $volume->id;
+            } else {
+                $unauthorizedVolumeIds[] = $volume->id;
+            }
+        }
+
+        if ($value) {
+            if (!$fullyAuthorizedVolumeIds && !$partiallyAuthorizedVolumeIds) {
+                throw new QueryAbortedException();
+            }
+
+            $this->subQuery->andWhere(array_filter([
+                'or',
+                $fullyAuthorizedVolumeIds
+                    ? ['assets.volumeId' => $fullyAuthorizedVolumeIds]
+                    : null,
+                $partiallyAuthorizedVolumeIds
+                    ? [
+                        'assets.volumeId' => $partiallyAuthorizedVolumeIds,
+                        'assets.uploaderId' => $user->id,
+                    ]
+                    : null,
+            ]));
+        } else {
+            if (!$unauthorizedVolumeIds && !$partiallyAuthorizedVolumeIds) {
+                throw new QueryAbortedException();
+            }
+
+            $this->subQuery->andWhere(array_filter([
+                'or',
+                $unauthorizedVolumeIds
+                    ? ['assets.volumeId' => $unauthorizedVolumeIds]
+                    : null,
+                $partiallyAuthorizedVolumeIds
+                    ? [
+                        'and',
+                        ['assets.volumeId' => $partiallyAuthorizedVolumeIds],
+                        [
+                            'or',
+                            ['not', ['assets.uploaderId' => $user->id]],
+                            ['assets.uploaderId' => null],
+                        ],
+                    ]
+                    : null,
+            ]));
+        }
     }
 
     /**
      * Normalizes the volumeId param to an array of IDs or null
      */
-    private function _normalizeVolumeId()
+    private function _normalizeVolumeId(): void
     {
         if ($this->volumeId === ':empty:') {
             return;
@@ -975,7 +1074,7 @@ class AssetQuery extends ElementQuery
             $this->volumeId = (new Query())
                 ->select(['id'])
                 ->from([Table::VOLUMES])
-                ->where(Db::parseParam('id', $this->volumeId))
+                ->where(Db::parseNumericParam('id', $this->volumeId))
                 ->column();
         }
     }

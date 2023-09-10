@@ -38,7 +38,7 @@ class SystemMessages extends Utility
     /**
      * @inheritdoc
      */
-    public static function iconPath()
+    public static function iconPath(): ?string
     {
         return Craft::getAlias('@appicons/envelope.svg');
     }
@@ -55,7 +55,7 @@ class SystemMessages extends Utility
 
         $messages = Craft::$app->getSystemMessages()->getAllMessages();
 
-        return $view->renderTemplate('_components/utilities/SystemMessages', [
+        return $view->renderTemplate('_components/utilities/SystemMessages/index.twig', [
             'messages' => $messages,
         ]);
     }

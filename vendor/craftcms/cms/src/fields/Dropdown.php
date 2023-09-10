@@ -8,10 +8,12 @@
 namespace craft\fields;
 
 use Craft;
+use craft\base\Element;
 use craft\base\ElementInterface;
 use craft\base\SortableFieldInterface;
 use craft\fields\data\SingleOptionFieldData;
 use craft\helpers\ArrayHelper;
+use craft\helpers\Cp;
 
 /**
  * Dropdown represents a Dropdown field.
@@ -34,40 +36,68 @@ class Dropdown extends BaseOptionsField implements SortableFieldInterface
      */
     public static function valueType(): string
     {
-        return SingleOptionFieldData::class;
+        return sprintf('\\%s', SingleOptionFieldData::class);
     }
 
     /**
      * @inheritdoc
      */
-    public $optgroups = true;
+    protected bool $optgroups = true;
+
+    public function getStatus(ElementInterface $element): ?array
+    {
+        // If the value is invalid and has a default value (which is going to be pulled in via inputHtml()),
+        // preemptively mark the field as modified
+        /** @var SingleOptionFieldData $value */
+        $value = $element->getFieldValue($this->handle);
+
+        if (!$value->valid && $this->defaultValue() !== null) {
+            return [
+                Element::ATTR_STATUS_MODIFIED,
+                Craft::t('app', 'This field has been modified.'),
+            ];
+        }
+
+        return parent::getStatus($element);
+    }
 
     /**
      * @inheritdoc
      */
-    protected function inputHtml($value, ElementInterface $element = null): string
+    protected function inputHtml(mixed $value, ?ElementInterface $element = null): string
     {
         /** @var SingleOptionFieldData $value */
-        $options = $this->translatedOptions(true);
+        $options = $this->translatedOptions(true, $value, $element);
+
+        $hasBlankOption = ArrayHelper::contains($options, function($option) {
+            return isset($option['value']) && $option['value'] === '';
+        });
 
         if (!$value->valid) {
             Craft::$app->getView()->setInitialDeltaValue($this->handle, $this->encodeValue($value->value));
-            $value = null;
+            $default = $this->defaultValue();
 
-            // Add a blank option to the beginning if one doesn't already exist
-            if (!ArrayHelper::contains($options, function($option) {
-                return isset($option['value']) && $option['value'] === '';
-            })) {
-                array_unshift($options, ['label' => '', 'value' => '']);
+            if ($default !== null) {
+                $value = $this->normalizeValue($this->defaultValue());
+            } else {
+                $value = null;
+
+                // Add a blank option to the beginning if one doesn't already exist
+                if (!$hasBlankOption) {
+                    array_unshift($options, ['label' => '', 'value' => '']);
+                }
             }
         }
 
-        return Craft::$app->getView()->renderTemplate('_includes/forms/select', [
+        return Cp::selectizeHtml([
             'id' => $this->getInputId(),
             'describedBy' => $this->describedBy,
             'name' => $this->handle,
             'value' => $this->encodeValue($value),
             'options' => $options,
+            'selectizeOptions' => [
+                'allowEmptyOption' => $hasBlankOption,
+            ],
         ]);
     }
 

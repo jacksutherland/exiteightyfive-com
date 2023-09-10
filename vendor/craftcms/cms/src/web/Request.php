@@ -51,11 +51,11 @@ class Request extends \yii\web\Request
 {
     use RequestTrait;
 
-    const CP_PATH_LOGIN = 'login';
-    const CP_PATH_LOGOUT = 'logout';
-    const CP_PATH_SET_PASSWORD = 'set-password';
-    const CP_PATH_VERIFY_EMAIL = 'verify-email';
-    const CP_PATH_UPDATE = 'update';
+    public const CP_PATH_LOGIN = 'login';
+    public const CP_PATH_LOGOUT = 'logout';
+    public const CP_PATH_SET_PASSWORD = 'set-password';
+    public const CP_PATH_VERIFY_EMAIL = 'verify-email';
+    public const CP_PATH_UPDATE = 'update';
 
     /**
      * @inheritdoc
@@ -73,139 +73,138 @@ class Request extends \yii\web\Request
      * @var int The highest page number that Craft should accept.
      * @since 3.1.14
      */
-    public $maxPageNum = 100000;
+    public int $maxPageNum = 100000;
 
     /**
      * @var GeneralConfig|array|string
      * @since 3.5.10
      */
-    public $generalConfig;
+    public GeneralConfig|string|array $generalConfig;
 
     /**
      * @var Sites|array|string|null
      * @since 3.5.10
      */
-    public $sites = 'sites';
+    public string|array|null|Sites $sites = 'sites';
 
     /**
      * @var string
      * @see getFullPath()
      */
-    private $_fullPath;
+    private string $_fullPath;
 
     /**
      * @var string
      * @see getPathInfo()
      */
-    private $_path;
+    private string $_path;
 
     /**
      * @var string
      * @see getFullUri()
      */
-    private $_fullUri;
+    private string $_fullUri;
 
     /**
-     * @var
+     * @var string[]
      */
-    private $_segments;
+    private array $_segments;
 
     /**
      * @var int
      */
-    private $_pageNum = 1;
+    private int $_pageNum = 1;
+
+    /**
+     * @var bool|null
+     */
+    private ?bool $_isCpRequest = null;
 
     /**
      * @var bool
+     * @see checkIfActionRequest()
      */
-    private $_isCpRequest;
+    private bool $_isActionRequest = false;
 
     /**
      * @var bool
+     * @see checkIfActionRequest()
      */
-    private $_isActionRequest = false;
+    private bool $_isLoginRequest = false;
 
     /**
      * @var bool
+     * @see checkIfActionRequest()
      */
-    private $_isSingleActionRequest = false;
-
-    /**
-     * @var bool
-     */
-    private $_isLoginRequest = false;
-
-    /**
-     * @var bool
-     */
-    private $_checkedRequestType = false;
+    private bool $_checkedRequestType = false;
 
     /**
      * @var string[]|null
+     * @see checkIfActionRequest()
      */
-    private $_actionSegments;
+    private ?array $_actionSegments = null;
 
     /**
      * @var bool
      */
-    private $_isLivePreview = false;
+    private bool $_isLivePreview = false;
 
     /**
      * @var bool|null
      */
-    private $_isMobileBrowser;
+    private ?bool $_isMobileBrowser = null;
 
     /**
      * @var bool|null
      */
-    private $_isMobileOrTabletBrowser;
+    private ?bool $_isMobileOrTabletBrowser = null;
 
     /**
      * @var string|null
      */
-    private $_ipAddress;
+    private ?string $_ipAddress = null;
 
     /**
      * @var CookieCollection Collection of raw cookies
      * @see getRawCookies()
      */
-    private $_rawCookies;
+    private CookieCollection $_rawCookies;
 
     /**
      * @var string|null
      */
-    private $_craftCsrfToken;
+    private ?string $_craftCsrfToken = null;
 
     /**
      * @var bool
      */
-    private $_encodedQueryParams = false;
+    private bool $_encodedQueryParams = false;
 
     /**
      * @var bool
      */
-    private $_encodedBodyParams = false;
+    private bool $_setBodyParams = false;
 
     /**
      * @var bool|null Whether the request initially had a token
      * @see getHadToken()
      */
-    private $_hadToken;
+    private ?bool $_hadToken = null;
 
     /**
      * @var string|null
      * @see getToken()
      */
-    public $_token;
+    public ?string $_token = null;
 
     /**
      * @inheritdoc
      */
-    public function init()
+    public function init(): void
     {
         parent::init();
 
-        if ($this->generalConfig === null) {
+        if (!isset($this->generalConfig)) {
             $this->generalConfig = Craft::$app->getConfig()->getGeneral();
         }
         $this->generalConfig = Instance::ensure($this->generalConfig, GeneralConfig::class);
@@ -230,7 +229,7 @@ class Request extends \yii\web\Request
         try {
             $this->sites = Instance::ensure($this->sites, Sites::class);
 
-            // Only check if a site was requested if don't know for sure that it's a CP request
+            // Only check if a site was requested if don’t know for sure that it’s a control panel request
             if ($this->_isCpRequest !== true) {
                 if ($this->sites->getHasCurrentSite()) {
                     $site = $this->sites->getCurrentSite();
@@ -243,19 +242,19 @@ class Request extends \yii\web\Request
                 }
             }
         } catch (SiteNotFoundException $e) {
-            // Fail silently if Craft isn't installed yet or is in the middle of updating
-            if (Craft::$app->getIsInstalled() && !Craft::$app->getUpdates()->getIsCraftDbMigrationNeeded()) {
+            // Fail silently if Craft isn’t installed yet or is in the middle of updating
+            if (Craft::$app->getIsInstalled() && !Craft::$app->getUpdates()->getIsCraftUpdatePending()) {
                 /** @noinspection PhpUnhandledExceptionInspection */
                 throw $e;
             }
         }
 
-        // Is the jury still out on whether this is a CP request?
-        if ($this->_isCpRequest === null) {
+        // Is the jury still out on whether this is a control panel request?
+        if (!isset($this->_isCpRequest)) {
             $this->_isCpRequest = false;
             // Is it a possibility?
             if ($this->generalConfig->cpTrigger || $this->generalConfig->baseCpUrl) {
-                // Figure out the base URL the request must have if this is a CP request
+                // Figure out the base URL the request must have if this is a control panel request
                 $testBaseCpUrls = [];
                 if ($this->generalConfig->baseCpUrl) {
                     $testBaseCpUrls[] = implode('/', array_filter([rtrim($this->generalConfig->baseCpUrl, '/'), $this->generalConfig->cpTrigger]));
@@ -283,8 +282,8 @@ class Request extends \yii\web\Request
             $this->sites->setCurrentSite($site ?? null);
         }
 
-        // If this is a CP request and the path begins with the CP trigger, remove it
-        if ($this->_isCpRequest && $this->generalConfig->cpTrigger && strpos($this->_path . '/', $this->generalConfig->cpTrigger . '/') === 0) {
+        // If this is a control panel request and the path begins with the control panel trigger, remove it
+        if ($this->_isCpRequest && $this->generalConfig->cpTrigger && str_starts_with($this->_path . '/', $this->generalConfig->cpTrigger . '/')) {
             $this->_path = ltrim(substr($this->_path, strlen($this->generalConfig->cpTrigger)), '/');
         }
 
@@ -295,34 +294,28 @@ class Request extends \yii\web\Request
             // If Craft is running from a subfolder, chop the subfolder path off of the base path first
             if (
                 ($requestBaseUrl = $this->_normalizePath($this->getBaseUrl())) &&
-                strpos($basePath . '/', $requestBaseUrl . '/') === 0
+                str_starts_with($basePath . '/', $requestBaseUrl . '/')
             ) {
                 $basePath = ltrim(substr($basePath, strlen($requestBaseUrl)), '/');
             }
 
-            if (strpos($this->_path . '/', $basePath . '/') === 0) {
+            if (str_starts_with($this->_path . '/', $basePath . '/')) {
                 $this->_path = ltrim(substr($this->_path, strlen($basePath)), '/');
             }
         }
 
-        if ($this->_isCpRequest) {
-            // Force 'p' pageTrigger
-            // (all that really matters is that it doesn't have a trailing slash, but whatever.)
-            $this->generalConfig->pageTrigger = 'p';
-        }
-
         // Is this a paginated request?
-        $pageTrigger = $this->generalConfig->getPageTrigger();
+        $pageTrigger = $this->_isCpRequest ? 'p' : $this->generalConfig->getPageTrigger();
 
         // Is this query string-based pagination?
-        if (strpos($pageTrigger, '?') === 0) {
+        if (str_starts_with($pageTrigger, '?')) {
             $this->_pageNum = (int)$this->getQueryParam(trim($pageTrigger, '?='), '1');
         } elseif ($this->_path !== '') {
             // Match against the entire path string as opposed to just the last segment so that we can support
             // "/page/2"-style pagination URLs
             $pageTrigger = preg_quote($pageTrigger, '/');
 
-            if (preg_match("/^(?:(.*)\/)?{$pageTrigger}(\d+)$/", $this->_path, $match)) {
+            if (preg_match("/^(?:(.*)\/)?$pageTrigger(\d+)$/", $this->_path, $match)) {
                 // Capture the page num
                 $this->_pageNum = (int)$match[2];
 
@@ -343,7 +336,7 @@ class Request extends \yii\web\Request
      */
     public function getFullPath(): string
     {
-        if ($this->_fullPath !== null) {
+        if (isset($this->_fullPath)) {
             return $this->_fullPath;
         }
 
@@ -361,7 +354,7 @@ class Request extends \yii\web\Request
                     $this->_fullPath = $this->getPathInfo(true);
                 }
             }
-        } catch (InvalidConfigException $e) {
+        } catch (InvalidConfigException) {
             $this->_fullPath = $this->_getQueryStringPath();
         }
 
@@ -394,7 +387,7 @@ class Request extends \yii\web\Request
      */
     public function getFullUri(): string
     {
-        if ($this->_fullUri !== null) {
+        if (isset($this->_fullUri)) {
             return $this->_fullUri;
         }
 
@@ -410,7 +403,7 @@ class Request extends \yii\web\Request
      * Don’t include the results of this method in places that will be cached, to avoid a cache poisoning attack.
      * :::
      */
-    public function getAbsoluteUrl()
+    public function getAbsoluteUrl(): string
     {
         return parent::getAbsoluteUrl();
     }
@@ -419,8 +412,8 @@ class Request extends \yii\web\Request
      * Returns the segments of the requested path.
      *
      * ::: tip
-     * Note that the segments will not include the [control panel trigger](config3:cpTrigger)
-     * if it’s a control panel request, or the [page trigger](config3:pageTrigger)
+     * Note that the segments will not include the [control panel trigger](config4:cpTrigger)
+     * if it’s a control panel request, or the [page trigger](config4:pageTrigger)
      * or page number if it’s a paginated request.
      * :::
      *
@@ -437,7 +430,7 @@ class Request extends \yii\web\Request
      */
     public function getSegments(): array
     {
-        if ($this->_segments !== null) {
+        if (isset($this->_segments)) {
             return $this->_segments;
         }
 
@@ -459,7 +452,7 @@ class Request extends \yii\web\Request
      * @param int $num Which segment to return (1-indexed).
      * @return string|null The matching segment, or `null` if there wasn’t one.
      */
-    public function getSegment(int $num)
+    public function getSegment(int $num): ?string
     {
         $segments = $this->getSegments();
 
@@ -513,7 +506,7 @@ class Request extends \yii\web\Request
     /**
      * Returns the token submitted with the request, if there is one.
      *
-     * Tokens must be sent either as a query string param named after the <config3:tokenParam> config setting (`token` by
+     * Tokens must be sent either as a query string param named after the <config4:tokenParam> config setting (`token` by
      * default), or an `X-Craft-Token` HTTP header on the request.
      *
      * @return string|null The token, or `null` if there isn’t one.
@@ -538,7 +531,7 @@ class Request extends \yii\web\Request
         // Make sure $this->_hadToken has been set
         try {
             $this->_findToken();
-        } catch (BadRequestHttpException $e) {
+        } catch (BadRequestHttpException) {
         }
 
         $this->_token = $token;
@@ -551,7 +544,7 @@ class Request extends \yii\web\Request
      */
     private function _findToken(): void
     {
-        if ($this->_hadToken !== null) {
+        if (isset($this->_hadToken)) {
             return;
         }
 
@@ -563,13 +556,13 @@ class Request extends \yii\web\Request
             throw new BadRequestHttpException('Invalid token');
         }
 
-        $this->_hadToken = $this->_token !== null;
+        $this->_hadToken = isset($this->_token);
     }
 
     /**
      * Returns the site token submitted with the request, if there is one.
      *
-     * Tokens must be sent either as a query string param named after the <config3:siteToken> config setting
+     * Tokens must be sent either as a query string param named after the <config4:siteToken> config setting
      * (`siteToken` by default), or an `X-Craft-Site-Token` HTTP header on the request.
      *
      * @return string|null The token, or `null` if there isn’t one.
@@ -581,10 +574,25 @@ class Request extends \yii\web\Request
     }
 
     /**
+     * Returns whether the request has a valid site token.
+     *
+     * @return bool
+     * @since 4.4.6
+     */
+    public function hasValidSiteToken(): bool
+    {
+        try {
+            return $this->_validateSiteToken() !== null;
+        } catch (BadRequestHttpException $e) {
+            return false;
+        }
+    }
+
+    /**
      * Returns whether the control panel was requested.
      *
      * The result depends on whether the first segment in the URI matches the
-     * [control panel trigger](config3:cpTrigger).
+     * [control panel trigger](config4:cpTrigger).
      *
      * @return bool Whether the current request should be routed to the control panel.
      */
@@ -599,7 +607,7 @@ class Request extends \yii\web\Request
      * @param bool|null $isCpRequest
      * @since 3.5.0
      */
-    public function setIsCpRequest(bool $isCpRequest = null)
+    public function setIsCpRequest(?bool $isCpRequest = null): void
     {
         $this->_isCpRequest = $isCpRequest;
     }
@@ -621,7 +629,7 @@ class Request extends \yii\web\Request
      *
      * There are several ways that this method could return `true`:
      *
-     * - If the first segment in the Craft path matches the [action trigger](config3:actionTrigger)
+     * - If the first segment in the Craft path matches the [action trigger](config4:actionTrigger)
      * - If there is an `action` param in either the POST data or query string
      * - If the Craft path matches the Login path, the Logout path, or the Set Password path
      *
@@ -658,23 +666,11 @@ class Request extends \yii\web\Request
     }
 
     /**
-     * Returns whether the current request is solely an action request.
-     *
-     * @return bool
-     * @deprecated in 3.2.0
-     */
-    public function getIsSingleActionRequest(): bool
-    {
-        $this->checkIfActionRequest();
-        return $this->_isSingleActionRequest;
-    }
-
-    /**
      * Returns the segments of the requested controller action path, if this is an [[getIsActionRequest()|action request]].
      *
      * @return array|null The action path segments, or `null` if this isn’t an action request.
      */
-    public function getActionSegments()
+    public function getActionSegments(): ?array
     {
         $this->checkIfActionRequest();
         return $this->_isActionRequest ? $this->_actionSegments : null;
@@ -732,7 +728,7 @@ class Request extends \yii\web\Request
      *
      * @param bool $isLivePreview
      */
-    public function setIsLivePreview(bool $isLivePreview)
+    public function setIsLivePreview(bool $isLivePreview): void
     {
         $this->_isLivePreview = $isLivePreview;
     }
@@ -743,9 +739,11 @@ class Request extends \yii\web\Request
      * @return string|null
      * @since 3.5.0
      */
-    public function getMimeType()
+    public function getMimeType(): ?string
     {
-        if (($contentType = parent::getContentType()) === null) {
+        $contentType = parent::getContentType();
+
+        if (!$contentType) {
             return null;
         }
 
@@ -828,11 +826,19 @@ class Request extends \yii\web\Request
     /**
      * @inheritdoc
      */
-    public function getBodyParams()
+    public function getBodyParams(): array
     {
-        if ($this->_encodedBodyParams === false) {
-            $this->setBodyParams($this->_utf8AllTheThings(parent::getBodyParams()));
-            $this->_encodedBodyParams = true;
+        if ($this->_setBodyParams === false) {
+            $params = parent::getBodyParams();
+
+            // Was a namespace passed?
+            $namespace = $this->getHeaders()->get('X-Craft-Namespace');
+            if ($namespace) {
+                $params = $params[$namespace] ?? [];
+            }
+
+            $this->setBodyParams($this->_utf8AllTheThings($params));
+            $this->_setBodyParams = true;
         }
 
         return parent::getBodyParams();
@@ -866,7 +872,7 @@ class Request extends \yii\web\Request
      * @see getBodyParams()
      * @see setBodyParams()
      */
-    public function getBodyParam($name, $defaultValue = null)
+    public function getBodyParam($name, $defaultValue = null): mixed
     {
         return $this->_getParam($name, $defaultValue, $this->getBodyParams());
     }
@@ -896,7 +902,7 @@ class Request extends \yii\web\Request
      * @throws BadRequestHttpException if the request does not have the body param
      * @see getBodyParam()
      */
-    public function getRequiredBodyParam(string $name)
+    public function getRequiredBodyParam(string $name): mixed
     {
         $value = $this->getBodyParam($name);
 
@@ -904,7 +910,7 @@ class Request extends \yii\web\Request
             return $value;
         }
 
-        throw new BadRequestHttpException('Request missing required body param');
+        throw new BadRequestHttpException("Request missing required body param");
     }
 
     /**
@@ -928,11 +934,11 @@ class Request extends \yii\web\Request
      * ```
      *
      * @param string $name The parameter name.
-     * @return mixed|null The parameter value
+     * @return string|null The parameter value
      * @throws BadRequestHttpException if the param value doesn’t pass validation
      * @see getBodyParam()
      */
-    public function getValidatedBodyParam(string $name)
+    public function getValidatedBodyParam(string $name): ?string
     {
         $value = $this->getBodyParam($name);
 
@@ -952,7 +958,7 @@ class Request extends \yii\web\Request
     /**
      * @inheritdoc
      */
-    public function getQueryParams()
+    public function getQueryParams(): array
     {
         if ($this->_encodedQueryParams === false) {
             $this->setQueryParams($this->_utf8AllTheThings(parent::getQueryParams()));
@@ -985,11 +991,11 @@ class Request extends \yii\web\Request
      * ```
      *
      * @param string $name The GET parameter name.
-     * @param mixed|null $defaultValue The default parameter value if the GET parameter does not exist.
+     * @param mixed $defaultValue The default parameter value if the GET parameter does not exist.
      * @return mixed The GET parameter value.
      * @see getBodyParam()
      */
-    public function getQueryParam($name, $defaultValue = null)
+    public function getQueryParam($name, $defaultValue = null): mixed
     {
         return $this->_getParam($name, $defaultValue, $this->getQueryParams());
     }
@@ -1019,7 +1025,7 @@ class Request extends \yii\web\Request
      * @throws BadRequestHttpException if the request does not have the query param
      * @see getQueryParam()
      */
-    public function getRequiredQueryParam(string $name)
+    public function getRequiredQueryParam(string $name): mixed
     {
         $value = $this->getQueryParam($name);
 
@@ -1041,7 +1047,7 @@ class Request extends \yii\web\Request
      * @see getQueryParam()
      * @see getBodyParam()
      */
-    public function getParam(string $name, $defaultValue = null)
+    public function getParam(string $name, mixed $defaultValue = null): mixed
     {
         if (($value = $this->getQueryParam($name)) !== null) {
             return $value;
@@ -1064,7 +1070,7 @@ class Request extends \yii\web\Request
      * @see getQueryParam()
      * @see getBodyParam()
      */
-    public function getRequiredParam(string $name)
+    public function getRequiredParam(string $name): mixed
     {
         $value = $this->getParam($name);
 
@@ -1102,7 +1108,7 @@ class Request extends \yii\web\Request
         // Tear it down and rebuild it without the path param
         $parts = explode('&', $queryString);
         foreach ($parts as $key => $part) {
-            if (strpos($part, $this->generalConfig->pathParam . '=') === 0) {
+            if (str_starts_with($part, $this->generalConfig->pathParam . '=')) {
                 unset($parts[$key]);
                 break;
             }
@@ -1117,9 +1123,9 @@ class Request extends \yii\web\Request
      * when validating the IP address. Options include `FILTER_FLAG_IPV4`,
      * `FILTER_FLAG_IPV6`, `FILTER_FLAG_NO_PRIV_RANGE`, and `FILTER_FLAG_NO_RES_RANGE`.
      */
-    public function getUserIP(int $filterOptions = 0)
+    public function getUserIP(int $filterOptions = 0): ?string
     {
-        if ($this->_ipAddress === null) {
+        if (!isset($this->_ipAddress)) {
             foreach ($this->ipHeaders as $ipHeader) {
                 if ($this->headers->has($ipHeader)) {
                     foreach (explode(',', $this->headers->get($ipHeader)) as $ip) {
@@ -1143,7 +1149,7 @@ class Request extends \yii\web\Request
      * when validating the IP address. Options include `FILTER_FLAG_IPV4`,
      * `FILTER_FLAG_IPV6`, `FILTER_FLAG_NO_PRIV_RANGE`, and `FILTER_FLAG_NO_RES_RANGE`.
      */
-    public function getRemoteIP(int $filterOptions = 0)
+    public function getRemoteIP(int $filterOptions = 0): ?string
     {
         $ip = parent::getRemoteIP();
         return $ip ? $this->_validateIp($ip, $filterOptions) : null;
@@ -1168,15 +1174,15 @@ class Request extends \yii\web\Request
     {
         $userAgent = $this->getUserAgent();
 
-        if (strpos($userAgent, 'Linux') !== false) {
+        if (str_contains($userAgent, 'Linux')) {
             return 'Linux';
         }
 
-        if (strpos($userAgent, 'Win') !== false) {
+        if (str_contains($userAgent, 'Win')) {
             return 'Windows';
         }
 
-        if (strpos($userAgent, 'Mac') !== false) {
+        if (str_contains($userAgent, 'Mac')) {
             return 'Mac';
         }
 
@@ -1192,9 +1198,9 @@ class Request extends \yii\web\Request
      * @return CookieCollection the cookie collection.
      * @since 3.5.0
      */
-    public function getRawCookies()
+    public function getRawCookies(): CookieCollection
     {
-        if ($this->_rawCookies === null) {
+        if (!isset($this->_rawCookies)) {
             $this->_rawCookies = new CookieCollection($this->loadRawCookies(), [
                 'readOnly' => true,
             ]);
@@ -1210,7 +1216,7 @@ class Request extends \yii\web\Request
      * @return Cookie[]
      * @since 3.5.0
      */
-    protected function loadRawCookies()
+    protected function loadRawCookies(): array
     {
         $cookies = [];
 
@@ -1247,10 +1253,14 @@ class Request extends \yii\web\Request
      */
     public function getCsrfToken($regenerate = false): string
     {
-        if ($this->_craftCsrfToken === null || $regenerate) {
+        if (!isset($this->_craftCsrfToken) || $regenerate) {
             $token = $this->loadCsrfToken();
 
-            if ($regenerate || $token === null || ($this->_craftCsrfToken = $token) === null || !$this->csrfTokenValidForCurrentUser($token)) {
+            if (
+                $regenerate ||
+                $token === null ||
+                !$this->csrfTokenValidForCurrentUser($token)
+            ) {
                 $token = $this->generateCsrfToken();
             }
 
@@ -1263,7 +1273,7 @@ class Request extends \yii\web\Request
     /**
      * Regenerates a CSRF token.
      */
-    public function regenCsrfToken()
+    public function regenCsrfToken(): void
     {
         $this->_craftCsrfToken = $this->getCsrfToken(true);
     }
@@ -1306,7 +1316,7 @@ class Request extends \yii\web\Request
      * @return string|null
      * @since 3.3.8
      */
-    public function getNormalizedContentType()
+    public function getNormalizedContentType(): ?string
     {
         $rawContentType = $this->getContentType();
         if (($pos = strpos($rawContentType, ';')) !== false) {
@@ -1320,7 +1330,7 @@ class Request extends \yii\web\Request
      * @inheritdoc
      * @internal Based on \yii\web\Request::resolve(), but we don't modify $_GET/$this->_queryParams in the process.
      */
-    public function resolve()
+    public function resolve(): array
     {
         if (($result = Craft::$app->getUrlManager()->parseRequest($this)) === false) {
             throw new NotFoundHttpException(Craft::t('yii', 'Page not found.'));
@@ -1344,7 +1354,7 @@ class Request extends \yii\web\Request
         // They have an existing CSRF token.
         if ($existingToken) {
             // It's a CSRF token that came from an authenticated request.
-            if (strpos($existingToken, '|') !== false) {
+            if (str_contains($existingToken, '|')) {
                 // Grab the existing nonce.
                 $parts = explode('|', $existingToken);
                 $nonce = $parts[0];
@@ -1393,7 +1403,7 @@ class Request extends \yii\web\Request
             if (($currentUser = Craft::$app->getUser()->getIdentity()) === null) {
                 return true;
             }
-        } catch (DbException $e) {
+        } catch (DbException) {
             // Craft is probably not installed or updating
             Craft::$app->getUser()->switchIdentity(null);
             return true;
@@ -1445,21 +1455,11 @@ class Request extends \yii\web\Request
      * @throws BadRequestHttpException if a site token was sent, but the site doesn’t exist
      * @throws SiteNotFoundException if no sites exist
      */
-    private function _requestedSite(int &$siteScore = null): Site
+    private function _requestedSite(?int &$siteScore = null): Site
     {
         // Was a site token provided?
-        $siteId = $this->getQueryParam($this->generalConfig->siteToken)
-            ?? $this->getHeaders()->get('X-Craft-Site-Token')
-            ?? false;
-        if ($siteId) {
-            $siteId = Craft::$app->getSecurity()->validateData($siteId);
-            if ($siteId === false) {
-                throw new BadRequestHttpException('Invalid site token');
-            }
-            $site = $this->sites->getSiteById($siteId, true);
-            if (!$site) {
-                throw new BadRequestHttpException('Invalid site ID: ' . $siteId);
-            }
+        $site = $this->_validateSiteToken();
+        if ($site !== null) {
             return $site;
         }
 
@@ -1476,9 +1476,30 @@ class Request extends \yii\web\Request
 
         // Sort by scores descending
         arsort($scores, SORT_NUMERIC);
-        $first = ArrayHelper::firstKey($scores);
+        $first = array_key_first($scores);
         $siteScore = reset($scores);
         return $sites[$first];
+    }
+
+    /**
+     * @return Site|null
+     * @throws BadRequestHttpException
+     */
+    private function _validateSiteToken(): ?Site
+    {
+        $siteToken = $this->getSiteToken();
+        if ($siteToken === null) {
+            return null;
+        }
+        $siteId = Craft::$app->getSecurity()->validateData($siteToken);
+        if (!is_numeric($siteId)) {
+            throw new BadRequestHttpException('Invalid site token');
+        }
+        $site = $this->sites->getSiteById((int)$siteId, true);
+        if (!$site) {
+            throw new BadRequestHttpException('Invalid site ID: ' . $siteId);
+        }
+        return $site;
     }
 
     /**
@@ -1534,7 +1555,7 @@ class Request extends \yii\web\Request
 
         // Does the site URL specify a base path?
         $parsedPath = !empty($parsed['path']) ? $this->_normalizePath($parsed['path']) : '';
-        if ($parsedPath && strpos($this->getFullUri() . '/', $parsedPath . '/') !== 0) {
+        if ($parsedPath && !str_starts_with($this->getFullUri() . '/', $parsedPath . '/')) {
             return 0;
         }
 
@@ -1585,7 +1606,6 @@ class Request extends \yii\web\Request
      * @param bool $force Whether to recheck even if we already know
      * @param bool $checkToken Whether to check if there’s a token on the request and use that.
      * @param bool $checkSpecialPaths Whether to check for special URIs that should route to controller actions
-     * @return void
      * @since 3.7.0
      */
     public function checkIfActionRequest(bool $force = false, bool $checkToken = true, bool $checkSpecialPaths = true): void
@@ -1598,95 +1618,89 @@ class Request extends \yii\web\Request
             // Reset
             $this->_isActionRequest = false;
             $this->_actionSegments = null;
-            $this->_isSingleActionRequest = false;
             $this->_isLoginRequest = false;
         }
 
         // If there's a token on the request, then that should take precedence over everything else
         if (!$checkToken || $this->getToken() === null) {
-            $firstSegment = $this->getSegment(1);
+            $this->_isActionRequest = $this->_checkIfActionRequestInternal($checkSpecialPaths);
+        }
 
-            // Is this an action request?
-            $loginPath = $logoutPath = $setPasswordPath = $verifyEmailPath = $updatePath = null;
+        $this->_checkedRequestType = true;
+    }
 
-            if ($checkSpecialPaths) {
-                if ($this->_isCpRequest) {
-                    $loginPath = self::CP_PATH_LOGIN;
-                    $logoutPath = self::CP_PATH_LOGOUT;
-                    $setPasswordPath = self::CP_PATH_SET_PASSWORD;
-                    $verifyEmailPath = self::CP_PATH_VERIFY_EMAIL;
-                    $updatePath = self::CP_PATH_UPDATE;
-                } elseif (!$this->generalConfig->headlessMode) {
-                    if (is_string($loginPath = $this->generalConfig->getLoginPath())) {
-                        $loginPath = trim($loginPath, '/');
-                    }
-                    if (is_string($logoutPath = $this->generalConfig->getLogoutPath())) {
-                        $logoutPath = trim($logoutPath, '/');
-                    }
-                    $setPasswordPath = trim($this->generalConfig->getSetPasswordPath(), '/');
-                    $verifyEmailPath = trim($this->generalConfig->getVerifyEmailPath(), '/');
-                } else {
-                    $checkSpecialPaths = false;
-                }
-            }
+    private function _checkIfActionRequestInternal(bool $checkSpecialPaths): bool
+    {
+        // Important we check in this specific order:
+        // 1) /actions/some/action
+        // 2) any/uri?action=some/action
+        // 3) special/uri
 
-            $hasTriggerMatch = ($firstSegment === $this->generalConfig->actionTrigger && count($this->getSegments()) > 1);
-            if ($this->getNormalizedContentType() !== 'application/json') {
-                $actionParam = $this->getParam('action');
-            } else {
-                $actionParam = $this->getQueryParam('action');
-            }
-            $hasActionParam = $actionParam !== null;
-            if ($hasActionParam && !is_string($actionParam)) {
+        // Trigger match?
+        if (
+            $this->getSegment(1) === $this->generalConfig->actionTrigger &&
+            count($this->getSegments()) > 1
+        ) {
+            $this->_actionSegments = array_slice($this->getSegments(), 1);
+            return true;
+        }
+
+        // Action param?
+        if ($this->getNormalizedContentType() !== 'application/json') {
+            $actionParam = $this->getParam('action');
+        } else {
+            $actionParam = $this->getQueryParam('action');
+        }
+
+        if ($actionParam !== null) {
+            if (!is_string($actionParam)) {
                 throw new BadRequestHttpException('Invalid action param');
             }
-            $hasSpecialPath = $checkSpecialPaths && in_array($this->_path, [
-                    $loginPath,
-                    $logoutPath,
-                    $setPasswordPath,
-                    $verifyEmailPath,
-                    $updatePath,
-                ], true);
 
-            if ($hasTriggerMatch || $hasActionParam || $hasSpecialPath) {
-                $this->_isActionRequest = true;
+            $this->_actionSegments = array_values(array_filter(explode('/', $actionParam)));
+            return true;
+        }
 
-                // Important we check in this specific order:
-                // 1) /actions/some/action
-                // 2) any/uri?action=some/action
-                // 3) special/uri
+        // Special path?
+        if (
+            $checkSpecialPaths &&
+            ($this->_isCpRequest || !$this->generalConfig->headlessMode)
+        ) {
+            $specialPaths = [
+                [
+                    $this->_isCpRequest ? self::CP_PATH_LOGIN : $this->generalConfig->getLoginPath(),
+                    function() {
+                        $this->_isLoginRequest = true;
+                        return ['users', 'login'];
+                    },
+                ],
+                [
+                    $this->_isCpRequest ? self::CP_PATH_LOGOUT : $this->generalConfig->getLogoutPath(),
+                    fn() => ['users', 'logout'],
+                ],
+                [
+                    $this->_isCpRequest ? self::CP_PATH_SET_PASSWORD : $this->generalConfig->getSetPasswordPath(),
+                    fn() => ['users', 'set-password'],
+                ],
+                [
+                    $this->_isCpRequest ? self::CP_PATH_VERIFY_EMAIL : $this->generalConfig->getVerifyEmailPath(),
+                    fn() => ['users', 'verify-email'],
+                ],
+                [
+                    $this->_isCpRequest ? self::CP_PATH_UPDATE : null,
+                    fn() => ['updater', 'index'],
+                ],
+            ];
 
-                if ($hasTriggerMatch) {
-                    $this->_actionSegments = array_slice($this->getSegments(), 1);
-                    $this->_isSingleActionRequest = true;
-                } elseif ($hasActionParam) {
-                    $this->_actionSegments = array_values(array_filter(explode('/', $actionParam)));
-                    $this->_isSingleActionRequest = empty($this->_path);
-                } else {
-                    switch ($this->_path) {
-                        case $loginPath:
-                            $this->_actionSegments = ['users', 'login'];
-                            $this->_isLoginRequest = true;
-                            break;
-                        case $logoutPath:
-                            $this->_actionSegments = ['users', 'logout'];
-                            break;
-                        case $setPasswordPath:
-                            $this->_actionSegments = ['users', 'set-password'];
-                            break;
-                        case $verifyEmailPath:
-                            $this->_actionSegments = ['users', 'verify-email'];
-                            break;
-                        case $updatePath:
-                            $this->_actionSegments = ['updater', 'index'];
-                            break;
-                    }
-                    $this->_isSingleActionRequest = true;
+            foreach ($specialPaths as [$path, $actionSegments]) {
+                if ($path === $this->_path) {
+                    $this->_actionSegments = $actionSegments();
+                    return true;
                 }
             }
         }
 
-        $this->_checkedRequestType = true;
+        return false;
     }
 
     /**
@@ -1703,10 +1717,10 @@ class Request extends \yii\web\Request
     }
 
     /**
-     * @param array|string $value
-     * @return array|string
+     * @param mixed $value
+     * @return mixed
      */
-    private function _utf8Value($value)
+    private function _utf8Value(mixed $value): mixed
     {
         if (is_array($value)) {
             return $this->_utf8AllTheThings($value);
@@ -1729,35 +1743,14 @@ class Request extends \yii\web\Request
      * @param array $params
      * @return mixed
      */
-    private function _getParam(?string $name, $defaultValue, array $params)
+    private function _getParam(?string $name, mixed $defaultValue, array $params): mixed
     {
         // Do they just want the whole array?
         if ($name === null) {
             return $this->_utf8AllTheThings($params);
         }
 
-        // Looking for a specific value?
-        if (isset($params[$name])) {
-            return $this->_utf8Value($params[$name]);
-        }
-
-        // Maybe they're looking for a nested param?
-        if (StringHelper::contains($name, '.')) {
-            $path = explode('.', $name);
-            $param = $params;
-
-            foreach ($path as $step) {
-                if (is_array($param) && isset($param[$step])) {
-                    $param = $param[$step];
-                } else {
-                    return $defaultValue;
-                }
-            }
-
-            return $this->_utf8Value($param);
-        }
-
-        return $defaultValue;
+        return ArrayHelper::getValue($params, $name, $defaultValue);
     }
 
     /**
@@ -1765,7 +1758,7 @@ class Request extends \yii\web\Request
      * @param int $filterOptions
      * @return string|null
      */
-    private function _validateIp(string $ip, int $filterOptions)
+    private function _validateIp(string $ip, int $filterOptions): ?string
     {
         $ip = trim($ip);
         return filter_var($ip, FILTER_VALIDATE_IP, $filterOptions) !== false ? $ip : null;

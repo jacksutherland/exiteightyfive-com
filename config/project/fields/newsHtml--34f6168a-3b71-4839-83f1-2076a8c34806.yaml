@@ -1,0 +1,16 @@
+contentColumnType: text
+fieldGroup: 170555c3-76ee-4a23-ba64-9dc060c99120
+handle: newsHtml
+instructions: ''
+name: 'News (HTML)'
+searchable: true
+settings:
+  charLimit: ''
+  code: ''
+  columnType: text
+  initialRows: '4'
+  multiline: '1'
+  placeholder: ''
+translationKeyFormat: null
+translationMethod: none
+type: craft\fields\PlainText

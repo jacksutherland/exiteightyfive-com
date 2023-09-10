@@ -38,12 +38,16 @@ class SystemSettingsController extends Controller
     /**
      * @inheritdoc
      */
-    public function beforeAction($action)
+    public function beforeAction($action): bool
     {
+        if (!parent::beforeAction($action)) {
+            return false;
+        }
+
         // All system setting actions require an admin
         $this->requireAdmin();
 
-        return parent::beforeAction($action);
+        return true;
     }
 
     /**
@@ -55,7 +59,7 @@ class SystemSettingsController extends Controller
     {
         $this->getView()->registerAssetBundle(GeneralSettingsAsset::class);
 
-        return $this->renderTemplate('settings/general/_index', [
+        return $this->renderTemplate('settings/general/_index.twig', [
             'system' => Craft::$app->getProjectConfig()->get('system') ?? [],
         ]);
     }
@@ -65,7 +69,7 @@ class SystemSettingsController extends Controller
      *
      * @return Response|null
      */
-    public function actionSaveGeneralSettings()
+    public function actionSaveGeneralSettings(): ?Response
     {
         $this->requirePostRequest();
 
@@ -76,7 +80,7 @@ class SystemSettingsController extends Controller
         $systemSettings['retryDuration'] = (int)$this->request->getBodyParam('retryDuration') ?: null;
         $systemSettings['timeZone'] = $this->request->getBodyParam('timeZone');
 
-        if (strpos($systemSettings['live'], '$') !== 0) {
+        if (!str_starts_with($systemSettings['live'], '$')) {
             $systemSettings['live'] = (bool)$systemSettings['live'];
         }
 
@@ -94,7 +98,7 @@ class SystemSettingsController extends Controller
      * @return Response
      * @throws Exception if a plugin returns an invalid mail transport type
      */
-    public function actionEditEmailSettings(MailSettings $settings = null, TransportAdapterInterface $adapter = null): Response
+    public function actionEditEmailSettings(?MailSettings $settings = null, ?TransportAdapterInterface $adapter = null): Response
     {
         if ($settings === null) {
             $settings = App::mailSettings();
@@ -103,7 +107,7 @@ class SystemSettingsController extends Controller
         if ($adapter === null) {
             try {
                 $adapter = MailerHelper::createTransportAdapter($settings->transportType, $settings->transportSettings);
-            } catch (MissingComponentException $e) {
+            } catch (MissingComponentException) {
                 $adapter = new Sendmail();
                 $adapter->addError('type', Craft::t('app', 'The transport type “{type}” could not be found.', [
                     'type' => $settings->transportType,
@@ -124,6 +128,7 @@ class SystemSettingsController extends Controller
 
         foreach ($allTransportAdapterTypes as $transportAdapterType) {
             /** @var string|TransportAdapterInterface $transportAdapterType */
+            /** @phpstan-var class-string<TransportAdapterInterface>|TransportAdapterInterface $transportAdapterType */
             if ($transportAdapterType === get_class($adapter) || $transportAdapterType::isSelectable()) {
                 $allTransportAdapters[] = MailerHelper::createTransportAdapter($transportAdapterType);
                 $transportTypeOptions[] = [
@@ -146,7 +151,7 @@ class SystemSettingsController extends Controller
             }
         }
 
-        return $this->renderTemplate('settings/email/_index', [
+        return $this->renderTemplate('settings/email/_index.twig', [
             'settings' => $settings,
             'adapter' => $adapter,
             'transportTypeOptions' => $transportTypeOptions,
@@ -160,7 +165,7 @@ class SystemSettingsController extends Controller
      *
      * @return Response|null
      */
-    public function actionSaveEmailSettings()
+    public function actionSaveEmailSettings(): ?Response
     {
         $this->requirePostRequest();
 
@@ -192,7 +197,7 @@ class SystemSettingsController extends Controller
     /**
      * Tests the email settings.
      */
-    public function actionTestEmailSettings()
+    public function actionTestEmailSettings(): void
     {
         $this->requirePostRequest();
 
@@ -211,7 +216,7 @@ class SystemSettingsController extends Controller
                 ->composeFromKey('test_email', [
                     'settings' => MailerHelper::settingsReport($mailer, $adapter),
                 ])
-                ->setTo(Craft::$app->getUser()->getIdentity());
+                ->setTo(static::currentUser());
 
             if ($message->send()) {
                 $this->setSuccessFlash(Craft::t('app', 'Email sent successfully! Check your inbox.'));
@@ -237,7 +242,7 @@ class SystemSettingsController extends Controller
      * @return Response
      * @throws NotFoundHttpException if the requested global set cannot be found
      */
-    public function actionEditGlobalSet(int $globalSetId = null, GlobalSet $globalSet = null): Response
+    public function actionEditGlobalSet(?int $globalSetId = null, ?GlobalSet $globalSet = null): Response
     {
         if ($globalSet === null) {
             if ($globalSetId !== null) {
@@ -252,7 +257,9 @@ class SystemSettingsController extends Controller
         }
 
         if ($globalSet->id) {
-            $title = trim($globalSet->name) ?: Craft::t('app', 'Edit Global Set');
+            $title = trim($globalSet->name) ?: Craft::t('app', 'Edit {type}', [
+                'type' => GlobalSet::displayName(),
+            ]);
         } else {
             $title = Craft::t('app', 'Create a new global set');
         }
@@ -270,7 +277,7 @@ class SystemSettingsController extends Controller
         ];
 
         // Render the template!
-        return $this->renderTemplate('settings/globals/_edit', [
+        return $this->renderTemplate('settings/globals/_edit.twig', [
             'globalSetId' => $globalSetId,
             'globalSet' => $globalSet,
             'title' => $title,

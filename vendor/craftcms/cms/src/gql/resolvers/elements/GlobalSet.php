@@ -10,6 +10,8 @@ namespace craft\gql\resolvers\elements;
 use craft\elements\GlobalSet as GlobalSetElement;
 use craft\gql\base\ElementResolver;
 use craft\helpers\Gql as GqlHelper;
+use Illuminate\Support\Collection;
+use yii\base\UnknownMethodException;
 
 /**
  * Class GlobalSet
@@ -22,18 +24,24 @@ class GlobalSet extends ElementResolver
     /**
      * @inheritdoc
      */
-    public static function prepareQuery($source, array $arguments, $fieldName = null)
+    public static function prepareQuery(mixed $source, array $arguments, ?string $fieldName = null): mixed
     {
         $query = GlobalSetElement::find();
 
         foreach ($arguments as $key => $value) {
-            $query->$key($value);
+            try {
+                $query->$key($value);
+            } catch (UnknownMethodException $e) {
+                if ($value !== null) {
+                    throw $e;
+                }
+            }
         }
 
         $pairs = GqlHelper::extractAllowedEntitiesFromSchema('read');
 
         if (!GqlHelper::canQueryGlobalSets()) {
-            return [];
+            return Collection::empty();
         }
 
         $query->andWhere(['in', 'globalsets.uid', $pairs['globalsets']]);

@@ -1,0 +1,80 @@
+enableVersioning: true
+entryTypes:
+  d8bc7357-d211-4b9c-8269-272ace2c5b1b:
+    fieldLayouts:
+      238f1d6d-62ea-4af1-ac63-7c2b87493a92:
+        tabs:
+          -
+            fields:
+              7c1b1669-fb76-4b7a-96c2-002b0a135163:
+                required: false
+                sortOrder: 4
+              36c09d73-9ed7-4f69-91f6-784ef5cf344f:
+                required: false
+                sortOrder: 5
+              60b734c9-66e9-4743-84a4-310f6f31036c:
+                required: true
+                sortOrder: 1
+              296b7b69-efdd-475f-a1b0-bdba61d58d49:
+                required: false
+                sortOrder: 3
+              724bf21b-cea5-4e49-a9c9-da4f85771259:
+                required: false
+                sortOrder: 2
+            name: Homepage
+            sortOrder: 1
+          -
+            fields:
+              516470f0-ea9a-4ece-8cde-9327ee5522dd:
+                required: false
+                sortOrder: 2
+              f966a443-875a-400f-b52f-333459e33a04:
+                required: false
+                sortOrder: 1
+            name: About
+            sortOrder: 2
+          -
+            fields:
+              10f9e12a-04f7-4984-a3f9-daaef315538e:
+                required: false
+                sortOrder: 3
+              3502cfad-f58c-4e50-88d3-b39d4f234517:
+                required: false
+                sortOrder: 2
+              bb6d28f4-ee37-4fc6-8f63-be7c22f2831b:
+                required: false
+                sortOrder: 1
+            name: Members
+            sortOrder: 3
+          -
+            fields:
+              4d1360d5-2fd6-42f4-8e9c-787bee78c4aa:
+                required: false
+                sortOrder: 2
+              35f147cd-67f9-4b1b-865b-e4d3feea6b2e:
+                required: false
+                sortOrder: 1
+              06871b30-712c-4682-a5fd-8e8d347c2dc4:
+                required: false
+                sortOrder: 3
+              b5a074a8-ff75-4632-98aa-62072a7d31df:
+                required: false
+                sortOrder: 4
+            name: Music
+            sortOrder: 4
+    handle: homepage
+    hasTitleField: false
+    name: Homepage
+    sortOrder: 1
+    titleFormat: '{section.name|raw}'
+    titleLabel: ''
+handle: homepage
+name: Homepage
+propagationMethod: all
+siteSettings:
+  3c0b1454-ae0e-451e-b505-cf0eaea80e50:
+    enabledByDefault: true
+    hasUrls: true
+    template: index
+    uriFormat: __home__
+type: single

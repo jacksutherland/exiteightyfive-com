@@ -1,0 +1,29 @@
+enableVersioning: true
+entryTypes:
+  16e2e0fb-60ae-4353-93d8-7376d59734fc:
+    fieldLayouts:
+      f26911a0-18da-424a-b30b-199919381424:
+        tabs:
+          -
+            fields:
+              463fc491-0eaf-457b-bc26-ab652c5d999d:
+                required: true
+                sortOrder: 2
+            name: Video
+            sortOrder: 1
+    handle: videos
+    hasTitleField: true
+    name: Videos
+    sortOrder: 1
+    titleFormat: null
+    titleLabel: Title
+handle: videos
+name: Videos
+propagationMethod: all
+siteSettings:
+  3c0b1454-ae0e-451e-b505-cf0eaea80e50:
+    enabledByDefault: true
+    hasUrls: false
+    template: null
+    uriFormat: null
+type: channel

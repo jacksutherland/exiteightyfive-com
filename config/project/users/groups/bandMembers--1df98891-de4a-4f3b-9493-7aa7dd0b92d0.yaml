@@ -1,0 +1,19 @@
+handle: bandMembers
+name: 'Band Members'
+permissions:
+  - accesscp
+  - 'createentries:7b556dc4-3462-4661-9940-e8be99cfa1f3'
+  - 'publishentries:7b556dc4-3462-4661-9940-e8be99cfa1f3'
+  - 'deleteentries:7b556dc4-3462-4661-9940-e8be99cfa1f3'
+  - 'publishpeerentries:7b556dc4-3462-4661-9940-e8be99cfa1f3'
+  - 'deletepeerentries:7b556dc4-3462-4661-9940-e8be99cfa1f3'
+  - 'editpeerentries:7b556dc4-3462-4661-9940-e8be99cfa1f3'
+  - 'editentries:7b556dc4-3462-4661-9940-e8be99cfa1f3'
+  - 'editcategories:2e770ce7-51ec-4b5d-a13d-7990d7f8146d'
+  - 'createentries:ced25983-79ee-48f3-bb44-2ee772745cf7'
+  - 'publishentries:ced25983-79ee-48f3-bb44-2ee772745cf7'
+  - 'deleteentries:ced25983-79ee-48f3-bb44-2ee772745cf7'
+  - 'publishpeerentries:ced25983-79ee-48f3-bb44-2ee772745cf7'
+  - 'deletepeerentries:ced25983-79ee-48f3-bb44-2ee772745cf7'
+  - 'editpeerentries:ced25983-79ee-48f3-bb44-2ee772745cf7'
+  - 'editentries:ced25983-79ee-48f3-bb44-2ee772745cf7'

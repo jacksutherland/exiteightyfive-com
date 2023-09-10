@@ -14,7 +14,9 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use Symfony\Component\Filesystem\Exception\IOException;
 use Symfony\Component\Filesystem\Filesystem;
+use Throwable;
 use UnexpectedValueException;
+use yii\base\Application;
 use yii\base\ErrorException;
 use yii\base\Exception;
 use yii\base\InvalidArgumentException;
@@ -37,15 +39,25 @@ class FileHelper extends \yii\helpers\FileHelper
      * @var bool Whether file locks can be used when writing to files.
      * @see useFileLocks()
      */
-    private static $_useFileLocks;
+    private static bool $_useFileLocks;
+
+    /**
+     * A list of files to be deleted once the request ends.
+     *
+     * @var array
+     */
+    private static array $_filesToBeDeleted = [];
 
     /**
      * @inheritdoc
      */
-    public static function normalizePath($path, $ds = DIRECTORY_SEPARATOR)
+    public static function normalizePath($path, $ds = DIRECTORY_SEPARATOR): string
     {
+        // Remove any file protocol wrappers
+        $path = StringHelper::removeLeft($path, 'file://');
+
         // Is this a UNC network share path?
-        $isUnc = (strpos($path, '//') === 0 || strpos($path, '\\\\') === 0);
+        $isUnc = (str_starts_with($path, '//') || str_starts_with($path, '\\\\'));
 
         // Normalize the path
         $path = parent::normalizePath($path, $ds);
@@ -59,9 +71,89 @@ class FileHelper extends \yii\helpers\FileHelper
     }
 
     /**
+     * Returns a relative path based on a source location or the current working directory.
+     *
+     * @param string $to The target path.
+     * @param string|null $from The source location. Defaults to the current working directory.
+     * @param string $ds the directory separator to be used in the normalized result. Defaults to `DIRECTORY_SEPARATOR`.
+     * @return string The relative path if possible, or an absolute path if the directory is not contained within `$from`.
+     * @since 4.3.5
+     */
+    public static function relativePath(
+        string $to,
+        ?string $from = null,
+        string $ds = DIRECTORY_SEPARATOR,
+    ): string {
+        $to = static::absolutePath($to, ds: $ds);
+
+        if ($from === null) {
+            $from = FileHelper::normalizePath(getcwd(), $ds);
+        } else {
+            $from = static::absolutePath($from, ds: $ds);
+        }
+
+        if ($from === $to) {
+            return '.';
+        }
+
+        if (!str_starts_with($to . $ds, $from . $ds)) {
+            return $to;
+        }
+
+        return substr($to, strlen($from) + 1);
+    }
+
+    /**
+     * Returns an absolute path based on a source location or the current working directory.
+     *
+     * @param string $to The target path.
+     * @param string|null $from The source location. Defaults to the current working directory.
+     * @param string $ds the directory separator to be used in the normalized result. Defaults to `DIRECTORY_SEPARATOR`.
+     * @return string
+     * @since 4.3.5
+     */
+    public static function absolutePath(
+        string $to,
+        ?string $from = null,
+        string $ds = DIRECTORY_SEPARATOR,
+    ): string {
+        $to = static::normalizePath($to, $ds);
+
+        // Already absolute?
+        if (
+            str_starts_with($to, $ds) ||
+            preg_match(sprintf('/^[A-Z]:%s/', preg_quote($ds, '/')), $to)
+        ) {
+            return $to;
+        }
+
+        if ($from === null) {
+            $from = FileHelper::normalizePath(getcwd(), $ds);
+        } else {
+            $from = static::absolutePath($from, ds: $ds);
+        }
+
+        return $from . $ds . $to;
+    }
+
+    /**
+     * Returns whether the given path is within another path.
+     *
+     * @param string $path the path to check
+     * @param string $parentPath the parent path that `$path` should be within
+     * @return bool
+     */
+    public static function isWithin(string $path, string $parentPath): bool
+    {
+        $path = static::absolutePath($path, ds: '/');
+        $parentPath = static::absolutePath($parentPath, ds: '/');
+        return $path !== $parentPath && str_starts_with("$path/", "$parentPath/");
+    }
+
+    /**
      * @inheritdoc
      */
-    public static function copyDirectory($src, $dst, $options = [])
+    public static function copyDirectory($src, $dst, $options = []): void
     {
         if (!isset($options['fileMode'])) {
             $options['fileMode'] = Craft::$app->getConfig()->getGeneral()->defaultFileMode;
@@ -77,7 +169,7 @@ class FileHelper extends \yii\helpers\FileHelper
     /**
      * @inheritdoc
      */
-    public static function createDirectory($path, $mode = null, $recursive = true)
+    public static function createDirectory($path, $mode = null, $recursive = true): bool
     {
         if ($mode === null) {
             $mode = Craft::$app->getConfig()->getGeneral()->defaultDirMode;
@@ -89,7 +181,7 @@ class FileHelper extends \yii\helpers\FileHelper
     /**
      * @inheritdoc
      */
-    public static function removeDirectory($dir, $options = [])
+    public static function removeDirectory($dir, $options = []): void
     {
         try {
             parent::removeDirectory($dir, $options);
@@ -99,7 +191,7 @@ class FileHelper extends \yii\helpers\FileHelper
 
             try {
                 $fs->remove($dir);
-            } catch (IOException $e2) {
+            } catch (IOException) {
                 // throw the original exception instead
                 throw $e;
             }
@@ -162,10 +254,17 @@ class FileHelper extends \yii\helpers\FileHelper
         // Replace any control characters in the name with a space.
         $filename = preg_replace("/\\x{00a0}/iu", ' ', $filename);
 
+        // https://github.com/craftcms/cms/issues/12741
+        // Remove soft hyphens (00ad), no break (0083),
+        // zero width space (200b), zero width non-joiner (200c), zero width joiner (200d),
+        // invisible times (2062), invisible comma (2063), invisible plus (2064),
+        // zero width non-brak space (feff) in the name
+        $filename = preg_replace('/\\x{00ad}|\\x{0083}|\\x{200b}|\\x{200c}|\\x{200d}|\\x{2062}|\\x{2063}|\\x{2064}|\\x{feff}/iu', '', $filename);
+
         // Strip any characters not allowed.
         $filename = str_replace($disallowedChars, '', strip_tags($filename));
 
-        if (Craft::$app->getDb()->getIsMysql()) {
+        if (!Craft::$app->getDb()->getSupportsMb4()) {
             // Strip emojis
             $filename = StringHelper::replaceMb4($filename, '');
         }
@@ -187,8 +286,8 @@ class FileHelper extends \yii\helpers\FileHelper
 
         if ($separator !== null) {
             $qSeparator = preg_quote($separator, '/');
-            $filename = preg_replace("/[\s{$qSeparator}]+/u", $separator, $filename);
-            $filename = preg_replace("/^{$qSeparator}+|{$qSeparator}+$/u", '', $filename);
+            $filename = preg_replace("/[\s$qSeparator]+/u", $separator, $filename);
+            $filename = preg_replace("/^$qSeparator+|$qSeparator+$/u", '', $filename);
         }
 
         return $filename;
@@ -265,7 +364,7 @@ class FileHelper extends \yii\helpers\FileHelper
     /**
      * @inheritdoc
      */
-    public static function getMimeType($file, $magicFile = null, $checkExtension = true)
+    public static function getMimeType($file, $magicFile = null, $checkExtension = true): ?string
     {
         $mimeType = parent::getMimeType($file, $magicFile, $checkExtension);
 
@@ -275,7 +374,7 @@ class FileHelper extends \yii\helpers\FileHelper
         }
 
         // Handle invalid SVG mime type reported by PHP (https://bugs.php.net/bug.php?id=79045)
-        if (strpos($mimeType, 'image/svg') === 0) {
+        if (str_starts_with($mimeType, 'image/svg')) {
             return 'image/svg+xml';
         }
 
@@ -304,7 +403,7 @@ class FileHelper extends \yii\helpers\FileHelper
      * Returns whether the given file path is an SVG image.
      *
      * @param string $file the file name.
-     * @param string $magicFile name of the optional magic database file (or alias), usually something like `/path/to/magic.mime`.
+     * @param string|null $magicFile name of the optional magic database file (or alias), usually something like `/path/to/magic.mime`.
      * This will be passed as the second parameter to [finfo_open()](https://php.net/manual/en/function.finfo-open.php)
      * when the `fileinfo` extension is installed. If the MIME type is being determined based via [[getMimeTypeByExtension()]]
      * and this is null, it will use the file specified by [[mimeMagicFile]].
@@ -321,7 +420,7 @@ class FileHelper extends \yii\helpers\FileHelper
      * Returns whether the given file path is an GIF image.
      *
      * @param string $file the file name.
-     * @param string $magicFile name of the optional magic database file (or alias), usually something like `/path/to/magic.mime`.
+     * @param string|null $magicFile name of the optional magic database file (or alias), usually something like `/path/to/magic.mime`.
      * This will be passed as the second parameter to [finfo_open()](https://php.net/manual/en/function.finfo-open.php)
      * when the `fileinfo` extension is installed. If the MIME type is being determined based via [[getMimeTypeByExtension()]]
      * and this is null, it will use the file specified by [[mimeMagicFile]].
@@ -352,7 +451,7 @@ class FileHelper extends \yii\helpers\FileHelper
      * @throws Exception if the parent directory can't be created
      * @throws ErrorException in case of failure
      */
-    public static function writeToFile(string $file, string $contents, array $options = [])
+    public static function writeToFile(string $file, string $contents, array $options = []): void
     {
         $file = static::normalizePath($file);
         $dir = dirname($file);
@@ -361,7 +460,7 @@ class FileHelper extends \yii\helpers\FileHelper
             if (!isset($options['createDirs']) || $options['createDirs']) {
                 static::createDirectory($dir);
             } else {
-                throw new InvalidArgumentException("Cannot write to \"{$file}\" because the parent directory doesn't exist.");
+                throw new InvalidArgumentException("Cannot write to \"$file\" because the parent directory doesn't exist.");
             }
         }
 
@@ -375,7 +474,7 @@ class FileHelper extends \yii\helpers\FileHelper
             $mutex = Craft::$app->getMutex();
             $lockName = md5($file);
             if (!$mutex->acquire($lockName, 3)) {
-                throw new ErrorException("Unable to acquire a lock for file \"{$file}\".");
+                throw new ErrorException("Unable to acquire a lock for file \"$file\".");
             }
         } else {
             $lockName = $mutex = null;
@@ -387,7 +486,7 @@ class FileHelper extends \yii\helpers\FileHelper
         }
 
         if (file_put_contents($file, $contents, $flags) === false) {
-            throw new ErrorException("Unable to write new contents to \"{$file}\".");
+            throw new ErrorException("Unable to write new contents to \"$file\".");
         }
 
         // Invalidate opcache
@@ -411,7 +510,7 @@ class FileHelper extends \yii\helpers\FileHelper
      * @throws ErrorException in case of failure
      * @since 3.4.0
      */
-    public static function writeGitignoreFile(string $path, array $options = [])
+    public static function writeGitignoreFile(string $path, array $options = []): void
     {
         $gitignorePath = $path . DIRECTORY_SEPARATOR . '.gitignore';
 
@@ -429,27 +528,15 @@ class FileHelper extends \yii\helpers\FileHelper
     }
 
     /**
-     * Removes a file or symlink in a cross-platform way
-     *
-     * @param string $path the file to be deleted
-     * @return bool
-     * @deprecated in 3.0.0-RC11. Use [[unlink()]] instead.
-     */
-    public static function removeFile(string $path): bool
-    {
-        return static::unlink($path);
-    }
-
-    /**
      * @inheritdoc
      * @since 3.4.16
      */
-    public static function unlink($path)
+    public static function unlink($path): bool
     {
         // BaseFileHelper::unlink() doesn't seem to catch all possible exceptions
         try {
             return parent::unlink($path);
-        } catch (\Throwable $e) {
+        } catch (Throwable) {
             return false;
         }
     }
@@ -468,7 +555,7 @@ class FileHelper extends \yii\helpers\FileHelper
      * @throws InvalidArgumentException if the dir is invalid
      * @throws ErrorException in case of failure
      */
-    public static function clearDirectory(string $dir, array $options = [])
+    public static function clearDirectory(string $dir, array $options = []): void
     {
         if (!is_dir($dir)) {
             throw new InvalidArgumentException("The dir argument must be a directory: $dir");
@@ -509,6 +596,41 @@ class FileHelper extends \yii\helpers\FileHelper
     }
 
     /**
+     * Traverses up the filesystem looking for the closest file to the given directory.
+     *
+     * @param string $dir the directory at or above which the file will be looked for
+     * @param array $options options for file searching. See [[findFiles()]].
+     * @return string|null the closest matching file
+     * @throws InvalidArgumentException if the directory is invalid
+     * @since 4.3.5
+     */
+    public static function findClosestFile(string $dir, array $options = []): ?string
+    {
+        $options['recursive'] = false;
+        $dir = static::absolutePath($dir, ds: '/');
+        while (true) {
+            $exists = file_exists($dir);
+            try {
+                $files = static::findFiles($dir, $options);
+            } catch (InvalidArgumentException $e) {
+                if ($exists) {
+                    return null;
+                }
+                throw $e;
+            }
+
+            if (!empty($files)) {
+                return reset($files);
+            }
+            $parent = dirname($dir);
+            if ($parent === $dir) {
+                return null;
+            }
+            $dir = $parent;
+        }
+    }
+
+    /**
      * Returns the last modification time for the given path.
      *
      * If the path is a directory, any nested files/directories will be checked as well.
@@ -516,7 +638,7 @@ class FileHelper extends \yii\helpers\FileHelper
      * @param string $path the directory to be checked
      * @return int Unix timestamp representing the last modification time
      */
-    public static function lastModifiedTime($path)
+    public static function lastModifiedTime(string $path): int
     {
         if (is_file($path)) {
             return filemtime($path);
@@ -546,15 +668,15 @@ class FileHelper extends \yii\helpers\FileHelper
     public static function hasAnythingChanged(string $dir, string $ref): bool
     {
         if (!is_dir($dir)) {
-            throw new InvalidArgumentException("The src argument must be a directory: {$dir}");
+            throw new InvalidArgumentException("The src argument must be a directory: $dir");
         }
 
         if (!is_dir($ref)) {
-            throw new InvalidArgumentException("The ref argument must be a directory: {$ref}");
+            throw new InvalidArgumentException("The ref argument must be a directory: $ref");
         }
 
         if (!($handle = opendir($dir))) {
-            throw new ErrorException("Unable to open the directory: {$dir}");
+            throw new ErrorException("Unable to open the directory: $dir");
         }
 
         while (($file = readdir($handle)) !== false) {
@@ -582,7 +704,7 @@ class FileHelper extends \yii\helpers\FileHelper
      */
     public static function useFileLocks(): bool
     {
-        if (self::$_useFileLocks !== null) {
+        if (isset(self::$_useFileLocks)) {
             return self::$_useFileLocks;
         }
 
@@ -610,7 +732,7 @@ class FileHelper extends \yii\helpers\FileHelper
                 throw new Exception('Unable to release test lock.');
             }
             self::$_useFileLocks = true;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Craft::warning('Write lock test failed: ' . $e->getMessage(), __METHOD__);
         }
 
@@ -628,7 +750,7 @@ class FileHelper extends \yii\helpers\FileHelper
      * @param int $max The most files that can coexist before we should start deleting them
      * @since 3.0.38
      */
-    public static function cycle(string $basePath, int $max = 50)
+    public static function cycle(string $basePath, int $max = 50): void
     {
         // Go through all of them and move them forward.
         for ($i = $max; $i > 0; $i--) {
@@ -649,7 +771,7 @@ class FileHelper extends \yii\helpers\FileHelper
      * @param string $file the file path
      * @since 3.4.0
      */
-    public static function invalidate(string $file)
+    public static function invalidate(string $file): void
     {
         clearstatcache(true, $file);
         if (function_exists('opcache_invalidate') && filter_var(ini_get('opcache.enable'), FILTER_VALIDATE_BOOLEAN)) {
@@ -704,9 +826,9 @@ class FileHelper extends \yii\helpers\FileHelper
      * @param string $dir the directory path
      * @param string|null $prefix the path prefix to use when adding the contents of the directory
      * @param array $options options for file searching. See [[findFiles()]] for available options.
-     * @param 3.5.0
+     * @since 3.5.0
      */
-    public static function addFilesToZip(ZipArchive $zip, string $dir, ?string $prefix = null, $options = [])
+    public static function addFilesToZip(ZipArchive $zip, string $dir, ?string $prefix = null, array $options = []): void
     {
         if (!is_dir($dir)) {
             return;
@@ -731,29 +853,93 @@ class FileHelper extends \yii\helpers\FileHelper
     /**
      * Return a file extension for the given MIME type.
      *
-     * @param $mimeType
+     * @param string $mimeType
+     * @param bool $preferShort
+     * @param string|null $magicFile
      * @return string
      * @throws InvalidArgumentException if no known extensions exist for the given MIME type.
      * @since 3.5.15
      */
-    public static function getExtensionByMimeType($mimeType): string
+    public static function getExtensionByMimeType($mimeType, $preferShort = false, $magicFile = null): string
     {
-        $extensions = FileHelper::getExtensionsByMimeType($mimeType);
+        // cover the ambiguous, web-friendly MIME types up front
+        switch (strtolower($mimeType)) {
+            case 'application/msword': return 'doc';
+            case 'application/x-yaml': return 'yml';
+            case 'application/xml': return 'xml';
+            case 'audio/mp4': return 'm4a';
+            case 'audio/mpeg': return 'mp3';
+            case 'audio/ogg': return 'ogg';
+            case 'image/heic': return 'heic';
+            case 'image/jpeg': return 'jpg';
+            case 'image/svg+xml': return 'svg';
+            case 'image/tiff': return 'tif';
+            case 'text/calendar': return 'ics';
+            case 'text/html': return 'html';
+            case 'text/markdown': return 'md';
+            case 'text/plain': return 'txt';
+            case 'video/mp4': return 'mp4';
+            case 'video/mpeg': return 'mpg';
+            case 'video/quicktime': return 'mov';
+        }
+
+        $extensions = self::getExtensionsByMimeType($mimeType);
 
         if (empty($extensions)) {
             throw new InvalidArgumentException("No file extensions are known for the MIME Type $mimeType.");
         }
 
-        $extension = reset($extensions);
+        return reset($extensions);
+    }
 
-        // Manually correct for some types.
-        switch ($extension) {
-            case 'svgz':
-                return 'svg';
-            case 'jpe':
-                return 'jpg';
+    /**
+     * Deletes a file after the request ends.
+     *
+     * @param string $filename
+     * @since 4.0.0
+     */
+    public static function deleteFileAfterRequest(string $filename): void
+    {
+        self::$_filesToBeDeleted[] = $filename;
+
+        if (count(self::$_filesToBeDeleted) === 1) {
+            Craft::$app->on(Application::EVENT_AFTER_REQUEST, [static::class, 'deleteQueuedFiles']);
         }
+    }
 
-        return $extension;
+    /**
+     * Delete all files queued up for deletion.
+     *
+     * @since 4.0.0
+     */
+    public static function deleteQueuedFiles(): void
+    {
+        foreach (array_unique(self::$_filesToBeDeleted) as $source) {
+            if (file_exists($source)) {
+                self::unlink($source);
+            }
+        }
+    }
+
+    /**
+     * Returns a unique version of a filename with `uniqid()`, ensuring the result is at most 255 characters.
+     *
+     * @param string $baseName The original filename, or just a file extension prefixed with a `.`.
+     * @return string
+     * @since 4.4.3
+     */
+    public static function uniqueName(string $baseName)
+    {
+        $name = pathinfo($baseName, PATHINFO_FILENAME);
+        $ext = pathinfo($baseName, PATHINFO_EXTENSION);
+        if ($ext !== '') {
+            $ext = ".$ext";
+        }
+        $extLength = strlen($ext);
+        $maxLength = 232; // 255 - 23 (entropy chars)
+        if (strlen($name) + $extLength > $maxLength) {
+            $name = substr($name, 0, $maxLength - $extLength);
+        }
+        return uniqid($name, true) . $ext;
     }
 }

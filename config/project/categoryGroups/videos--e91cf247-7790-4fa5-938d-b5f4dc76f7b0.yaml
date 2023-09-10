@@ -1,0 +1,26 @@
+fieldLayouts:
+  e874f9bb-92e4-41f7-9da4-00c68b70d3be:
+    tabs:
+      -
+        fields:
+          8d0b7102-f11f-455a-8b2d-82cfcde44eed:
+            required: false
+            sortOrder: 1
+          502b6060-9247-489e-b872-6f3fbe56f670:
+            required: false
+            sortOrder: 3
+          aefe5222-4b2e-4fca-950e-c7be063c247c:
+            required: false
+            sortOrder: 2
+        name: Video
+        sortOrder: 1
+handle: videos
+name: Videos
+siteSettings:
+  3c0b1454-ae0e-451e-b505-cf0eaea80e50:
+    hasUrls: false
+    template: null
+    uriFormat: null
+structure:
+  maxLevels: 1
+  uid: 1070d536-8213-4216-bf70-81d490ab0e9d

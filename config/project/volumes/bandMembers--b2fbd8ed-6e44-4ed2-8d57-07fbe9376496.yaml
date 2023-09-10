@@ -1,0 +1,6 @@
+fs: bandMembers
+handle: bandMembers
+hasUrls: true
+name: 'Band Members'
+sortOrder: 1
+url: /files/members/images

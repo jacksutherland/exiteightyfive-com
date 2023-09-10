@@ -11,6 +11,7 @@ use Craft;
 use craft\errors\ImageException;
 use craft\image\Svg;
 use Imagick;
+use Imagine\Image\Format;
 use Throwable;
 use TypeError;
 use yii\base\InvalidArgumentException;
@@ -23,20 +24,20 @@ use yii\base\InvalidArgumentException;
  */
 class Image
 {
-    const EXIF_IFD0_ROTATE_180 = 3;
-    const EXIF_IFD0_ROTATE_90 = 6;
-    const EXIF_IFD0_ROTATE_270 = 8;
+    public const EXIF_IFD0_ROTATE_180 = 3;
+    public const EXIF_IFD0_ROTATE_90 = 6;
+    public const EXIF_IFD0_ROTATE_270 = 8;
 
     /**
      * Calculates a missing target dimension for an image.
      *
-     * @param int|float|null $targetWidth
-     * @param int|float|null $targetHeight
-     * @param int|float $sourceWidth
-     * @param int|float $sourceHeight
+     * @param float|int|null $targetWidth
+     * @param float|int|null $targetHeight
+     * @param float|int $sourceWidth
+     * @param float|int $sourceHeight
      * @return int[] Array of the width and height.
      */
-    public static function calculateMissingDimension($targetWidth, $targetHeight, $sourceWidth, $sourceHeight): array
+    public static function calculateMissingDimension(float|int|null $targetWidth, float|int|null $targetHeight, float|int $sourceWidth, float|int $sourceHeight): array
     {
         // If the target width & height are both present, return them
         if ($targetWidth && $targetHeight) {
@@ -68,7 +69,7 @@ class Image
      * @param int $sourceHeight
      * @param int|null $transformWidth
      * @param int|null $transformHeight
-     * @param string $mode The transform mode (`crop`, `fit`, or `stretch`)
+     * @param string $mode The transform mode (`crop`, `fit`, `letterbox` or `stretch`)
      * @param bool|null $upscale Whether to upscale the image to fill the transform dimensions.
      * Defaults to the `upscaleImages` config setting.
      * @return int[]
@@ -81,10 +82,18 @@ class Image
         ?int $transformWidth,
         ?int $transformHeight,
         string $mode = 'crop',
-        ?bool $upscale = null
+        ?bool $upscale = null,
     ): array {
         [$width, $height] = static::calculateMissingDimension($transformWidth, $transformHeight, $sourceWidth, $sourceHeight);
         $factor = max($sourceWidth / $width, $sourceHeight / $height);
+
+        $imageRatio = $sourceWidth / $sourceHeight;
+        $transformRatio = $width / $height;
+
+        // When mode is `letterbox` always use the transform size
+        if ($mode === 'letterbox') {
+            return [$width, $height];
+        }
 
         if ($upscale ?? Craft::$app->getConfig()->getGeneral()->upscaleImages) {
             // Special case for 'fit' since that's the only one whose dimensions vary from the transform dimensions
@@ -96,14 +105,7 @@ class Image
             return [$width, $height];
         }
 
-        if ($transformWidth === null || $transformHeight === null) {
-            $transformRatio = $sourceWidth / $sourceHeight;
-        } else {
-            $transformRatio = $transformWidth / $transformHeight;
-        }
-
-        $imageRatio = $sourceWidth / $sourceHeight;
-
+        // When mode is `fit` or the source is the same ratio as the transform
         if ($mode === 'fit' || $imageRatio === $transformRatio) {
             $targetWidth = min($sourceWidth, $width, (int)round($sourceWidth / $factor));
             $targetHeight = min($sourceHeight, $height, (int)round($sourceHeight / $factor));
@@ -111,8 +113,9 @@ class Image
         }
 
         // Since we don't want to upscale, make sure the calculated ratios aren't bigger than the actual image size.
-        $newWidth = min($sourceWidth, $transformWidth, (int)round($sourceHeight * $transformRatio));
-        $newHeight = min($sourceHeight, $transformHeight, (int)round($sourceWidth / $transformRatio));
+        // transformWidth and transformHeight can be null, so check for that and if they are, use the calculatedMissingDimensions
+        $newWidth = min($sourceWidth, $transformWidth ?? $width, (int)round($sourceHeight * $transformRatio));
+        $newHeight = min($sourceHeight, $transformHeight ?? $height, (int)round($sourceWidth / $transformRatio));
 
         return [$newWidth, $newHeight];
     }
@@ -125,6 +128,11 @@ class Image
      */
     public static function canManipulateAsImage(string $extension): bool
     {
+        $extension = strtolower($extension);
+        if ($extension === 'heif') {
+            $extension = Format::ID_HEIC;
+        }
+
         $formats = Craft::$app->getImages()->getSupportedImageFormats();
 
         $alwaysManipulatable = ['svg'];
@@ -133,11 +141,11 @@ class Image
         $formats = array_merge($formats, $alwaysManipulatable);
         $formats = array_diff($formats, $neverManipulatable);
 
-        return in_array(strtolower($extension), $formats);
+        return in_array($extension, $formats);
     }
 
     /**
-     * Returns a list of web safe image formats.
+     * Returns a list of web-safe image formats.
      *
      * @return string[]
      */
@@ -147,18 +155,27 @@ class Image
     }
 
     /**
+     * Returns whether an extension is web-safe.
+     *
+     * @param string $extension
+     * @return bool
+     * @since 4.3.6
+     */
+    public static function isWebSafe(string $extension): bool
+    {
+        return in_array(strtolower($extension), static::webSafeFormats(), true);
+    }
+
+    /**
      * Returns any info that’s embedded in a given PNG file.
      *
      * Adapted from https://github.com/ktomk/Miscellaneous/tree/master/get_png_imageinfo.
      *
      * @param string $file The path to the PNG file.
-     * @return array|bool Info embedded in the PNG file, or `false` if it wasn’t found.
-     * @license Apache 2.0
-     * @version 0.1.0
+     * @return array|false Info embedded in the PNG file, or `false` if it wasn’t found.
      * @link http://www.libpng.org/pub/png/spec/iso/index-object.html#11IHDR
-     * @author Tom Klingenberg <lastflood.net>
      */
-    public static function pngImageInfo(string $file)
+    public static function pngImageInfo(string $file): array|false
     {
         if (empty($file)) {
             return false;
@@ -166,7 +183,7 @@ class Image
 
         $info = unpack(
             'A8sig/Nchunksize/A4chunktype/Nwidth/Nheight/Cbit-depth/Ccolor/Ccompression/Cfilter/Cinterface',
-            file_get_contents($file, 0, null, 0, 29)
+            file_get_contents($file, false, null, 0, 29)
         );
 
         if (empty($info)) {
@@ -230,7 +247,7 @@ class Image
      *
      * @param string $imagePath
      */
-    public static function cleanImageByPath(string $imagePath)
+    public static function cleanImageByPath(string $imagePath): void
     {
         $extension = pathinfo($imagePath, PATHINFO_EXTENSION);
 
@@ -244,6 +261,7 @@ class Image
      *
      * @param string $filePath The path to the image
      * @return array [width, height]
+     * @phpstan-return array{int,int}
      */
     public static function imageSize(string $filePath): array
     {
@@ -255,7 +273,7 @@ class Image
 
             $image = Craft::$app->getImages()->loadImage($filePath);
             return [$image->getWidth(), $image->getHeight()];
-        } catch (Throwable $exception) {
+        } catch (Throwable) {
             return [0, 0];
         }
     }
@@ -267,7 +285,7 @@ class Image
      * @return array|false
      * @throws TypeError
      */
-    public static function imageSizeByStream($stream)
+    public static function imageSizeByStream($stream): array|false
     {
         if (!is_resource($stream)) {
             throw new TypeError('Argument passed should be a resource.');
@@ -367,6 +385,7 @@ class Image
      *
      * @param string $svg The SVG data
      * @return array [width, height]
+     * @phpstan-return array{int,int}
      */
     public static function parseSvgSize(string $svg): array
     {
@@ -376,15 +395,15 @@ class Image
             ($matchedWidth = (float)$widthMatch[2]) &&
             ($matchedHeight = (float)$heightMatch[2])
         ) {
-            $width = floor(
+            $width = (int)floor(
                 $matchedWidth * self::_getSizeUnitMultiplier($widthMatch[3])
             );
-            $height = floor(
+            $height = (int)floor(
                 $matchedHeight * self::_getSizeUnitMultiplier($heightMatch[3])
             );
         } elseif (preg_match(Svg::SVG_VIEWBOX_RE, $svg, $viewboxMatch)) {
-            $width = floor($viewboxMatch[3]);
-            $height = floor($viewboxMatch[4]);
+            $width = (int)floor((float)$viewboxMatch[3]);
+            $height = (int)floor((float)$viewboxMatch[4]);
         } else {
             // Just pretend it's 100x100
             $width = 100;
@@ -400,7 +419,7 @@ class Image
      *
      * @param Imagick $imagick
      */
-    public static function cleanExifDataFromImagickImage(Imagick $imagick)
+    public static function cleanExifDataFromImagickImage(Imagick $imagick): void
     {
         $config = Craft::$app->getConfig()->getGeneral();
 
@@ -430,23 +449,15 @@ class Image
     {
         $ppi = 72;
 
-        switch ($unit) {
-            case 'in':
-                return $ppi;
-            case 'pt':
-                return $ppi / 72;
-            case 'pc':
-                return $ppi / 6;
-            case 'cm':
-                return $ppi / 2.54;
-            case 'mm':
-                return $ppi / 25.4;
-            case 'em':
-                return 16;
-            case 'ex':
-                return 10;
-            default:
-                return 1;
-        }
+        return match ($unit) {
+            'in' => $ppi,
+            'pt' => $ppi / 72,
+            'pc' => $ppi / 6,
+            'cm' => $ppi / 2.54,
+            'mm' => $ppi / 25.4,
+            'em' => 16,
+            'ex' => 10,
+            default => 1,
+        };
     }
 }

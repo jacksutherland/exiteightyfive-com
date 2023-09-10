@@ -9,7 +9,7 @@ namespace craft\elements\actions;
 
 use Craft;
 use craft\base\ElementAction;
-use craft\helpers\Json;
+use craft\base\ElementInterface;
 
 /**
  * NewSibling represents a “Create a new X after” element action.
@@ -22,12 +22,28 @@ class NewSiblingAfter extends ElementAction
     /**
      * @var string|null The trigger label
      */
-    public $label;
+    public ?string $label = null;
 
     /**
      * @var string|null The URL that the user should be taken to after clicking on this element action
      */
-    public $newSiblingUrl;
+    public ?string $newSiblingUrl = null;
+
+    /**
+     * @inheritdoc
+     */
+    public function setElementType(string $elementType): void
+    {
+        /** @var string|ElementInterface $elementType */
+        /** @phpstan-var class-string<ElementInterface> $elementType */
+        parent::setElementType($elementType);
+
+        if (!isset($this->label)) {
+            $this->label = Craft::t('app', 'Create a new {type} after', [
+                'type' => $elementType::lowerDisplayName(),
+            ]);
+        }
+    }
 
     /**
      * @inheritdoc
@@ -40,25 +56,20 @@ class NewSiblingAfter extends ElementAction
     /**
      * @inheritdoc
      */
-    public function getTriggerHtml()
+    public function getTriggerHtml(): ?string
     {
-        $type = Json::encode(static::class);
-        $newSiblingUrl = Json::encode($this->newSiblingUrl);
-
-        $js = <<<JS
+        Craft::$app->getView()->registerJsWithVars(fn($type, $newSiblingUrl) => <<<JS
 (() => {
-    let trigger = new Craft.ElementActionTrigger({
-        type: {$type},
-        batch: false,
-        activate: function(\$selectedItems)
-        {
-            Craft.redirectTo(Craft.getUrl($newSiblingUrl, 'after='+\$selectedItems.find('.element').data('id')));
-        }
+    new Craft.ElementActionTrigger({
+        type: $type,
+        bulk: false,
+        activate: \$selectedItems => {
+            Craft.redirectTo(Craft.getUrl($newSiblingUrl, 'after=' + \$selectedItems.find('.element').data('id')));
+        },
     });
 })();
-JS;
+JS, [static::class, $this->newSiblingUrl]);
 
-        Craft::$app->getView()->registerJs($js);
         return null;
     }
 }

@@ -14,14 +14,14 @@ use yii\base\Event;
  * LocateUploadedFilesEvent event class.
  *
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
- * @since 3.7.42
+ * @since 4.0.2
  */
 class LocateUploadedFilesEvent extends Event
 {
     /**
      * @var ElementInterface The element being saved
      */
-    public $element;
+    public ElementInterface $element;
 
     /**
      * @var array List of files being uploaded for the field.
@@ -36,5 +36,5 @@ class LocateUploadedFilesEvent extends Event
      * Only set `type` to `upload` if the temp file is located within the temp uploads directory, and the
      * file is referenced in `$_FILES`. Otherwise, use `file`.
      */
-    public $files;
+    public array $files;
 }

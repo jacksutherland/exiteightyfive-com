@@ -19,11 +19,14 @@ use GraphQL\Type\Definition\InputObjectType;
  */
 class Entry extends InputObjectType
 {
-    public static function getType()
+    /**
+     * @return mixed
+     */
+    public static function getType(): mixed
     {
         $typeName = 'EntryCriteriaInput';
 
-        return GqlEntityRegistry::getEntity($typeName) ?: GqlEntityRegistry::createEntity($typeName, new InputObjectType([
+        return GqlEntityRegistry::getOrCreate($typeName, fn() => new InputObjectType([
             'name' => $typeName,
             'fields' => function() {
                 return EntryArguments::getArguments();

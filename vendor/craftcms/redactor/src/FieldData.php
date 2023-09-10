@@ -22,7 +22,7 @@ class FieldData extends HtmlFieldData
     /**
      * @var Markup[]|null
      */
-    private $_pages;
+    private ?array $_pages;
 
     /**
      * Returns an array of the individual page contents.
@@ -49,9 +49,9 @@ class FieldData extends HtmlFieldData
      * Returns a specific page.
      *
      * @param int $pageNumber
-     * @return string|null
+     * @return Markup|null
      */
-    public function getPage(int $pageNumber)
+    public function getPage(int $pageNumber): ?Markup
     {
         $pages = $this->getPages();
 

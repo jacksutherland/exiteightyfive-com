@@ -16,6 +16,7 @@ use craft\helpers\Console;
 use craft\helpers\Db;
 use craft\helpers\UrlHelper;
 use DateTime;
+use Throwable;
 use yii\base\InvalidArgumentException;
 use yii\console\ExitCode;
 
@@ -31,59 +32,65 @@ class UsersController extends Controller
      * @var string|null The user’s email address.
      * @since 3.7.0
      */
-    public $email;
+    public ?string $email = null;
 
     /**
      * @var string|null The user’s username.
      * @since 3.7.0
      */
-    public $username;
+    public ?string $username = null;
 
     /**
      * @var string|null The user’s new password.
      */
-    public $password;
+    public ?string $password = null;
 
     /**
      * @var bool|null Whether the user should be an admin.
      * @since 3.7.0
      */
-    public $admin;
+    public ?bool $admin = null;
+
+    /**
+     * @var bool|null Whether teh user account should be activated.
+     * @since 4.1.0
+     */
+    public ?bool $activate = null;
 
     /**
      * @var string[] The group handles to assign the created user to.
      * @since 3.7.0
      */
-    public $groups = [];
+    public array $groups = [];
 
     /**
      * @var int[] The group IDs to assign the user to the created user to.
      * @since 3.7.0
      */
-    public $groupIds = [];
+    public array $groupIds = [];
 
     /**
      * @var string|null The email or username of the user to inherit content when deleting a user.
      * @since 3.7.0
      */
-    public $inheritor;
+    public ?string $inheritor = null;
 
     /**
      * @var bool Whether to delete the user’s content if no inheritor is specified.
      * @since 3.7.0
      */
-    public $deleteContent = false;
+    public bool $deleteContent = false;
 
     /**
      * @var bool Whether the user should be hard-deleted immediately, instead of soft-deleted.
      * @since 3.7.0
      */
-    public $hard = false;
+    public bool $hard = false;
 
     /**
      * @inheritdoc
      */
-    public function options($actionID)
+    public function options($actionID): array
     {
         $options = parent::options($actionID);
 
@@ -116,9 +123,10 @@ class UsersController extends Controller
      */
     public function actionListAdmins(): int
     {
+        /** @var User[] $users */
         $users = User::find()
             ->admin()
-            ->anyStatus()
+            ->status(null)
             ->orderBy(['username' => SORT_ASC])
             ->all();
         $total = count($users);
@@ -189,16 +197,23 @@ class UsersController extends Controller
             ]);
         }
 
-        $user->admin = $this->admin ?? $this->confirm('Make this user an admin?', false);
+        $user->admin = $this->admin ?? ($this->interactive && $this->confirm('Make this user an admin?'));
 
         if ($this->password) {
             $user->newPassword = $this->password;
         } elseif ($this->interactive) {
-            if ($this->confirm('Set a password for this user?', false)) {
+            if ($this->confirm('Set a password for this user?')) {
                 $user->newPassword = $this->passwordPrompt([
                     'validator' => $this->createAttributeValidator($user, 'newPassword'),
                 ]);
             }
+        }
+
+        if ($this->activate !== null) {
+            $user->active = $this->activate;
+        } else {
+            $defaultActivate = $user->newPassword !== null;
+            $user->active = $this->interactive ? $this->confirm('Activate the account?', $defaultActivate) : $defaultActivate;
         }
 
         $this->stdout('Saving the user ... ');
@@ -224,7 +239,7 @@ class UsersController extends Controller
         // Most likely an invalid group ID will throw…
         try {
             Craft::$app->getUsers()->assignUserToGroups($user->id, $groupIds);
-        } catch (\Throwable $e) {
+        } catch (Throwable) {
             $this->stderr('failed: Couldn’t assign user to specified groups.' . PHP_EOL, Console::FG_RED);
             return ExitCode::UNSPECIFIED_ERROR;
         }
@@ -304,7 +319,7 @@ class UsersController extends Controller
             return ExitCode::USAGE;
         }
 
-        if (!$this->inheritor && $this->confirm('Transfer this user’s content to an existing user?', true)) {
+        if (!$this->inheritor && $this->interactive && $this->confirm('Transfer this user’s content to an existing user?', true)) {
             $this->inheritor = $this->prompt('Enter the email or username of the user to inherit the content:', [
                 'required' => true,
             ]);
@@ -318,7 +333,7 @@ class UsersController extends Controller
                 return ExitCode::UNSPECIFIED_ERROR;
             }
 
-            if (!$this->confirm("Delete user “{$user->username}” and transfer their content to user “{$inheritor->username}”?")) {
+            if ($this->interactive && !$this->confirm("Delete user “{$user->username}” and transfer their content to user “{$inheritor->username}”?")) {
                 $this->stdout('Aborting.' . PHP_EOL);
                 return ExitCode::OK;
             }
@@ -438,6 +453,37 @@ class UsersController extends Controller
     }
 
     /**
+     * Unlocks a user's account.
+     *
+     * @param string $user The ID, username, or email address of the user account.
+     * @return int
+     * @since 4.4.0
+     */
+    public function actionUnlock(string $user): int
+    {
+        try {
+            $user = $this->_user($user);
+        } catch (InvalidArgumentException $e) {
+            $this->stderr($e->getMessage() . PHP_EOL, Console::FG_RED) . PHP_EOL;
+            return ExitCode::UNSPECIFIED_ERROR;
+        }
+
+        if (!$user->locked) {
+            $this->stdout("User “{$user->username}” is not locked." . PHP_EOL);
+            return ExitCode::OK;
+        }
+
+        $this->stdout('Unlocking the user ...' . PHP_EOL);
+        if (!Craft::$app->getUsers()->unlockUser($user)) {
+            $this->stderr("Failed to unlock user “{$user->username}”." . PHP_EOL, Console::FG_RED);
+            return ExitCode::UNSPECIFIED_ERROR;
+        };
+
+        $this->stdout("User “{$user->username}” unlocked." . PHP_EOL, Console::FG_GREEN);
+        return ExitCode::OK;
+    }
+
+    /**
      * Resolves a `user` argument.
      *
      * @param string $value The `user` argument value
@@ -447,7 +493,7 @@ class UsersController extends Controller
     private function _user(string $value): User
     {
         if (is_numeric($value)) {
-            $user = Craft::$app->getUsers()->getUserById($value);
+            $user = Craft::$app->getUsers()->getUserById((int)$value);
             if (!$user) {
                 throw new InvalidArgumentException("No user exists with the ID: $value");
             }

@@ -9,6 +9,7 @@ namespace craft\elements\db;
 
 use Craft;
 use craft\db\QueryAbortedException;
+use craft\db\Table;
 use craft\elements\GlobalSet;
 use craft\helpers\Db;
 use yii\db\Connection;
@@ -18,7 +19,7 @@ use yii\db\Connection;
  *
  * @method GlobalSet[]|array all($db = null)
  * @method GlobalSet|array|null one($db = null)
- * @method GlobalSet|array|null nth(int $n, Connection $db = null)
+ * @method GlobalSet|array|null nth(int $n, ?Connection $db = null)
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
  * @doc-path globals.md
@@ -34,7 +35,7 @@ class GlobalSetQuery extends ElementQuery
     /**
      * @inheritdoc
      */
-    protected $defaultOrderBy = ['globalsets.name' => SORT_ASC];
+    protected array $defaultOrderBy = ['globalsets.sortOrder' => SORT_ASC];
 
     // General parameters
     // -------------------------------------------------------------------------
@@ -43,35 +44,22 @@ class GlobalSetQuery extends ElementQuery
      * @var bool Whether to only return global sets that the user has permission to edit.
      * @used-by editable()
      */
-    public $editable = false;
+    public bool $editable = false;
 
     /**
      * @var string|string[]|null The handle(s) that the resulting global sets must have.
      * @used-by handle()
      */
-    public $handle;
-
-    /**
-     * @inheritdoc
-     */
-    public function __construct(string $elementType, array $config = [])
-    {
-        // todo: set this from the property def in v4
-        if (version_compare(Craft::$app->getInstalledSchemaVersion(), '3.7.6', '>=')) {
-            $this->defaultOrderBy = ['globalsets.sortOrder' => SORT_ASC];
-        }
-
-        parent::__construct($elementType, $config);
-    }
+    public string|array|null $handle = null;
 
     /**
      * Sets the [[$editable]] property.
      *
      * @param bool $value The property value (defaults to true)
-     * @return static self reference
+     * @return self self reference
      * @uses $editable
      */
-    public function editable(bool $value = true)
+    public function editable(bool $value = true): self
     {
         $this->editable = $value;
         return $this;
@@ -105,11 +93,11 @@ class GlobalSetQuery extends ElementQuery
      *     ->one();
      * ```
      *
-     * @param string|string[]|null $value The property value
-     * @return static self reference
+     * @param mixed $value The property value
+     * @return self self reference
      * @uses $handle
      */
-    public function handle($value)
+    public function handle(mixed $value): self
     {
         $this->handle = $value;
         return $this;
@@ -120,18 +108,14 @@ class GlobalSetQuery extends ElementQuery
      */
     protected function beforePrepare(): bool
     {
-        $this->joinElementTable('globalsets');
+        $this->joinElementTable(Table::GLOBALSETS);
 
         $this->query->select([
             'globalsets.name',
             'globalsets.handle',
+            'globalsets.sortOrder',
             'globalsets.uid',
         ]);
-
-        // todo: remove this condition after the next breakpoint
-        if (version_compare(Craft::$app->getInstalledSchemaVersion(), '3.7.6', '>=')) {
-            $this->query->addSelect('globalsets.sortOrder');
-        }
 
         if ($this->handle) {
             $this->subQuery->andWhere(Db::parseParam('globalsets.handle', $this->handle));
@@ -147,7 +131,7 @@ class GlobalSetQuery extends ElementQuery
     /**
      * Applies the 'ref' param to the query being prepared.
      */
-    private function _applyRefParam()
+    private function _applyRefParam(): void
     {
         if (!$this->ref) {
             return;
@@ -161,7 +145,7 @@ class GlobalSetQuery extends ElementQuery
      *
      * @throws QueryAbortedException
      */
-    private function _applyEditableParam()
+    private function _applyEditableParam(): void
     {
         if ($this->editable) {
             // Limit the query to only the global sets the user has permission to edit

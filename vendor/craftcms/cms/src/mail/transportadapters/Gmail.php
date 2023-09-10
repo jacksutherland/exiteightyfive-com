@@ -10,6 +10,7 @@ namespace craft\mail\transportadapters;
 use Craft;
 use craft\behaviors\EnvAttributeParserBehavior;
 use craft\helpers\App;
+use Symfony\Component\Mailer\Transport\AbstractTransport;
 
 /**
  * Smtp implements a Gmail transport adapter into Craft’s mailer.
@@ -30,43 +31,43 @@ class Gmail extends BaseTransportAdapter
     /**
      * @var string|null The username that should be used
      */
-    public $username;
+    public ?string $username = null;
 
     /**
      * @var string|null The password that should be used
      */
-    public $password;
+    public ?string $password = null;
 
     /**
-     * @var string The timeout duration (in seconds)
+     * @var int The timeout duration (in seconds)
+     * @deprecated in 4.3.7.
      */
-    public $timeout = 10;
+    public int $timeout = 10;
 
     /**
      * @inheritdoc
      */
-    public function behaviors()
+    protected function defineBehaviors(): array
     {
-        $behaviors = parent::behaviors();
-        $behaviors['parser'] = [
-            'class' => EnvAttributeParserBehavior::class,
-            'attributes' => [
-                'username',
-                'password',
+        return [
+            'parser' => [
+                'class' => EnvAttributeParserBehavior::class,
+                'attributes' => [
+                    'username',
+                    'password',
+                ],
             ],
         ];
-        return $behaviors;
     }
 
     /**
      * @inheritdoc
      */
-    public function attributeLabels()
+    public function attributeLabels(): array
     {
         return [
             'username' => Craft::t('app', 'Username'),
             'password' => Craft::t('app', 'Password'),
-            'timeout' => Craft::t('app', 'Timeout'),
         ];
     }
 
@@ -77,17 +78,16 @@ class Gmail extends BaseTransportAdapter
     {
         $rules = parent::defineRules();
         $rules[] = [['username', 'password'], 'trim'];
-        $rules[] = [['username', 'password', 'timeout'], 'required'];
-        $rules[] = [['timeout'], 'number', 'integerOnly' => true];
+        $rules[] = [['username', 'password'], 'required'];
         return $rules;
     }
 
     /**
      * @inheritdoc
      */
-    public function getSettingsHtml()
+    public function getSettingsHtml(): ?string
     {
-        return Craft::$app->getView()->renderTemplate('_components/mailertransportadapters/Gmail/settings', [
+        return Craft::$app->getView()->renderTemplate('_components/mailertransportadapters/Gmail/settings.twig', [
             'adapter' => $this,
         ]);
     }
@@ -95,16 +95,14 @@ class Gmail extends BaseTransportAdapter
     /**
      * @inheritdoc
      */
-    public function defineTransport()
+    public function defineTransport(): array|AbstractTransport
     {
         return [
-            'class' => \Swift_SmtpTransport::class,
+            'scheme' => 'smtp',
             'host' => 'smtp.gmail.com',
-            'port' => 465,
-            'encryption' => 'ssl',
+            'port' => 0,
             'username' => App::parseEnv($this->username),
             'password' => App::parseEnv($this->password),
-            'timeout' => $this->timeout,
         ];
     }
 }

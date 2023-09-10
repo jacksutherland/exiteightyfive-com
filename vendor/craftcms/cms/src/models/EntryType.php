@@ -9,12 +9,10 @@ namespace craft\models;
 
 use Craft;
 use craft\base\Field;
+use craft\base\FieldLayoutProviderInterface;
 use craft\base\Model;
 use craft\behaviors\FieldLayoutBehavior;
-use craft\db\Table;
 use craft\elements\Entry;
-use craft\helpers\Db;
-use craft\helpers\StringHelper;
 use craft\helpers\UrlHelper;
 use craft\records\EntryType as EntryTypeRecord;
 use craft\validators\HandleValidator;
@@ -28,88 +26,109 @@ use yii\base\InvalidConfigException;
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
  */
-class EntryType extends Model
+class EntryType extends Model implements FieldLayoutProviderInterface
 {
     /**
      * @var int|null ID
      */
-    public $id;
+    public ?int $id = null;
 
     /**
      * @var int|null Section ID
      */
-    public $sectionId;
+    public ?int $sectionId = null;
 
     /**
      * @var int|null Field layout ID
      */
-    public $fieldLayoutId;
+    public ?int $fieldLayoutId = null;
 
     /**
      * @var string|null Name
      */
-    public $name;
+    public ?string $name = null;
 
     /**
      * @var string|null Handle
      */
-    public $handle;
+    public ?string $handle = null;
 
     /**
      * @var int|null Sort order
      * @since 3.5.0
      */
-    public $sortOrder;
+    public ?int $sortOrder = null;
 
     /**
      * @var bool Has title field
      */
-    public $hasTitleField = true;
+    public bool $hasTitleField = true;
 
     /**
      * @var string Title translation method
+     * @phpstan-var Field::TRANSLATION_METHOD_NONE|Field::TRANSLATION_METHOD_SITE|Field::TRANSLATION_METHOD_SITE_GROUP|Field::TRANSLATION_METHOD_LANGUAGE|Field::TRANSLATION_METHOD_CUSTOM
      * @since 3.5.0
      */
-    public $titleTranslationMethod = Field::TRANSLATION_METHOD_SITE;
+    public string $titleTranslationMethod = Field::TRANSLATION_METHOD_SITE;
 
     /**
      * @var string|null Title translation key format
      * @since 3.5.0
      */
-    public $titleTranslationKeyFormat;
+    public ?string $titleTranslationKeyFormat = null;
 
     /**
      * @var string|null Title format
      */
-    public $titleFormat;
+    public ?string $titleFormat = null;
 
     /**
-     * @var string UID
+     * @var string Slug translation method
+     * @phpstan-var Field::TRANSLATION_METHOD_NONE|Field::TRANSLATION_METHOD_SITE|Field::TRANSLATION_METHOD_SITE_GROUP|Field::TRANSLATION_METHOD_LANGUAGE|Field::TRANSLATION_METHOD_CUSTOM
+     * @since 4.5.0
      */
-    public $uid;
+    public string $slugTranslationMethod = Field::TRANSLATION_METHOD_SITE;
+
+    /**
+     * @var string|null Slug translation key format
+     * @since 4.5.0
+     */
+    public ?string $slugTranslationKeyFormat = null;
+
+    /**
+     * @var bool Whether to show the Status field
+     * @since 4.5.0
+     */
+    public bool $showStatusField = true;
+
+    /**
+     * @var string|null UID
+     */
+    public ?string $uid = null;
 
     /**
      * @inheritdoc
      */
-    public function behaviors()
+    protected function defineBehaviors(): array
     {
-        $behaviors = parent::behaviors();
-        $behaviors['fieldLayout'] = [
-            'class' => FieldLayoutBehavior::class,
-            'elementType' => Entry::class,
+        return [
+            'fieldLayout' => [
+                'class' => FieldLayoutBehavior::class,
+                'elementType' => Entry::class,
+            ],
         ];
-        return $behaviors;
     }
 
     /**
      * @inheritdoc
      */
-    public function attributeLabels()
+    public function attributeLabels(): array
     {
         return [
             'handle' => Craft::t('app', 'Handle'),
             'name' => Craft::t('app', 'Name'),
             'titleFormat' => Craft::t('app', 'Title Format'),
+            'showStatusField' => Craft::t('app', 'Show the Status field'),
         ];
     }
 
@@ -132,14 +151,14 @@ class EntryType extends Model
             UniqueValidator::class,
             'targetClass' => EntryTypeRecord::class,
             'targetAttribute' => ['name', 'sectionId'],
-            'comboNotUnique' => Craft::t('yii', '{attribute} "{value}" has already been taken.'),
+            'message' => Craft::t('yii', '{attribute} "{value}" has already been taken.'),
         ];
         $rules[] = [
             ['handle'],
             UniqueValidator::class,
             'targetClass' => EntryTypeRecord::class,
             'targetAttribute' => ['handle', 'sectionId'],
-            'comboNotUnique' => Craft::t('yii', '{attribute} "{value}" has already been taken.'),
+            'message' => Craft::t('yii', '{attribute} "{value}" has already been taken.'),
         ];
         $rules[] = [['fieldLayout'], 'validateFieldLayout'];
 
@@ -153,7 +172,6 @@ class EntryType extends Model
     /**
      * Validates the field layout.
      *
-     * @return void
      * @since 3.7.0
      */
     public function validateFieldLayout(): void
@@ -181,6 +199,16 @@ class EntryType extends Model
     }
 
     /**
+     * @inheritdoc
+     */
+    public function getFieldLayout(): FieldLayout
+    {
+        /** @var FieldLayoutBehavior $behavior */
+        $behavior = $this->getBehavior('fieldLayout');
+        return $behavior->getFieldLayout();
+    }
+
+    /**
      * Returns the entry’s edit URL in the control panel.
      *
      * @return string
@@ -198,7 +226,7 @@ class EntryType extends Model
      */
     public function getSection(): Section
     {
-        if ($this->sectionId === null) {
+        if (!isset($this->sectionId)) {
             throw new InvalidConfigException('Entry type is missing its section ID');
         }
 
@@ -220,10 +248,13 @@ class EntryType extends Model
         $config = [
             'name' => $this->name,
             'handle' => $this->handle,
-            'hasTitleField' => (bool)$this->hasTitleField,
+            'hasTitleField' => $this->hasTitleField,
             'titleTranslationMethod' => $this->titleTranslationMethod,
             'titleTranslationKeyFormat' => $this->titleTranslationKeyFormat ?: null,
             'titleFormat' => $this->titleFormat ?: null,
+            'slugTranslationMethod' => $this->slugTranslationMethod,
+            'slugTranslationKeyFormat' => $this->slugTranslationKeyFormat ?: null,
+            'showStatusField' => $this->showStatusField,
             'sortOrder' => (int)$this->sortOrder,
             'section' => $this->getSection()->uid,
         ];
@@ -231,9 +262,6 @@ class EntryType extends Model
         $fieldLayout = $this->getFieldLayout();
 
         if ($fieldLayoutConfig = $fieldLayout->getConfig()) {
-            if (!$fieldLayout->uid) {
-                $fieldLayout->uid = $fieldLayout->id ? Db::uidById(Table::FIELDLAYOUTS, $fieldLayout->id) : StringHelper::UUID();
-            }
             $config['fieldLayouts'] = [
                 $fieldLayout->uid => $fieldLayoutConfig,
             ];

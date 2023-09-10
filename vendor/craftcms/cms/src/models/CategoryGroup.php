@@ -8,6 +8,7 @@
 namespace craft\models;
 
 use Craft;
+use craft\base\FieldLayoutProviderInterface;
 use craft\base\Model;
 use craft\behaviors\FieldLayoutBehavior;
 use craft\db\Table;
@@ -18,6 +19,7 @@ use craft\helpers\StringHelper;
 use craft\records\CategoryGroup as CategoryGroupRecord;
 use craft\validators\HandleValidator;
 use craft\validators\UniqueValidator;
+use DateTime;
 
 /**
  * CategoryGroup model.
@@ -27,76 +29,83 @@ use craft\validators\UniqueValidator;
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
  */
-class CategoryGroup extends Model
+class CategoryGroup extends Model implements FieldLayoutProviderInterface
 {
     /** @since 3.7.0 */
-    const DEFAULT_PLACEMENT_BEGINNING = 'beginning';
+    public const DEFAULT_PLACEMENT_BEGINNING = 'beginning';
     /** @since 3.7.0 */
-    const DEFAULT_PLACEMENT_END = 'end';
+    public const DEFAULT_PLACEMENT_END = 'end';
 
     /**
      * @var int|null ID
      */
-    public $id;
+    public ?int $id = null;
 
     /**
      * @var int|null Structure ID
      */
-    public $structureId;
+    public ?int $structureId = null;
 
     /**
      * @var int|null Field layout ID
      */
-    public $fieldLayoutId;
+    public ?int $fieldLayoutId = null;
 
     /**
      * @var string|null Name
      */
-    public $name;
+    public ?string $name = null;
 
     /**
      * @var string|null Handle
      */
-    public $handle;
+    public ?string $handle = null;
 
     /**
      * @var int|null Max levels
      */
-    public $maxLevels;
+    public ?int $maxLevels = null;
 
     /**
      * @var string Default placement
+     * @phpstan-var self::DEFAULT_PLACEMENT_BEGINNING|self::DEFAULT_PLACEMENT_END
      * @since 3.7.0
      */
-    public $defaultPlacement = self::DEFAULT_PLACEMENT_END;
+    public string $defaultPlacement = self::DEFAULT_PLACEMENT_END;
 
     /**
      * @var string|null UID
      */
-    public $uid;
+    public ?string $uid = null;
 
     /**
-     * @var
+     * @var DateTime|null The date that the category group was trashed
+     * @since 4.4.0
      */
-    private $_siteSettings;
+    public ?DateTime $dateDeleted = null;
+
+    /**
+     * @var CategoryGroup_SiteSettings[]
+     */
+    private array $_siteSettings;
 
     /**
      * @inheritdoc
      */
-    public function behaviors()
+    protected function defineBehaviors(): array
     {
-        $behaviors = parent::behaviors();
-        $behaviors['fieldLayout'] = [
-            'class' => FieldLayoutBehavior::class,
-            'elementType' => Category::class,
+        return [
+            'fieldLayout' => [
+                'class' => FieldLayoutBehavior::class,
+                'elementType' => Category::class,
+            ],
         ];
-        return $behaviors;
     }
 
     /**
      * @inheritdoc
      */
-    public function attributeLabels()
+    public function attributeLabels(): array
     {
         return [
             'handle' => Craft::t('app', 'Handle'),
@@ -124,7 +133,6 @@ class CategoryGroup extends Model
     /**
      * Validates the field layout.
      *
-     * @return void
      * @since 3.7.0
      */
     public function validateFieldLayout(): void
@@ -142,11 +150,11 @@ class CategoryGroup extends Model
     /**
      * Validates the site settings.
      */
-    public function validateSiteSettings()
+    public function validateSiteSettings(): void
     {
         foreach ($this->getSiteSettings() as $i => $siteSettings) {
             if (!$siteSettings->validate()) {
-                $this->addModelErrors($siteSettings, "siteSettings[{$i}]");
+                $this->addModelErrors($siteSettings, "siteSettings[$i]");
             }
         }
     }
@@ -162,13 +170,23 @@ class CategoryGroup extends Model
     }
 
     /**
+     * @inheritdoc
+     */
+    public function getFieldLayout(): FieldLayout
+    {
+        /** @var FieldLayoutBehavior $behavior */
+        $behavior = $this->getBehavior('fieldLayout');
+        return $behavior->getFieldLayout();
+    }
+
+    /**
      * Returns the group's site-specific settings.
      *
      * @return CategoryGroup_SiteSettings[]
      */
     public function getSiteSettings(): array
     {
-        if ($this->_siteSettings !== null) {
+        if (isset($this->_siteSettings)) {
             return $this->_siteSettings;
         }
 
@@ -187,7 +205,7 @@ class CategoryGroup extends Model
      *
      * @param CategoryGroup_SiteSettings[] $siteSettings
      */
-    public function setSiteSettings(array $siteSettings)
+    public function setSiteSettings(array $siteSettings): void
     {
         $this->_siteSettings = $siteSettings;
 
@@ -218,9 +236,6 @@ class CategoryGroup extends Model
         $fieldLayout = $this->getFieldLayout();
 
         if ($fieldLayoutConfig = $fieldLayout->getConfig()) {
-            if (!$fieldLayout->uid) {
-                $fieldLayout->uid = $fieldLayout->id ? Db::uidById(Table::FIELDLAYOUTS, $fieldLayout->id) : StringHelper::UUID();
-            }
             $config['fieldLayouts'] = [
                 $fieldLayout->uid => $fieldLayoutConfig,
             ];

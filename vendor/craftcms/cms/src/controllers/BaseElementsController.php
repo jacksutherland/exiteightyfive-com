@@ -9,6 +9,7 @@ namespace craft\controllers;
 
 use craft\base\ElementInterface;
 use craft\errors\InvalidTypeException;
+use craft\services\ElementSources;
 use craft\web\Controller;
 use yii\web\BadRequestHttpException;
 
@@ -24,12 +25,16 @@ abstract class BaseElementsController extends Controller
     /**
      * @inheritdoc
      */
-    public function beforeAction($action)
+    public function beforeAction($action): bool
     {
-        // All actions require CP requests
+        if (!parent::beforeAction($action)) {
+            return false;
+        }
+
+        // All actions require control panel requests
         $this->requireCpRequest();
 
-        return parent::beforeAction($action);
+        return true;
     }
 
     /**
@@ -57,10 +62,10 @@ abstract class BaseElementsController extends Controller
     /**
      * Returns the context that this controller is being called in.
      *
-     * @return string|null
+     * @return string
      */
-    protected function context()
+    protected function context(): string
     {
-        return $this->request->getParam('context');
+        return $this->request->getParam('context') ?? ElementSources::CONTEXT_INDEX;
     }
 }

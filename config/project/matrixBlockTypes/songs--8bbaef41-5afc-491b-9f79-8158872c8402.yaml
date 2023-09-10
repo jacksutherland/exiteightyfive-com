@@ -1,0 +1,50 @@
+field: 9f5b59a8-2c1c-4bbd-8b5a-86b6e643ccb3 # Page Module
+fieldLayouts:
+  96917153-7617-4350-8520-5739a756cf43:
+    tabs:
+      -
+        elementCondition: null
+        elements:
+          -
+            elementCondition: null
+            fieldUid: 35bf9abf-0692-4cbc-a674-75d0710b7d8b # Songs
+            instructions: null
+            label: null
+            required: true
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            uid: 003bb803-a355-4926-95f1-9696d69b9949
+            userCondition: null
+            warning: null
+            width: 100
+        name: Content
+        uid: 24f82506-af07-451b-bf18-fede67ac2cac
+        userCondition: null
+fields:
+  35bf9abf-0692-4cbc-a674-75d0710b7d8b: # Songs
+    columnSuffix: null
+    contentColumnType: string
+    fieldGroup: null
+    handle: songs
+    instructions: null
+    name: Songs
+    searchable: true
+    settings:
+      allowSelfRelations: false
+      branchLimit: null
+      localizeRelations: false
+      maintainHierarchy: false
+      maxRelations: null
+      minRelations: null
+      selectionLabel: null
+      showSiteMenu: true
+      source: 'group:2e770ce7-51ec-4b5d-a13d-7990d7f8146d'
+      targetSiteId: null
+      validateRelatedElements: false
+      viewMode: null
+    translationKeyFormat: null
+    translationMethod: site
+    type: craft\fields\Categories
+handle: songs
+name: Songs
+sortOrder: 5

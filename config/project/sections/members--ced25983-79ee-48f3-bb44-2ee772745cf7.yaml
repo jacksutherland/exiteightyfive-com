@@ -1,0 +1,41 @@
+enableVersioning: true
+entryTypes:
+  04197ac4-b565-4b4c-b75f-f95ace3ba84f:
+    fieldLayouts:
+      6a2be3b4-1d4e-4d39-8927-df9b18b01952:
+        tabs:
+          -
+            fields:
+              0eeae9c1-05a1-461f-b24e-0a79a0f566e9:
+                required: false
+                sortOrder: 3
+              5ffa2eed-de44-485e-bd84-b569a5829428:
+                required: false
+                sortOrder: 5
+              466f9298-b90b-4f50-98f9-5414624d4a3f:
+                required: false
+                sortOrder: 4
+              482648ae-12ef-4061-a2ac-f621cb0d7014:
+                required: true
+                sortOrder: 1
+              a8ac21f1-68b7-48be-a535-f36ff8ecaecd:
+                required: false
+                sortOrder: 2
+            name: Member
+            sortOrder: 1
+    handle: members
+    hasTitleField: false
+    name: Members
+    sortOrder: 1
+    titleFormat: '{memberName}'
+    titleLabel: null
+handle: members
+name: Members
+propagationMethod: all
+siteSettings:
+  3c0b1454-ae0e-451e-b505-cf0eaea80e50:
+    enabledByDefault: true
+    hasUrls: false
+    template: null
+    uriFormat: null
+type: channel

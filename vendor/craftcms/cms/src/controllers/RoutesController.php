@@ -24,12 +24,16 @@ class RoutesController extends Controller
     /**
      * @inheritdoc
      */
-    public function beforeAction($action)
+    public function beforeAction($action): bool
     {
+        if (!parent::beforeAction($action)) {
+            return false;
+        }
+
         // All route actions require an admin
         $this->requireAdmin();
 
-        return parent::beforeAction($action);
+        return true;
     }
 
     /**
@@ -53,8 +57,7 @@ class RoutesController extends Controller
 
         $routeUid = Craft::$app->getRoutes()->saveRoute($uriParts, $template, $siteUid, $routeUid);
 
-        return $this->asJson([
-            'success' => true,
+        return $this->asSuccess(data: [
             'routeUid' => $routeUid,
             'siteUid' => $siteUid,
         ]);
@@ -72,7 +75,7 @@ class RoutesController extends Controller
         $routeUid = $this->request->getRequiredBodyParam('routeUid');
         Craft::$app->getRoutes()->deleteRouteByUid($routeUid);
 
-        return $this->asJson(['success' => true]);
+        return $this->asSuccess();
     }
 
     /**
@@ -88,6 +91,6 @@ class RoutesController extends Controller
         $routeUids = $this->request->getRequiredBodyParam('routeUids');
         Craft::$app->getRoutes()->updateRouteOrder($routeUids);
 
-        return $this->asJson(['success' => true]);
+        return $this->asSuccess();
     }
 }

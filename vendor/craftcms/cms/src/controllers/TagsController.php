@@ -40,7 +40,7 @@ class TagsController extends Controller
 
         $tagGroups = Craft::$app->getTags()->getAllTagGroups();
 
-        return $this->renderTemplate('settings/tags/index', [
+        return $this->renderTemplate('settings/tags/index.twig', [
             'tagGroups' => $tagGroups,
         ]);
     }
@@ -53,7 +53,7 @@ class TagsController extends Controller
      * @return Response
      * @throws NotFoundHttpException if the requested tag group cannot be found
      */
-    public function actionEditTagGroup(int $tagGroupId = null, TagGroup $tagGroup = null): Response
+    public function actionEditTagGroup(?int $tagGroupId = null, ?TagGroup $tagGroup = null): Response
     {
         $this->requireAdmin();
 
@@ -87,7 +87,7 @@ class TagsController extends Controller
             ],
         ];
 
-        return $this->renderTemplate('settings/tags/_edit', [
+        return $this->renderTemplate('settings/tags/_edit.twig', [
             'tagGroupId' => $tagGroupId,
             'tagGroup' => $tagGroup,
             'title' => $title,
@@ -101,7 +101,7 @@ class TagsController extends Controller
      * @return Response|null
      * @throws BadRequestHttpException
      */
-    public function actionSaveTagGroup()
+    public function actionSaveTagGroup(): ?Response
     {
         $this->requirePostRequest();
         $this->requireAdmin();
@@ -158,7 +158,7 @@ class TagsController extends Controller
 
         Craft::$app->getTags()->deleteTagGroupById($groupId);
 
-        return $this->asJson(['success' => true]);
+        return $this->asSuccess();
     }
 
     /**
@@ -176,9 +176,12 @@ class TagsController extends Controller
         $excludeIds = $this->request->getBodyParam('excludeIds', []);
         $allowSimilarTags = Craft::$app->getConfig()->getGeneral()->allowSimilarTags;
 
+        /** @var Tag[] $tags */
         $tags = Tag::find()
             ->groupId($tagGroupId)
             ->title(Db::escapeParam($search) . '*')
+            ->orderBy(['LENGTH([[title]])' => SORT_ASC])
+            ->limit(5)
             ->all();
 
         $return = [];
@@ -249,13 +252,10 @@ class TagsController extends Controller
 
         // Don't validate required custom fields
         if (!Craft::$app->getElements()->saveElement($tag)) {
-            return $this->asJson([
-                'success' => false,
-            ]);
+            return $this->asFailure();
         }
 
-        return $this->asJson([
-            'success' => true,
+        return $this->asSuccess(data: [
             'id' => $tag->id,
         ]);
     }

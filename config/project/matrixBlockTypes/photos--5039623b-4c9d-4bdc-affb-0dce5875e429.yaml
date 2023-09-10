@@ -1,0 +1,75 @@
+field: 9f5b59a8-2c1c-4bbd-8b5a-86b6e643ccb3 # Page Module
+fieldLayouts:
+  8f8875c9-bd3d-4b83-b23d-31807d58a4b6:
+    tabs:
+      -
+        elementCondition: null
+        elements:
+          -
+            elementCondition: null
+            fieldUid: c662e148-31bb-4faa-b17f-9f39f50d68b1 # Photos
+            instructions: null
+            label: null
+            required: false
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            uid: 0fd4e306-0af7-4255-982b-cf67a5214295
+            userCondition: null
+            warning: null
+            width: 100
+        name: Content
+        uid: b6eed178-09f7-4a40-8c56-cee1d1c6b04b
+        userCondition: null
+fields:
+  c662e148-31bb-4faa-b17f-9f39f50d68b1: # Photos
+    columnSuffix: null
+    contentColumnType: string
+    fieldGroup: null
+    handle: photos
+    instructions: null
+    name: Photos
+    searchable: false
+    settings:
+      allowSelfRelations: false
+      allowSubfolders: false
+      allowUploads: true
+      allowedKinds:
+        - image
+      branchLimit: null
+      defaultUploadLocationSource: 'volume:b2fbd8ed-6e44-4ed2-8d57-07fbe9376496' # Band Members
+      defaultUploadLocationSubpath: null
+      localizeRelations: false
+      maintainHierarchy: false
+      maxRelations: null
+      minRelations: null
+      previewMode: full
+      restrictFiles: true
+      restrictLocation: false
+      restrictedDefaultUploadSubpath: null
+      restrictedLocationSource: 'volume:b2fbd8ed-6e44-4ed2-8d57-07fbe9376496' # Band Members
+      restrictedLocationSubpath: null
+      selectionCondition:
+        __assoc__:
+          -
+            - elementType
+            - craft\elements\Asset
+          -
+            - fieldContext
+            - global
+          -
+            - class
+            - craft\elements\conditions\assets\AssetCondition
+      selectionLabel: null
+      showSiteMenu: true
+      showUnpermittedFiles: false
+      showUnpermittedVolumes: false
+      sources: '*'
+      targetSiteId: null
+      validateRelatedElements: false
+      viewMode: list
+    translationKeyFormat: null
+    translationMethod: site
+    type: craft\fields\Assets
+handle: photos
+name: Photos
+sortOrder: 3

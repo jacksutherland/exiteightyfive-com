@@ -15,7 +15,6 @@ use craft\gql\base\ObjectType;
 use craft\gql\base\SingleGeneratorInterface;
 use craft\gql\GqlEntityRegistry;
 use craft\gql\interfaces\elements\User as UserInterface;
-use craft\gql\TypeManager;
 use craft\gql\types\elements\User;
 
 /**
@@ -29,7 +28,7 @@ class UserType extends Generator implements GeneratorInterface, SingleGeneratorI
     /**
      * @inheritdoc
      */
-    public static function generateTypes($context = null): array
+    public static function generateTypes(mixed $context = null): array
     {
         // Users have no context
         $type = static::generateType($context);
@@ -39,19 +38,18 @@ class UserType extends Generator implements GeneratorInterface, SingleGeneratorI
     /**
      * @inheritdoc
      */
-    public static function generateType($context): ObjectType
+    public static function generateType(mixed $context): ObjectType
     {
-        // Users don't have different types, so the context for a user will be the same every time.
-        $context = $context ?: Craft::$app->getFields()->getLayoutByType(UserElement::class);
-
         $typeName = UserElement::gqlTypeNameByContext(null);
-        $contentFieldGqlTypes = self::getContentFields($context);
-        $userFields = TypeManager::prepareFieldDefinitions(array_merge(UserInterface::getFieldDefinitions(), $contentFieldGqlTypes), $typeName);
 
-        return GqlEntityRegistry::getEntity($typeName) ?: GqlEntityRegistry::createEntity($typeName, new User([
+        return GqlEntityRegistry::getOrCreate($typeName, fn() => new User([
             'name' => $typeName,
-            'fields' => function() use ($userFields) {
-                return $userFields;
+            'fields' => function() use ($context, $typeName) {
+                // Users don't have different types, so the context for a user will be the same every time.
+                $context ??= Craft::$app->getFields()->getLayoutByType(UserElement::class);
+                $contentFieldGqlTypes = self::getContentFields($context);
+                $userFields = array_merge(UserInterface::getFieldDefinitions(), $contentFieldGqlTypes);
+                return Craft::$app->getGql()->prepareFieldDefinitions($userFields, $typeName);
             },
         ]));
     }

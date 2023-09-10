@@ -1,0 +1,61 @@
+field: 9f5b59a8-2c1c-4bbd-8b5a-86b6e643ccb3 # Page Module
+fieldLayouts:
+  6bbe8b84-f138-43b0-ac95-fa161ec48d94:
+    tabs:
+      -
+        elementCondition: null
+        elements:
+          -
+            elementCondition: null
+            fieldUid: cb622695-130c-4061-9502-fc3c94d76cde # Show Types
+            instructions: null
+            label: null
+            required: false
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            uid: d92e3954-3271-49df-9434-265cdf8646dc
+            userCondition: null
+            warning: null
+            width: 100
+        name: Content
+        uid: 3dd43de0-ae24-483d-8cc6-7893b79875be
+        userCondition: null
+fields:
+  cb622695-130c-4061-9502-fc3c94d76cde: # Show Types
+    columnSuffix: oflvznze
+    contentColumnType: string
+    fieldGroup: null
+    handle: showTypes
+    instructions: null
+    name: 'Show Types'
+    searchable: false
+    settings:
+      options:
+        -
+          __assoc__:
+            -
+              - label
+              - 'Upcoming Shows'
+            -
+              - value
+              - upcomingShows
+            -
+              - default
+              - ''
+        -
+          __assoc__:
+            -
+              - label
+              - 'Past Shows'
+            -
+              - value
+              - pastShows
+            -
+              - default
+              - ''
+    translationKeyFormat: null
+    translationMethod: none
+    type: craft\fields\Checkboxes
+handle: shows
+name: Shows
+sortOrder: 4

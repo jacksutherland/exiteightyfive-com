@@ -1,0 +1,51 @@
+field: 9f5b59a8-2c1c-4bbd-8b5a-86b6e643ccb3 # Page Module
+fieldLayouts:
+  95d658fa-225c-4f4b-84e2-5d5154f861f2:
+    tabs:
+      -
+        elementCondition: null
+        elements:
+          -
+            elementCondition: null
+            fieldUid: b428df45-6612-4489-8dfe-b64da58cfcbb # Form Type
+            instructions: null
+            label: null
+            required: true
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            uid: 102b3cd0-002a-4b3c-be93-3306cf6f4c40
+            userCondition: null
+            warning: null
+            width: 100
+        name: Content
+        uid: 207d53d1-69f5-4b92-9f84-c23843111107
+        userCondition: null
+fields:
+  b428df45-6612-4489-8dfe-b64da58cfcbb: # Form Type
+    columnSuffix: hgwvgkfu
+    contentColumnType: string(11)
+    fieldGroup: null
+    handle: formType
+    instructions: null
+    name: 'Form Type'
+    searchable: false
+    settings:
+      columnType: null
+      options:
+        -
+          __assoc__:
+            -
+              - label
+              - 'Contact Form'
+            -
+              - value
+              - contactForm
+            -
+              - default
+              - '1'
+    translationKeyFormat: null
+    translationMethod: none
+    type: craft\fields\Dropdown
+handle: form
+name: Form
+sortOrder: 2

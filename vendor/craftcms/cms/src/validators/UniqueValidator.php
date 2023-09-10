@@ -10,6 +10,7 @@ namespace craft\validators;
 use Craft;
 use craft\helpers\StringHelper;
 use yii\base\Model;
+use yii\db\ActiveQueryInterface;
 use yii\db\ActiveRecord;
 use yii\validators\UniqueValidator as YiiUniqueValidator;
 
@@ -30,35 +31,35 @@ class UniqueValidator extends YiiUniqueValidator
      * attributes to record primary keys. Defaults to whatever the record's
      * primaryKey() method returns.
      */
-    public $pk;
+    public string|array $pk;
 
     /**
      * @var Model|null The model that is being validated
      */
-    protected $originalModel;
+    protected ?Model $originalModel = null;
 
     /**
      * @var bool Whether a case-insensitive check should be performed.
      */
-    public $caseInsensitive = false;
+    public bool $caseInsensitive = false;
 
     /**
      * @inheritdoc
      */
-    public function validateAttribute($model, $attribute)
+    public function validateAttribute($model, $attribute): void
     {
         if ($targetClass = $this->targetClass) {
             // Exclude this model's row using the filter
             /** @var ActiveRecord|string $targetClass */
             $pks = $targetClass::primaryKey();
-            if ($this->pk !== null) {
+            if (isset($this->pk)) {
                 $pkMap = is_string($this->pk) ? StringHelper::split($this->pk) : $this->pk;
             } else {
                 $pkMap = $pks;
             }
 
             $exists = false;
-            $filter = ['and'];
+            $pkFilter = ['and'];
             $tableName = Craft::$app->getDb()->getSchema()->getRawTableName($targetClass::tableName());
 
             foreach ($pkMap as $k => $v) {
@@ -72,12 +73,27 @@ class UniqueValidator extends YiiUniqueValidator
 
                 if ($model->$pkAttribute) {
                     $exists = true;
-                    $filter[] = ['not', ["$tableName.$pkColumn" => $model->$pkAttribute]];
+                    $pkFilter[] = ['not', ["$tableName.$pkColumn" => $model->$pkAttribute]];
                 }
             }
 
             if ($exists) {
-                $this->filter = $filter;
+                if ($this->filter) {
+                    if (is_callable($this->filter)) {
+                        $currentFilter = $this->filter;
+
+                        // Wrap the closure in another closure that will add the PK filter
+                        $this->filter = function(ActiveQueryInterface $query) use ($currentFilter, $pkFilter) {
+                            $currentFilter($query);
+                            $query->andWhere($pkFilter);
+                        };
+                    } else {
+                        // If it isn't a closure then `filter` will be an array or string
+                        $this->filter = ['and', $this->filter, $pkFilter];
+                    }
+                } else {
+                    $this->filter = $pkFilter;
+                }
             }
         }
 
@@ -93,7 +109,7 @@ class UniqueValidator extends YiiUniqueValidator
                 $a = is_int($k) ? $v : $k;
                 $originalAttributes[$a] = $model->$a;
                 $model->$a = mb_strtolower($model->$a);
-                $newTargetAttributes[$a] = "lower([[{$v}]])";
+                $newTargetAttributes[$a] = "lower([[$v]])";
             }
             $this->targetAttribute = $newTargetAttributes;
         }
@@ -109,10 +125,10 @@ class UniqueValidator extends YiiUniqueValidator
     /**
      * @inheritdoc
      */
-    public function addError($model, $attribute, $message, $params = [])
+    public function addError($model, $attribute, $message, $params = []): void
     {
         // Use the original model if there is one
-        if ($this->originalModel !== null) {
+        if (isset($this->originalModel)) {
             $model = $this->originalModel;
         }
 

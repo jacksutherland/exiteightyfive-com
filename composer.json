@@ -1,13 +1,14 @@
 {
   "require": {
-    "craftcms/cms": "3.7.61",
-    "craftcms/redactor": "2.10.10",
-    "superbig/craft3-mobiledetect": "1.0.2",
+    "craftcms/cms": "^4.0.0",
+    "craftcms/redactor": "3.0.4",
+    "superbig/craft3-mobiledetect": "^2.x-dev",
     "vlucas/phpdotenv": "^3.4.0"
   },
   "require-dev": {
     "yiisoft/yii2-shell": "^2.0.3"
   },
+  "minimum-stability": "dev",
   "autoload": {
     "psr-4": {
       "modules\\": "modules/"

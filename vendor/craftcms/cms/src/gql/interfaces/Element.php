@@ -7,9 +7,10 @@
 
 namespace craft\gql\interfaces;
 
+use Craft;
 use craft\gql\base\InterfaceType;
+use craft\gql\base\SingularTypeInterface;
 use craft\gql\GqlEntityRegistry;
-use craft\gql\TypeManager;
 use craft\gql\types\DateTime;
 use craft\gql\types\generators\ElementType;
 use craft\helpers\Gql as GqlHelper;
@@ -23,7 +24,7 @@ use GraphQL\Type\Definition\Type;
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.3.0
  */
-class Element extends InterfaceType
+class Element extends InterfaceType implements SingularTypeInterface
 {
     /**
      * @inheritdoc
@@ -36,7 +37,7 @@ class Element extends InterfaceType
     /**
      * @inheritdoc
      */
-    public static function getType($fields = null): Type
+    public static function getType(): Type
     {
         if ($type = GqlEntityRegistry::getEntity(self::getName())) {
             return $type;
@@ -59,7 +60,7 @@ class Element extends InterfaceType
      */
     public static function getFieldDefinitions(): array
     {
-        return TypeManager::prepareFieldDefinitions(array_merge(parent::getFieldDefinitions(), [
+        return Craft::$app->getGql()->prepareFieldDefinitions(array_merge(parent::getFieldDefinitions(), [
             Gql::GRAPHQL_COUNT_FIELD => [
                 'name' => Gql::GRAPHQL_COUNT_FIELD,
                 'type' => Type::int(),
@@ -91,12 +92,17 @@ class Element extends InterfaceType
             'enabled' => [
                 'name' => 'enabled',
                 'type' => Type::boolean(),
-                'description' => 'Whether the element is enabled or not.',
+                'description' => 'Whether the element is enabled.',
             ],
             'archived' => [
                 'name' => 'archived',
                 'type' => Type::boolean(),
-                'description' => 'Whether the element is archived or not.',
+                'description' => 'Whether the element is archived.',
+            ],
+            'siteHandle' => [
+                'name' => 'siteHandle',
+                'type' => Type::string(),
+                'description' => 'The handle of the site the element is associated with.',
             ],
             'siteId' => [
                 'name' => 'siteId',
@@ -115,13 +121,13 @@ class Element extends InterfaceType
             ],
             'searchScore' => [
                 'name' => 'searchScore',
-                'type' => Type::string(),
+                'type' => Type::int(),
                 'description' => 'The element’s search score, if the `search` parameter was used when querying for the element.',
             ],
             'trashed' => [
                 'name' => 'trashed',
                 'type' => Type::boolean(),
-                'description' => 'Whether the element has been soft-deleted or not.',
+                'description' => 'Whether the element has been soft-deleted.',
             ],
             'status' => [
                 'name' => 'status',
@@ -164,6 +170,11 @@ class Element extends InterfaceType
                 'type' => Type::int(),
                 'description' => 'The revision ID (from the `revisions` table).',
             ],
+            'revisionNotes' => [
+                'name' => 'revisionNotes',
+                'type' => Type::String(),
+                'description' => 'The revision notes (from the `revisions` table).',
+            ],
             'draftId' => [
                 'name' => 'draftId',
                 'type' => Type::int(),
@@ -173,11 +184,6 @@ class Element extends InterfaceType
                 'name' => 'isUnpublishedDraft',
                 'type' => Type::boolean(),
                 'description' => 'Returns whether this is an unpublished draft.',
-            ],
-            'isUnsavedDraft' => [
-                'name' => 'isUnsavedDraft',
-                'type' => Type::boolean(),
-                'description' => 'Returns whether this is an unpublished draft. **This field is deprecated.** `isUnpublishedDraft` should be used instead.',
             ],
             'draftName' => [
                 'name' => 'draftName',

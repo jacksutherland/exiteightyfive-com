@@ -25,40 +25,40 @@ class CsvResponseFormatter extends Component implements ResponseFormatterInterfa
     /**
      * @var string the Content-Type header for the response
      */
-    public $contentType = 'text/csv';
+    public string $contentType = 'text/csv';
 
     /**
      * @var bool whether the response data should include a header row
      */
-    public $includeHeaderRow = true;
+    public bool $includeHeaderRow = true;
 
     /**
-     * @var string[] the header row values. The array keys of first result in
+     * @var string[] the header row values. The unique keys across all rows in
      * [[YiiResponse::$data]] will be used by default.
      */
-    public $headers;
+    public array $headers;
 
     /**
      * @var string the field delimiter (one character only)
      */
-    public $delimiter = ',';
+    public string $delimiter = ',';
 
     /**
      * @var string the field enclosure (one character only)
      */
-    public $enclosure = '"';
+    public string $enclosure = '"';
 
     /**
      * @var string the escape character (one character only)
      */
-    public $escapeChar = '';
+    public string $escapeChar = "\\";
 
     /**
      * Formats the specified response.
      *
      * @param YiiResponse $response the response to be formatted.
      */
-    public function format($response)
+    public function format($response): void
     {
         if (stripos($this->contentType, 'charset') === false) {
             $this->contentType .= '; charset=' . $response->charset;
@@ -80,19 +80,35 @@ class CsvResponseFormatter extends Component implements ResponseFormatterInterfa
 
         $suspectCharacters = ['=', '-', '+', '@'];
 
-        $escapeChar = $this->escapeChar;
-        if ($escapeChar === '' && PHP_VERSION_ID < 70400) {
-            $escapeChar = '\\';
+        // If $this->headers is set, we can trust that the data will be uniform
+        if (isset($this->headers)) {
+            $headers = $this->headers;
+        } else {
+            // Find all the unique keys
+            $keys = [];
+            foreach ($data as $row) {
+                // Can't use `$keys += $row` here because that wouldn't give us the desired
+                // result if any numeric keys are being used
+                foreach (array_keys($row) as $key) {
+                    $keys[$key] = null;
+                }
+            }
+            $headers = array_keys($keys);
+            foreach ($data as &$row) {
+                $normalizedRow = [];
+                foreach ($headers as $key) {
+                    $normalizedRow[] = $row[$key] ?? '';
+                }
+                $row = $normalizedRow;
+            }
+            unset($row);
         }
 
-        $headersIncluded = false;
-        foreach ($data as $row) {
-            // Include the headers
-            if (!$headersIncluded && $this->includeHeaderRow) {
-                $headers = $this->headers ?? array_keys($row);
-                fputcsv($fp, $headers, ',');
-                $headersIncluded = true;
-            }
+        if ($this->includeHeaderRow) {
+            fputcsv($fp, $headers, ',');
+        }
+
+        foreach ($data as &$row) {
             foreach ($row as &$field) {
                 if (is_scalar($field)) {
                     $field = (string)$field;
@@ -107,8 +123,9 @@ class CsvResponseFormatter extends Component implements ResponseFormatterInterfa
                 }
             }
             unset($field);
-            fputcsv($fp, $row, $this->delimiter, $this->enclosure, $escapeChar);
+            fputcsv($fp, $row, $this->delimiter, $this->enclosure, $this->escapeChar);
         }
+        unset($row);
 
         fclose($fp);
         $response->content = file_get_contents($file);

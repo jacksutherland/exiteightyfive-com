@@ -34,37 +34,37 @@ abstract class HtmlField extends Field
     /**
      * @var string|null The HTML Purifier config file to use
      */
-    public $purifierConfig;
+    public ?string $purifierConfig = null;
 
     /**
      * @var bool Whether the HTML should be purified on save
      */
-    public $purifyHtml = true;
+    public bool $purifyHtml = true;
 
     /**
      * @var bool Whether `<font>` tags and disallowed inline styles should be removed on save
      */
-    public $removeInlineStyles = false;
+    public bool $removeInlineStyles = false;
 
     /**
      * @var bool Whether empty tags should be removed on save
      */
-    public $removeEmptyTags = false;
+    public bool $removeEmptyTags = false;
 
     /**
      * @var bool Whether non-breaking spaces should be replaced by regular spaces on save
      */
-    public $removeNbsp = false;
+    public bool $removeNbsp = false;
 
     /**
      * @var string The type of database column the field should have in the content table
      */
-    public $columnType = Schema::TYPE_TEXT;
+    public string $columnType = Schema::TYPE_TEXT;
 
     /**
      * @inheritdoc
      */
-    public function getContentColumnType(): string
+    public function getContentColumnType(): array|string
     {
         return $this->columnType;
     }
@@ -87,7 +87,7 @@ abstract class HtmlField extends Field
     /**
      * @inheritdoc
      */
-    public function normalizeValue($value, ElementInterface $element = null)
+    public function normalizeValue(mixed $value, ?\craft\base\ElementInterface $element = null): mixed
     {
         if ($value === null || $value instanceof HtmlFieldData) {
             return $value;
@@ -137,7 +137,7 @@ abstract class HtmlField extends Field
     /**
      * @inheritdoc
      */
-    public function isValueEmpty($value, ElementInterface $element): bool
+    public function isValueEmpty(mixed $value, ElementInterface $element): bool
     {
         /** @var HtmlFieldData|null $value */
         if ($value === null) {
@@ -149,7 +149,7 @@ abstract class HtmlField extends Field
     /**
      * @inheritdoc
      */
-    protected function searchKeywords($value, ElementInterface $element): string
+    protected function searchKeywords(mixed $value, ElementInterface $element): string
     {
         $keywords = parent::searchKeywords($value, $element);
 
@@ -163,7 +163,7 @@ abstract class HtmlField extends Field
     /**
      * @inheritdoc
      */
-    public function serializeValue($value, ElementInterface $element = null)
+    public function serializeValue(mixed $value, ?\craft\base\ElementInterface $element = null): mixed
     {
         /** @var HtmlFieldData|string|null $value */
         if (!$value) {
@@ -281,8 +281,8 @@ abstract class HtmlField extends Field
         }
 
         foreach (Craft::$app->getVolumes()->getAllVolumes() as $volume) {
-            /** @var Volume $volume */
-            if ($volume->hasUrls && ($baseUrl = $volume->getRootUrl())) {
+            $fs = $volume->getFs();
+            if ($fs->hasUrls && ($baseUrl = $fs->getRootUrl())) {
                 $baseUrls[] = $baseUrl;
                 $siteIds[] = null;
                 $volumeIds[] = $volume->id;
@@ -344,7 +344,7 @@ abstract class HtmlField extends Field
                             $assetId = Asset::find()
                                 ->volumeId($volumeIds[$key])
                                 ->filename($filename)
-                                ->andWhere(['volumeFolders.path' => $folderPath !== '.' ? $folderPath : ''])
+                                ->folderPath($folderPath !== '.' ? $folderPath : '')
                                 ->select(['elements.id'])
                                 ->scalar();
 
@@ -383,10 +383,12 @@ abstract class HtmlField extends Field
             return $value;
         }
 
+        $elementsService = Craft::$app->getElements();
+
         return preg_replace_callback(
-            sprintf('/(href=|src=)([\'"])(\{([\w\\\\]+\:\d+(?:@\d+)?\:(?:transform\:)?%s)(?:\|\|[^\}]+)?\})(?:\?([^\'"#]*))?(#[^\'"#]+)?\2/', HandleValidator::$handlePattern),
-            function($matches) use ($element) {
-                [$fullMatch, $attr, $q, $refTag, $ref, $query, $fragment] = array_pad($matches, 7, null);
+            sprintf('/(href=|src=)([\'"])(\{([\w\\\\]+)(\:\d+(?:@\d+)?\:(?:transform\:)?%s)(?:\|\|[^\}]+)?\})(?:\?([^\'"#]*))?(#[^\'"#]+)?\2/', HandleValidator::$handlePattern),
+            function($matches) use ($element, $elementsService) {
+                [$fullMatch, $attr, $q, $refTag, $refHandle, $refRemainder, $query, $fragment] = array_pad($matches, 8, null);
                 $parsed = Craft::$app->getElements()->parseRefs($refTag, $element->siteId ?? null);
 
                 // If the ref tag couldn't be parsed, leave it alone
@@ -402,7 +404,17 @@ abstract class HtmlField extends Field
                     }
                 }
 
-                return sprintf('%s%s%s', "$attr$q$parsed", $fragment ?? '', "#$ref$q");
+                // Make sure the ref handle matches the real ref handle from the resolved element type
+                /** @var string|ElementInterface|null $class */
+                $class = $elementsService->getElementTypeByRefHandle($refHandle);
+                if ($class) {
+                    $realRefHandle = $class::refHandle();
+                    if ($realRefHandle) {
+                        $refHandle = $realRefHandle;
+                    }
+                }
+
+                return $attr . $q . $parsed . ($fragment ?? '') . '#' . $refHandle . $refRemainder . $q;
             },
             $value
         );

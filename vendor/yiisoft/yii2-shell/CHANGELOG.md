@@ -1,6 +1,12 @@
 Yii Framework 2 Shell extension Change Log
 ==========================================
 
+2.0.6 under development
+-----------------------
+
+- Enh #32: Disable update check, allow configuring PsySH (flaviovs)
+
+
 2.0.5 September 04, 2022
 ------------------------
 

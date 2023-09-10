@@ -24,29 +24,12 @@ class ServeController extends BaseServeController
     use ControllerTrait;
 
     /**
-     * @var string path or [path alias](https://craftcms.com/docs/3.x/config/#aliases) of the directory to serve.
+     * @var string path or [path alias](https://craftcms.com/docs/4.x/config/#aliases) of the directory to serve.
      */
     public $docroot = '@webroot';
 
     /**
      * @inheritdoc
      */
-    public function init()
-    {
-        parent::init();
-        $this->checkTty();
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function beforeAction($action)
-    {
-        // Make sure this isn’t a root user
-        if (!$this->checkRootUser()) {
-            return false;
-        }
-
-        return parent::beforeAction($action);
-    }
+    public $router = '@craftcms/bootstrap/router.php';
 }

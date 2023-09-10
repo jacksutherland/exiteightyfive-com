@@ -11,7 +11,9 @@ use Craft;
 use craft\base\ElementAction;
 use craft\elements\db\ElementQuery;
 use craft\elements\db\ElementQueryInterface;
+use craft\elements\db\UserQuery;
 use craft\elements\User;
+use Throwable;
 
 /**
  * SuspendUsers represents a Suspend Users element action.
@@ -32,14 +34,14 @@ class SuspendUsers extends ElementAction
     /**
      * @inheritdoc
      */
-    public function getTriggerHtml()
+    public function getTriggerHtml(): ?string
     {
         Craft::$app->getView()->registerJsWithVars(function($type, $userId) {
             return <<<JS
 (() => {
     new Craft.ElementActionTrigger({
         type: $type,
-        batch: true,
+        bulk: true,
         validateSelection: \$selectedItems => {
             for (let i = 0; i < \$selectedItems.length; i++) {
                 const \$element = \$selectedItems.eq(i).find('.element');
@@ -72,10 +74,7 @@ JS;
     {
         /** @var ElementQuery $query */
         // Get the users that aren't already suspended
-        $query->status = [
-            User::STATUS_ACTIVE,
-            User::STATUS_PENDING,
-        ];
+        $query->status = UserQuery::STATUS_CREDENTIALED;
 
         /** @var User[] $users */
         $users = $query->all();
@@ -85,13 +84,13 @@ JS;
         $successCount = count(array_filter($users, function(User $user) use ($usersService, $currentUser) {
             try {
                 return $usersService->canSuspend($currentUser, $user) && $usersService->suspendUser($user);
-            } catch (\Throwable $e) {
+            } catch (Throwable) {
                 return false;
             }
         }));
 
         if ($successCount !== count($users)) {
-            $this->setMessage(Craft::t('app', 'Could not suspend all users.'));
+            $this->setMessage(Craft::t('app', 'Couldn’t suspend all users.'));
             return false;
         }
 

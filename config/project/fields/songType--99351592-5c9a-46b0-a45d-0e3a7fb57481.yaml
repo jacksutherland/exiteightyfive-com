@@ -1,0 +1,19 @@
+contentColumnType: string
+fieldGroup: 26d71486-d4bc-4845-ba36-080cec8e66c4
+handle: songType
+instructions: ''
+name: 'Song Type'
+searchable: true
+settings:
+  options:
+    -
+      default: '1'
+      label: Cover
+      value: cover
+    -
+      default: ''
+      label: Original
+      value: original
+translationKeyFormat: null
+translationMethod: none
+type: craft\fields\Dropdown

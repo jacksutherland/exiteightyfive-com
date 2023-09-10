@@ -15,10 +15,8 @@ use craft\gql\base\ObjectType;
 use craft\gql\base\SingleGeneratorInterface;
 use craft\gql\GqlEntityRegistry;
 use craft\gql\interfaces\elements\Category as CategoryInterface;
-use craft\gql\TypeManager;
 use craft\gql\types\elements\Category;
 use craft\helpers\Gql as GqlHelper;
-use craft\models\CategoryGroup;
 
 /**
  * Class CategoryType
@@ -31,7 +29,7 @@ class CategoryType extends Generator implements GeneratorInterface, SingleGenera
     /**
      * @inheritdoc
      */
-    public static function generateTypes($context = null): array
+    public static function generateTypes(mixed $context = null): array
     {
         $categoryGroups = Craft::$app->getCategories()->getAllGroups();
         $gqlTypes = [];
@@ -54,18 +52,16 @@ class CategoryType extends Generator implements GeneratorInterface, SingleGenera
     /**
      * @inheritdoc
      */
-    public static function generateType($context): ObjectType
+    public static function generateType(mixed $context): ObjectType
     {
-        /** @var CategoryGroup $categoryGroup */
         $typeName = CategoryElement::gqlTypeNameByContext($context);
-        $contentFieldGqlTypes = self::getContentFields($context);
 
-        $categoryGroupFields = TypeManager::prepareFieldDefinitions(array_merge(CategoryInterface::getFieldDefinitions(), $contentFieldGqlTypes), $typeName);
-
-        return GqlEntityRegistry::getEntity($typeName) ?: GqlEntityRegistry::createEntity($typeName, new Category([
+        return GqlEntityRegistry::getOrCreate($typeName, fn() => new Category([
             'name' => $typeName,
-            'fields' => function() use ($categoryGroupFields) {
-                return $categoryGroupFields;
+            'fields' => function() use ($context, $typeName) {
+                $contentFieldGqlTypes = self::getContentFields($context);
+                $categoryGroupFields = array_merge(CategoryInterface::getFieldDefinitions(), $contentFieldGqlTypes);
+                return Craft::$app->getGql()->prepareFieldDefinitions($categoryGroupFields, $typeName);
             },
         ]));
     }

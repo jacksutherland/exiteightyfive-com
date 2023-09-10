@@ -8,9 +8,11 @@
 namespace craft\services;
 
 use Craft;
+use craft\base\BlockElementInterface;
 use craft\base\ElementInterface;
 use craft\config\GeneralConfig;
 use craft\console\Application as ConsoleApplication;
+use craft\db\Connection;
 use craft\db\Query;
 use craft\db\Table;
 use craft\elements\Asset;
@@ -20,15 +22,19 @@ use craft\elements\GlobalSet;
 use craft\elements\MatrixBlock;
 use craft\elements\Tag;
 use craft\elements\User;
+use craft\errors\FsException;
+use craft\fs\Temp;
 use craft\helpers\Console;
 use craft\helpers\DateTimeHelper;
 use craft\helpers\Db;
 use craft\records\Volume;
 use craft\records\VolumeFolder;
-use craft\volumes\Temp;
 use DateTime;
 use ReflectionMethod;
 use yii\base\Component;
+use yii\base\Exception;
+use yii\base\InvalidConfigException;
+use yii\di\Instance;
 
 /**
  * Garbage Collection service.
@@ -43,7 +49,7 @@ class Gc extends Component
     /**
      * @event Event The event that is triggered when running garbage collection.
      */
-    const EVENT_RUN = 'run';
+    public const EVENT_RUN = 'run';
 
     /**
      * @var int the probability (parts per million) that garbage collection (GC) should be performed
@@ -51,14 +57,35 @@ class Gc extends Component
      *
      * This number should be between 0 and 1000000. A value 0 means no GC will be performed at all unless forced.
      */
-    public $probability = 10;
+    public int $probability = 10;
 
     /**
      * @var bool whether [[hardDelete()]] should delete *all* soft-deleted rows,
      * rather than just the ones that were deleted long enough ago to be ready
-     * for hard-deletion per the <config3:softDeleteDuration> config setting.
+     * for hard-deletion per the <config4:softDeleteDuration> config setting.
      */
-    public $deleteAllTrashed = false;
+    public bool $deleteAllTrashed = false;
+
+    /**
+     * @var Connection|array|string The database connection to use
+     * @since 4.0.0
+     */
+    public string|array|Connection $db = 'db';
+
+    /**
+     * @var GeneralConfig
+     */
+    private GeneralConfig $_generalConfig;
+
+    /**
+     * @inheritdoc
+     */
+    public function init()
+    {
+        $this->db = Instance::ensure($this->db, Connection::class);
+        $this->_generalConfig = Craft::$app->getConfig()->getGeneral();
+        parent::init();
+    }
 
     /**
      * Possibly runs garbage collection.
@@ -66,20 +93,22 @@ class Gc extends Component
      * @param bool $force Whether garbage collection should be forced. If left as `false`, then
      * garbage collection will only run if a random condition passes, factoring in [[probability]].
      */
-    public function run(bool $force = false)
+    public function run(bool $force = false): void
     {
         if (!$force && mt_rand(0, 1000000) >= $this->probability) {
             return;
         }
 
-        $generalConfig = Craft::$app->getConfig()->getGeneral();
-        $this->_purgeUnsavedDrafts($generalConfig);
-        $this->_purgePendingUsers($generalConfig);
-        $this->_deleteStaleSessions($generalConfig);
+        $this->_purgeUnsavedDrafts();
+        $this->_purgePendingUsers();
+        $this->_deleteStaleSessions();
         $this->_deleteStaleAnnouncements();
+        $this->_deleteStaleElementActivity();
+
+        // elements should always go first
+        $this->hardDeleteElements();
 
         $this->hardDelete([
-            Table::ELEMENTS, // elements should always go first
             Table::CATEGORYGROUPS,
             Table::ENTRYTYPES,
             Table::FIELDGROUPS,
@@ -102,8 +131,12 @@ class Gc extends Component
         $this->deletePartialElements(Tag::class, Table::CONTENT, 'elementId');
         $this->deletePartialElements(User::class, Table::CONTENT, 'elementId');
 
+        $this->_deleteUnsupportedSiteEntries();
+
         $this->_deleteOrphanedDraftsAndRevisions();
         $this->_deleteOrphanedSearchIndexes();
+        $this->_deleteOrphanedRelations();
+        $this->_deleteOrphanedStructureElements();
 
         // Fire a 'run' event
         if ($this->hasEventHandlers(self::EVENT_RUN)) {
@@ -127,15 +160,14 @@ class Gc extends Component
     /**
      * Hard delete eligible volumes, deleting the folders one by one to avoid nested dependency errors.
      */
-    public function hardDeleteVolumes()
+    public function hardDeleteVolumes(): void
     {
-        $generalConfig = Craft::$app->getConfig()->getGeneral();
-        if (!$generalConfig->softDeleteDuration && !$this->deleteAllTrashed) {
+        if (!$this->_shouldHardDelete()) {
             return;
         }
 
         $this->_stdout("    > deleting trashed volumes and their folders ... ");
-        $condition = $this->getHardDeleteConditions($generalConfig);
+        $condition = $this->_hardDeleteCondition();
 
         $volumes = (new Query())->select(['id'])->from([Table::VOLUMES])->where($condition)->all();
         $volumeIds = [];
@@ -158,18 +190,87 @@ class Gc extends Component
     }
 
     /**
+     * Hard-deletes eligible elements.
+     *
+     * Any soft-deleted block elements which have revisions will be skipped, as their revisions may still be needed by the owner element.
+     *
+     * @since 4.0.0
+     */
+    public function hardDeleteElements(): void
+    {
+        if (!$this->_shouldHardDelete()) {
+            return;
+        }
+
+        $normalElementTypes = [];
+        $blockElementTypes = [];
+
+        foreach (Craft::$app->getElements()->getAllElementTypes() as $elementType) {
+            if (is_subclass_of($elementType, BlockElementInterface::class)) {
+                $blockElementTypes[] = $elementType;
+            } else {
+                $normalElementTypes[] = $elementType;
+            }
+        }
+
+        $this->_stdout('    > deleting trashed elements ... ');
+
+        if ($normalElementTypes) {
+            Db::delete(Table::ELEMENTS, [
+                'and',
+                $this->_hardDeleteCondition(),
+                ['type' => $normalElementTypes],
+            ]);
+        }
+
+        if ($blockElementTypes) {
+            // Only hard-delete block elements that don't have any revisions
+            $elementsTable = Table::ELEMENTS;
+            $revisionsTable = Table::REVISIONS;
+            $params = [];
+            $conditionSql = $this->db->getQueryBuilder()->buildCondition([
+                'and',
+                $this->_hardDeleteCondition('e'),
+                [
+                    'e.type' => $blockElementTypes,
+                    'r.id' => null,
+                ],
+            ], $params);
+
+            if ($this->db->getIsMysql()) {
+                $sql = <<<SQL
+DELETE [[e]].* FROM $elementsTable [[e]]
+LEFT JOIN $revisionsTable [[r]] ON [[r.canonicalId]] = [[e.id]]
+WHERE $conditionSql
+SQL;
+            } else {
+                $sql = <<<SQL
+DELETE FROM $elementsTable
+USING $elementsTable [[e]]
+LEFT JOIN $revisionsTable [[r]] ON [[r.canonicalId]] = [[e.id]]
+WHERE
+  $elementsTable.[[id]] = [[e.id]] AND $conditionSql
+SQL;
+            }
+
+            $this->db->createCommand($sql, $params)->execute();
+        }
+
+        $this->_stdout("done\n", Console::FG_GREEN);
+    }
+
+    /**
      * Hard-deletes any rows in the given table(s), that are due for it.
      *
      * @param string|string[] $tables The table(s) to delete rows from. They must have a `dateDeleted` column.
      */
-    public function hardDelete($tables)
+    public function hardDelete(array|string $tables): void
     {
-        $generalConfig = Craft::$app->getConfig()->getGeneral();
-        if (!$generalConfig->softDeleteDuration && !$this->deleteAllTrashed) {
+        if (!$this->_shouldHardDelete()) {
             return;
         }
 
-        $condition = $this->getHardDeleteConditions($generalConfig);
+        $condition = $this->_hardDeleteCondition();
 
         if (!is_array($tables)) {
             $tables = [$tables];
@@ -186,6 +287,7 @@ class Gc extends Component
      * Deletes elements that are missing data in the given element extension table.
      *
      * @param string $elementType The element type
+     * @phpstan-param class-string<ElementInterface> $elementType
      * @param string $table The extension table name
      * @param string $fk The column name that contains the foreign key to `elements.id`
      * @since 3.6.6
@@ -194,10 +296,10 @@ class Gc extends Component
     {
         /** @var string|ElementInterface $elementType */
         $this->_stdout(sprintf('    > deleting partial %s data in the `%s` table ... ', $elementType::lowerDisplayName(), $table));
-        $db = Craft::$app->getDb();
+
         $elementsTable = Table::ELEMENTS;
 
-        if ($db->getIsMysql()) {
+        if ($this->db->getIsMysql()) {
             $sql = <<<SQL
 DELETE [[e]].* FROM $elementsTable [[e]]
 LEFT JOIN $table [[t]] ON [[t.$fk]] = [[e.id]]
@@ -217,13 +319,13 @@ WHERE
 SQL;
         }
 
-        $db->createCommand($sql, ['type' => $elementType])->execute();
+        $this->db->createCommand($sql, ['type' => $elementType])->execute();
         $this->_stdout("done\n", Console::FG_GREEN);
     }
 
-    private function _purgeUnsavedDrafts(GeneralConfig $generalConfig)
+    private function _purgeUnsavedDrafts()
     {
-        if ($generalConfig->purgeUnsavedDraftsDuration === 0) {
+        if ($this->_generalConfig->purgeUnsavedDraftsDuration === 0) {
             return;
         }
 
@@ -232,9 +334,9 @@ SQL;
         $this->_stdout("done\n", Console::FG_GREEN);
     }
 
-    private function _purgePendingUsers(GeneralConfig $generalConfig)
+    private function _purgePendingUsers()
     {
-        if ($generalConfig->purgePendingUsersDuration === 0) {
+        if ($this->_generalConfig->purgePendingUsersDuration === 0) {
             return;
         }
 
@@ -244,9 +346,12 @@ SQL;
     }
 
     /**
-     * Removes any temp upload folders with no assets in them.
+     * Find all temp upload folders with no assets in them and remove them.
      *
-     * @since 3.7.53
+     * @throws FsException
+     * @throws Exception
+     * @throws InvalidConfigException
+     * @since 4.0.0
      */
     public function removeEmptyTempFolders(): void
     {
@@ -264,11 +369,11 @@ SQL;
             ->andWhere(['not', ['folders.path' => null]])
             ->pairs();
 
-        $volume = Craft::createObject(Temp::class);
+        $fs = Craft::createObject(Temp::class);
 
         foreach ($emptyFolders as $emptyFolderPath) {
-            if ($volume->directoryExists($emptyFolderPath)) {
-                $volume->deleteDirectory($emptyFolderPath);
+            if ($fs->directoryExists($emptyFolderPath)) {
+                $fs->deleteDirectory($emptyFolderPath);
             }
         }
 
@@ -277,16 +382,26 @@ SQL;
     }
 
     /**
+     * Returns whether we should be hard-deleting soft-deleted objects.
+     *
+     * @return bool
+     */
+    private function _shouldHardDelete(): bool
+    {
+        return $this->_generalConfig->softDeleteDuration || $this->deleteAllTrashed;
+    }
+
+    /**
      * Deletes any session rows that have gone stale.
      */
-    private function _deleteStaleSessions(GeneralConfig $generalConfig)
+    private function _deleteStaleSessions(): void
     {
-        if ($generalConfig->purgeStaleUserSessionDuration === 0) {
+        if ($this->_generalConfig->purgeStaleUserSessionDuration === 0) {
             return;
         }
 
         $this->_stdout('    > deleting stale user sessions ... ');
-        $interval = DateTimeHelper::secondsToInterval($generalConfig->purgeStaleUserSessionDuration);
+        $interval = DateTimeHelper::secondsToInterval($this->_generalConfig->purgeStaleUserSessionDuration);
         $expire = DateTimeHelper::currentUTCDateTime();
         $pastTime = $expire->sub($interval);
         Db::delete(Table::SESSIONS, ['<', 'dateUpdated', Db::prepareDateForDb($pastTime)]);
@@ -303,6 +418,71 @@ SQL;
         $this->_stdout("done\n", Console::FG_GREEN);
     }
 
+    /**
+     * Deletes any stale element activity logs.
+     */
+    private function _deleteStaleElementActivity(): void
+    {
+        $this->_stdout('    > deleting stale element activity records ... ');
+        Db::delete(Table::ELEMENTACTIVITY, ['<', 'timestamp', Db::prepareDateForDb(new DateTime('1 minute ago'))]);
+        $this->_stdout("done\n", Console::FG_GREEN);
+    }
+
+    /**
+     * Deletes entries for sites that aren’t enabled by their section.
+     *
+     * This can happen if you entrify a category group, disable one of the sites in the newly-created section’s
+     * settings, then deploy those changes to another environment, apply project config changes, and re-run the
+     * entrify command. (https://github.com/craftcms/cms/issues/13383)
+     */
+    private function _deleteUnsupportedSiteEntries(): void
+    {
+        $this->_stdout('    > deleting entries in unsupported sites ... ');
+
+        $sectionsToCheck = [];
+        $siteIds = Craft::$app->getSites()->getAllSiteIds(true);
+
+        // get sections that are not enabled for given site
+        foreach (Craft::$app->getSections()->getAllSections() as $section) {
+            $sectionSettings = $section->getSiteSettings();
+            foreach ($siteIds as $siteId) {
+                if (!isset($sectionSettings[$siteId])) {
+                    $sectionsToCheck[] = [
+                        'siteId' => $siteId,
+                        'sectionId' => $section->id,
+                    ];
+                }
+            }
+        }
+
+        if (!empty($sectionsToCheck)) {
+            $elementsSitesTable = Table::ELEMENTS_SITES;
+            $entriesTable = Table::ENTRIES;
+
+            if ($this->db->getIsMysql()) {
+                $sql = <<<SQL
+    DELETE [[es]].* FROM $elementsSitesTable [[es]]
+    LEFT JOIN $entriesTable [[en]] ON [[en.id]] = [[es.elementId]]
+    WHERE [[en.sectionId]] = :sectionId AND [[es.siteId]] = :siteId
+    SQL;
+            } else {
+                $sql = <<<SQL
+    DELETE FROM $elementsSitesTable
+    USING $elementsSitesTable [[es]]
+    LEFT JOIN $entriesTable [[en]] ON [[en.id]] = [[es.elementId]]
+    WHERE
+      $elementsSitesTable.[[id]] = [[es.id]] AND
+      [[en.sectionId]] = :sectionId AND [[es.siteId]] = :siteId
+    SQL;
+            }
+
+            foreach ($sectionsToCheck as $params) {
+                $this->db->createCommand($sql, $params)->execute();
+            }
+        }
+
+        $this->_stdout("done\n", Console::FG_GREEN);
+    }
 
     /**
      * Deletes any orphaned rows in the `drafts` and `revisions` tables.
@@ -310,11 +490,11 @@ SQL;
     private function _deleteOrphanedDraftsAndRevisions(): void
     {
         $this->_stdout('    > deleting orphaned drafts and revisions ... ');
-        $db = Craft::$app->getDb();
+
         $elementsTable = Table::ELEMENTS;
 
         foreach (['draftId' => Table::DRAFTS, 'revisionId' => Table::REVISIONS] as $fk => $table) {
-            if ($db->getIsMysql()) {
+            if ($this->db->getIsMysql()) {
                 $sql = <<<SQL
 DELETE [[t]].* FROM $table [[t]]
 LEFT JOIN $elementsTable [[e]] ON [[e.$fk]] = [[t.id]]
@@ -331,7 +511,7 @@ WHERE
 SQL;
             }
 
-            $db->createCommand($sql)->execute();
+            $this->db->createCommand($sql)->execute();
         }
 
         $this->_stdout("done\n", Console::FG_GREEN);
@@ -341,6 +521,61 @@ SQL;
     {
         $this->_stdout('    > deleting orphaned search indexes ... ');
         Craft::$app->getSearch()->deleteOrphanedIndexes();
+        $this->_stdout("done\n", Console::FG_GREEN);
+    }
+
+    private function _deleteOrphanedRelations(): void
+    {
+        $this->_stdout('    > deleting orphaned relations ... ');
+        $relationsTable = Table::RELATIONS;
+        $elementsTable = Table::ELEMENTS;
+
+        if ($this->db->getIsMysql()) {
+            $sql = <<<SQL
+DELETE [[r]].* FROM $relationsTable [[r]]
+LEFT JOIN $elementsTable [[e]] ON [[e.id]] = [[r.targetId]]
+WHERE [[e.id]] IS NULL
+SQL;
+        } else {
+            $sql = <<<SQL
+DELETE FROM $relationsTable
+USING $relationsTable [[r]]
+LEFT JOIN $elementsTable [[e]] ON [[e.id]] = [[r.targetId]]
+WHERE
+  $relationsTable.[[id]] = [[r.id]] AND
+  [[e.id]] IS NULL
+SQL;
+        }
+
+        $this->db->createCommand($sql)->execute();
+        $this->_stdout("done\n", Console::FG_GREEN);
+    }
+
+    private function _deleteOrphanedStructureElements(): void
+    {
+        $this->_stdout('    > deleting orphaned structure elements ... ');
+        $structureElementsTable = Table::STRUCTUREELEMENTS;
+        $elementsTable = Table::ELEMENTS;
+
+        if ($this->db->getIsMysql()) {
+            $sql = <<<SQL
+DELETE [[se]].* FROM $structureElementsTable [[se]]
+LEFT JOIN $elementsTable [[e]] ON [[e.id]] = [[se.elementId]]
+WHERE [[se.elementId]] IS NOT NULL AND [[e.id]] IS NULL
+SQL;
+        } else {
+            $sql = <<<SQL
+DELETE FROM $structureElementsTable
+USING $structureElementsTable [[se]]
+LEFT JOIN $elementsTable [[e]] ON [[e.id]] = [[se.elementId]]
+WHERE
+  $structureElementsTable.[[id]] = [[se.id]] AND
+  [[se.elementId]] IS NOT NULL AND
+  [[e.id]] IS NULL
+SQL;
+        }
+
+        $this->db->createCommand($sql)->execute();
         $this->_stdout("done\n", Console::FG_GREEN);
     }
 
@@ -381,23 +616,25 @@ SQL;
     }
 
     /**
-     * @param GeneralConfig $generalConfig
+     * @param string|null $tableAlias
      * @return array
      */
-    protected function getHardDeleteConditions(GeneralConfig $generalConfig): array
+    private function _hardDeleteCondition(?string $tableAlias = null): array
     {
-        $condition = ['not', ['dateDeleted' => null]];
+        $tableAlias = $tableAlias ? "$tableAlias." : '';
+        $condition = ['not', ["{$tableAlias}dateDeleted" => null]];
 
         if (!$this->deleteAllTrashed) {
             $expire = DateTimeHelper::currentUTCDateTime();
-            $interval = DateTimeHelper::secondsToInterval($generalConfig->softDeleteDuration);
+            $interval = DateTimeHelper::secondsToInterval($this->_generalConfig->softDeleteDuration);
             $pastTime = $expire->sub($interval);
             $condition = [
                 'and',
                 $condition,
-                ['<', 'dateDeleted', Db::prepareDateForDb($pastTime)],
+                ['<', "{$tableAlias}dateDeleted", Db::prepareDateForDb($pastTime)],
             ];
         }
+
         return $condition;
     }
 

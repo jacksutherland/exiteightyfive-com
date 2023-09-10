@@ -17,11 +17,12 @@ use craft\elements\db\MatrixBlockQuery;
 use craft\fields\Matrix;
 use craft\helpers\ArrayHelper;
 use craft\helpers\Db;
+use craft\models\FieldLayout;
 use craft\models\MatrixBlockType;
 use craft\models\MatrixBlockType as MatrixBlockTypeModel;
 use craft\records\MatrixBlock as MatrixBlockRecord;
 use craft\web\assets\matrix\MatrixAsset;
-use yii\base\Exception;
+use Illuminate\Support\Collection;
 use yii\base\InvalidConfigException;
 
 /**
@@ -69,7 +70,7 @@ class MatrixBlock extends Element implements BlockElementInterface
     /**
      * @inheritdoc
      */
-    public static function refHandle()
+    public static function refHandle(): ?string
     {
         return 'matrixblock';
     }
@@ -110,7 +111,7 @@ class MatrixBlock extends Element implements BlockElementInterface
      * @inheritdoc
      * @return MatrixBlockQuery The newly created [[MatrixBlockQuery]] instance.
      */
-    public static function find(): ElementQueryInterface
+    public static function find(): MatrixBlockQuery
     {
         return new MatrixBlockQuery(static::class);
     }
@@ -118,7 +119,7 @@ class MatrixBlock extends Element implements BlockElementInterface
     /**
      * @inheritdoc
      */
-    public static function eagerLoadingMap(array $sourceElements, string $handle)
+    public static function eagerLoadingMap(array $sourceElements, string $handle): array|null|false
     {
         // $handle *must* be set as "blockTypeHandle:fieldHandle" so we know _which_ myRelationalField to resolve to
         $handleParts = explode(':', $handle);
@@ -156,7 +157,7 @@ class MatrixBlock extends Element implements BlockElementInterface
      * @inheritdoc
      * @since 3.3.0
      */
-    public static function gqlTypeNameByContext($context): string
+    public static function gqlTypeNameByContext(mixed $context): string
     {
         /** @var MatrixBlockTypeModel $context */
         return $context->getField()->handle . '_' . $context->handle . '_BlockType';
@@ -165,61 +166,67 @@ class MatrixBlock extends Element implements BlockElementInterface
     /**
      * @var int|null Field ID
      */
-    public $fieldId;
+    public ?int $fieldId = null;
+
+    /**
+     * @var int|null Primary owner ID
+     * @since 4.0.0
+     */
+    public ?int $primaryOwnerId = null;
 
     /**
      * @var int|null Owner ID
      */
-    public $ownerId;
-
-    /**
-     * @var int|null Owner site ID
-     * @deprecated in 3.2.0. Use [[$siteId]] instead.
-     */
-    public $ownerSiteId;
+    public ?int $ownerId = null;
 
     /**
      * @var int|null Type ID
      */
-    public $typeId;
+    public ?int $typeId = null;
 
     /**
      * @var int|null Sort order
      */
-    public $sortOrder;
+    public ?int $sortOrder = null;
 
     /**
      * @var bool Whether the block has changed.
      * @internal
      * @since 3.4.0
      */
-    public $dirty = false;
+    public bool $dirty = false;
 
     /**
      * @var bool Collapsed
      */
-    public $collapsed = false;
+    public bool $collapsed = false;
 
     /**
      * @var bool Whether the block was deleted along with its owner
      * @see beforeDelete()
      */
-    public $deletedWithOwner = false;
+    public bool $deletedWithOwner = false;
+
+    /**
+     * @var bool Whether to save the block’s row in the `matrixblocks_owners` table in [[afterSave()]].
+     * @since 4.0.0
+     */
+    public bool $saveOwnership = true;
 
     /**
      * @var ElementInterface|null The owner element, or false if [[ownerId]] is invalid
      */
-    private $_owner;
+    private ?ElementInterface $_owner = null;
 
     /**
      * @var ElementInterface[]|null
      */
-    private $_eagerLoadedBlockTypeElements;
+    private ?array $_eagerLoadedBlockTypeElements = null;
 
     /**
      * @inheritdoc
      */
-    public function attributes()
+    public function attributes(): array
     {
         $names = parent::attributes();
         $names[] = 'owner';
@@ -229,7 +236,7 @@ class MatrixBlock extends Element implements BlockElementInterface
     /**
      * @inheritdoc
      */
-    public function extraFields()
+    public function extraFields(): array
     {
         $names = parent::extraFields();
         $names[] = 'owner';
@@ -243,7 +250,7 @@ class MatrixBlock extends Element implements BlockElementInterface
     protected function defineRules(): array
     {
         $rules = parent::defineRules();
-        $rules[] = [['fieldId', 'ownerId', 'typeId', 'sortOrder'], 'number', 'integerOnly' => true];
+        $rules[] = [['fieldId', 'primaryOwnerId', 'typeId', 'sortOrder'], 'number', 'integerOnly' => true];
         return $rules;
     }
 
@@ -254,7 +261,7 @@ class MatrixBlock extends Element implements BlockElementInterface
     {
         try {
             $owner = $this->getOwner();
-        } catch (InvalidConfigException $e) {
+        } catch (InvalidConfigException) {
             $owner = $this->duplicateOf;
         }
 
@@ -270,19 +277,34 @@ class MatrixBlock extends Element implements BlockElementInterface
      * @inheritdoc
      * @since 3.5.0
      */
-    public function getCacheTags(): array
+    protected function cacheTags(): array
     {
         return [
-            "field-owner:$this->fieldId-$this->ownerId",
+            "field-owner:$this->fieldId-$this->primaryOwnerId",
             "field:$this->fieldId",
-            "owner:$this->ownerId",
+            "owner:$this->primaryOwnerId",
         ];
     }
 
     /**
      * @inheritdoc
      */
-    public function getFieldLayout()
+    public function getLocalized(): ElementQueryInterface|Collection
+    {
+        $query = parent::getLocalized();
+
+        if ($query instanceof MatrixBlockQuery && $this->ownerId !== null) {
+            // Maintain the same ownerId for queried blocks
+            $query->ownerId($this->ownerId);
+        }
+
+        return $query;
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function getFieldLayout(): ?FieldLayout
     {
         return parent::getFieldLayout() ?? $this->getType()->getFieldLayout();
     }
@@ -295,7 +317,7 @@ class MatrixBlock extends Element implements BlockElementInterface
      */
     public function getType(): MatrixBlockType
     {
-        if ($this->typeId === null) {
+        if (!isset($this->typeId)) {
             throw new InvalidConfigException('Matrix block is missing its type ID');
         }
 
@@ -308,11 +330,13 @@ class MatrixBlock extends Element implements BlockElementInterface
         return $blockType;
     }
 
-    /** @inheritdoc */
+    /**
+     * @inheritdoc
+     */
     public function getOwner(): ElementInterface
     {
-        if ($this->_owner === null) {
-            if ($this->ownerId === null) {
+        if (!isset($this->_owner)) {
+            if (!isset($this->ownerId)) {
                 throw new InvalidConfigException('Matrix block is missing its owner ID');
             }
 
@@ -329,9 +353,10 @@ class MatrixBlock extends Element implements BlockElementInterface
      *
      * @param ElementInterface|null $owner
      */
-    public function setOwner(ElementInterface $owner = null)
+    public function setOwner(?ElementInterface $owner = null): void
     {
         $this->_owner = $owner;
+        $this->ownerId = $owner?->id;
     }
 
     /**
@@ -351,7 +376,7 @@ class MatrixBlock extends Element implements BlockElementInterface
     }
 
     /**
-     * Returns the field context this element's content uses.
+     * Returns the field context this element’s content uses.
      *
      * @return string
      */
@@ -378,13 +403,13 @@ class MatrixBlock extends Element implements BlockElementInterface
     /**
      * @inheritdoc
      */
-    public function getEagerLoadedElements(string $handle)
+    public function getEagerLoadedElements(string $handle): ?Collection
     {
         // See if we have this stored with a block type-specific handle
         $blockTypeHandle = $this->getType()->handle . ':' . $handle;
 
         if (isset($this->_eagerLoadedBlockTypeElements[$blockTypeHandle])) {
-            return $this->_eagerLoadedBlockTypeElements[$blockTypeHandle];
+            return ElementCollection::make($this->_eagerLoadedBlockTypeElements[$blockTypeHandle]);
         }
 
         return parent::getEagerLoadedElements($handle);
@@ -393,11 +418,11 @@ class MatrixBlock extends Element implements BlockElementInterface
     /**
      * @inheritdoc
      */
-    public function setEagerLoadedElements(string $handle, array $elements)
+    public function setEagerLoadedElements(string $handle, array $elements): void
     {
         // See if this was eager-loaded with a block type-specific handle
         $blockTypeHandlePrefix = $this->getType()->handle . ':';
-        if (strpos($handle, $blockTypeHandlePrefix) === 0) {
+        if (str_starts_with($handle, $blockTypeHandlePrefix)) {
             $this->_eagerLoadedBlockTypeElements[$handle] = $elements;
         } else {
             parent::setEagerLoadedElements($handle, $elements);
@@ -419,28 +444,60 @@ class MatrixBlock extends Element implements BlockElementInterface
 
     /**
      * @inheritdoc
-     * @throws Exception if reasons
      */
-    public function afterSave(bool $isNew)
+    public function beforeSave(bool $isNew): bool
+    {
+        if (!$this->primaryOwnerId && !$this->ownerId) {
+            throw new InvalidConfigException('No owner ID assigned to the Matrix block.');
+        }
+
+        return parent::beforeSave($isNew);
+    }
+
+    /**
+     * @inheritdoc
+     * @throws InvalidConfigException
+     */
+    public function afterSave(bool $isNew): void
     {
         if (!$this->propagating) {
+            $this->primaryOwnerId = $this->primaryOwnerId ?? $this->ownerId;
+            $this->ownerId = $this->ownerId ?? $this->primaryOwnerId;
+
             // Get the block record
             if (!$isNew) {
                 $record = MatrixBlockRecord::findOne($this->id);
 
                 if (!$record) {
-                    throw new Exception('Invalid Matrix block ID: ' . $this->id);
+                    throw new InvalidConfigException("Invalid Matrix block ID: $this->id");
                 }
             } else {
                 $record = new MatrixBlockRecord();
                 $record->id = (int)$this->id;
             }
 
-            $record->fieldId = (int)$this->fieldId;
-            $record->ownerId = (int)$this->ownerId;
-            $record->typeId = (int)$this->typeId;
-            $record->sortOrder = (int)$this->sortOrder ?: null;
+            $record->fieldId = $this->fieldId;
+            $record->primaryOwnerId = $this->primaryOwnerId ?? $this->ownerId;
+            $record->typeId = $this->typeId;
             $record->save(false);
+
+            // ownerId will be null when creating a revision
+            if ($this->saveOwnership) {
+                if ($isNew) {
+                    Db::insert(Table::MATRIXBLOCKS_OWNERS, [
+                        'blockId' => $this->id,
+                        'ownerId' => $this->ownerId,
+                        'sortOrder' => $this->sortOrder ?? 0,
+                    ]);
+                } else {
+                    Db::update(Table::MATRIXBLOCKS_OWNERS, [
+                        'sortOrder' => $this->sortOrder ?? 0,
+                    ], [
+                        'blockId' => $this->id,
+                        'ownerId' => $this->ownerId,
+                    ]);
+                }
+            }
         }
 
         parent::afterSave($isNew);
@@ -468,7 +525,7 @@ class MatrixBlock extends Element implements BlockElementInterface
     /**
      * @inheritdoc
      */
-    public function afterDelete()
+    public function afterDelete(): void
     {
         if (Craft::$app->getRequest()->getIsCpRequest() && !Craft::$app->getResponse()->isSent) {
             // Tell the browser to forget about this block
@@ -488,6 +545,7 @@ class MatrixBlock extends Element implements BlockElementInterface
     private function _field(): Matrix
     {
         /** @noinspection PhpIncompatibleReturnTypeInspection */
+        /** @phpstan-ignore-next-line */
         return Craft::$app->getFields()->getFieldById($this->fieldId);
     }
 }

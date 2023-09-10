@@ -7,7 +7,8 @@
 
 namespace craft\errors;
 
-use yii\base\Exception;
+use Throwable;
+use yii\base\UserException;
 use yii\db\Migration;
 
 /**
@@ -16,17 +17,17 @@ use yii\db\Migration;
  * @author Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @since 3.0.0
  */
-class MigrationException extends Exception
+class MigrationException extends UserException
 {
     /**
      * @var Migration The migration being executed
      */
-    public $migration;
+    public Migration $migration;
 
     /**
      * @var string|null The migration output
      */
-    public $output;
+    public ?string $output = null;
 
     /**
      * Constructor.
@@ -35,9 +36,9 @@ class MigrationException extends Exception
      * @param string|null $output The migration output
      * @param string|null $message The error message
      * @param int $code The error code
-     * @param \Throwable|null $previous The previous exception
+     * @param Throwable|null $previous The previous exception
      */
-    public function __construct(Migration $migration, string $output = null, string $message = null, int $code = 0, \Throwable $previous = null)
+    public function __construct(Migration $migration, ?string $output = null, ?string $message = null, int $code = 0, ?Throwable $previous = null)
     {
         $this->migration = $migration;
         $this->output = $output;

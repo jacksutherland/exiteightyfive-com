@@ -9,6 +9,7 @@ namespace craft\gql\resolvers\mutations;
 
 use Craft;
 use craft\base\Element;
+use craft\behaviors\DraftBehavior;
 use craft\db\Table;
 use craft\elements\db\EntryQuery;
 use craft\elements\Entry as EntryElement;
@@ -17,8 +18,11 @@ use craft\gql\base\StructureMutationTrait;
 use craft\helpers\Db;
 use craft\models\EntryType;
 use craft\models\Section;
+use Exception;
 use GraphQL\Error\Error;
 use GraphQL\Type\Definition\ResolveInfo;
+use Throwable;
+use yii\base\InvalidConfigException;
 
 /**
  * Class Entry
@@ -31,21 +35,44 @@ class Entry extends ElementMutationResolver
     use StructureMutationTrait;
 
     /** @inheritdoc */
-    protected $immutableAttributes = ['id', 'uid', 'draftId'];
+    protected array $immutableAttributes = ['id', 'uid', 'draftId'];
 
     /**
      * Save an entry or draft using the passed arguments.
      *
-     * @param $source
+     * @param mixed $source
      * @param array $arguments
-     * @param $context
+     * @param mixed $context
      * @param ResolveInfo $resolveInfo
-     * @return mixed
-     * @throws \Throwable if reasons.
+     * @return EntryElement
+     * @throws Throwable if reasons.
      */
-    public function saveEntry($source, array $arguments, $context, ResolveInfo $resolveInfo)
+    public function saveEntry(mixed $source, array $arguments, mixed $context, ResolveInfo $resolveInfo): EntryElement
     {
         $entry = $this->getEntryElement($arguments);
+
+        // If saving an entry for a site and the enabled status is provided, honor it.
+        if (array_key_exists('enabled', $arguments)) {
+            try {
+                $showStatusField = $entry->getType()->showStatusField;
+            } catch (InvalidConfigException) {
+                $showStatusField = true;
+            }
+
+            if ($showStatusField) {
+                if (!empty($arguments['siteId'])) {
+                    $entry->setEnabledForSite([$arguments['siteId'] => $arguments['enabled']]);
+                    // Set the global status to true if it's currently disabled,
+                    // and we're enabling entry for a site
+                    if ($arguments['enabled'] && !$entry->enabled) {
+                        $entry->enabled = $arguments['enabled'];
+                    }
+                } else {
+                    $entry->enabled = $arguments['enabled'];
+                }
+            }
+            unset($arguments['enabled']);
+        }
 
         // TODO refactor saving draft to its own method in 4.0
         if (array_key_exists('draftId', $arguments)) {
@@ -61,7 +88,7 @@ class Entry extends ElementMutationResolver
         /** @var EntryQuery $query */
         $query = Craft::$app->getElements()->createElementQuery(EntryElement::class)
             ->siteId($entry->siteId)
-            ->anyStatus();
+            ->status(null);
 
         // Refresh data from the DB
         if ($canIdentify) {
@@ -76,63 +103,62 @@ class Entry extends ElementMutationResolver
     /**
      * Delete an entry identified by the passed arguments.
      *
-     * @param $source
+     * @param mixed $source
      * @param array $arguments
-     * @param $context
+     * @param mixed $context
      * @param ResolveInfo $resolveInfo
-     * @return mixed
-     * @throws \Throwable if reasons.
+     * @throws Throwable if reasons.
      */
-    public function deleteEntry($source, array $arguments, $context, ResolveInfo $resolveInfo)
+    public function deleteEntry(mixed $source, array $arguments, mixed $context, ResolveInfo $resolveInfo): void
     {
         $entryId = $arguments['id'];
         $siteId = $arguments['siteId'] ?? null;
 
         $elementService = Craft::$app->getElements();
+        /** @var EntryElement|null $entry */
         $entry = $elementService->getElementById($entryId, EntryElement::class, $siteId);
 
         if (!$entry) {
-            return true;
+            return;
         }
 
-        $entryTypeUid = Db::uidById(Table::ENTRYTYPES, $entry->typeId);
+        $entryTypeUid = Db::uidById(Table::ENTRYTYPES, $entry->getTypeId());
         $this->requireSchemaAction('entrytypes.' . $entryTypeUid, 'delete');
 
         $elementService->deleteElementById($entryId);
-
-        return true;
     }
 
     /**
-     * Create a new draft for the entry id identified by the arguments
+     * Create a new draft for the entry ID identified by the arguments
      *
-     * @param $source
+     * @param mixed $source
      * @param array $arguments
-     * @param $context
+     * @param mixed $context
      * @param ResolveInfo $resolveInfo
      * @return mixed
-     * @throws \Throwable if reasons.
+     * @throws Throwable if reasons.
      */
-    public function createDraft($source, array $arguments, $context, ResolveInfo $resolveInfo)
+    public function createDraft(mixed $source, array $arguments, mixed $context, ResolveInfo $resolveInfo): mixed
     {
         $entryId = $arguments['id'];
 
-        /** @var EntryElement $entry */
+        /** @var EntryElement|null $entry */
         $entry = Craft::$app->getElements()->getElementById($entryId, EntryElement::class);
 
         if (!$entry) {
             throw new Error('Unable to perform the action.');
         }
 
-        $entryTypeUid = Db::uidById(Table::ENTRYTYPES, $entry->typeId);
+        $entryTypeUid = Db::uidById(Table::ENTRYTYPES, $entry->getTypeId());
         $this->requireSchemaAction('entrytypes.' . $entryTypeUid, 'save');
 
         $draftName = $arguments['name'] ?? '';
         $draftNotes = $arguments['notes'] ?? '';
         $provisional = $arguments['provisional'] ?? false;
+        $creatorId = $arguments['creatorId'] ?? null;
 
-        /** @var Entry $draft */
-        $draft = Craft::$app->getDrafts()->createDraft($entry, $entry->authorId, $draftName, $draftNotes, [], $provisional);
+        /** @var EntryElement|DraftBehavior $draft */
+        $draft = Craft::$app->getDrafts()->createDraft($entry, $creatorId ?? $entry->getAuthorId(), $draftName, $draftNotes, [], $provisional);
 
         return $draft->draftId;
     }
@@ -140,29 +166,31 @@ class Entry extends ElementMutationResolver
     /**
      * Publish a draft identified by the arguments.
      *
-     * @param $source
+     * @param mixed $source
      * @param array $arguments
-     * @param $context
+     * @param mixed $context
      * @param ResolveInfo $resolveInfo
-     * @return mixed
-     * @throws \Throwable if reasons.
+     * @return int
+     * @throws Throwable if reasons.
      */
-    public function publishDraft($source, array $arguments, $context, ResolveInfo $resolveInfo)
+    public function publishDraft(mixed $source, array $arguments, mixed $context, ResolveInfo $resolveInfo): int
     {
+        /** @var EntryElement|DraftBehavior|null $draft */
         $draft = Craft::$app->getElements()
             ->createElementQuery(EntryElement::class)
-            ->anyStatus()
+            ->status(null)
             ->provisionalDrafts($arguments['provisional'] ?? false)
-            ->draftId($arguments['id'])->one();
+            ->draftId($arguments['id'])
+            ->one();
 
         if (!$draft) {
             throw new Error('Unable to perform the action.');
         }
 
-        $entryTypeUid = Db::uidById(Table::ENTRYTYPES, $draft->typeId);
+        $entryTypeUid = Db::uidById(Table::ENTRYTYPES, $draft->getTypeId());
         $this->requireSchemaAction('entrytypes.' . $entryTypeUid, 'save');
 
-        /** @var Entry $draft */
+        /** @var EntryElement $draft */
         $draft = Craft::$app->getDrafts()->applyDraft($draft);
 
         return $draft->id;
@@ -173,16 +201,14 @@ class Entry extends ElementMutationResolver
      *
      * @param array $arguments
      * @return EntryElement
-     * @throws \Exception if reasons
+     * @throws Exception if reasons
      */
     protected function getEntryElement(array $arguments): EntryElement
     {
         /** @var Section $section */
-        /** @var EntryType $entryType */
         $section = $this->getResolutionData('section');
+        /** @var EntryType $entryType */
         $entryType = $this->getResolutionData('entryType');
-
-        $entry = null;
 
         // Figure out whether the mutation is about an already saved entry
         $canIdentify = $section->type === Section::TYPE_SINGLE || !empty($arguments['id']) || !empty($arguments['uid']) || !empty($arguments['draftId']);
@@ -195,7 +221,8 @@ class Entry extends ElementMutationResolver
         if ($canIdentify) {
             // Prepare the element query
             $siteId = $arguments['siteId'] ?? Craft::$app->getSites()->getPrimarySite()->id;
-            $entryQuery = $elementService->createElementQuery(EntryElement::class)->anyStatus()->siteId($siteId);
+            /** @var EntryQuery $entryQuery */
+            $entryQuery = $elementService->createElementQuery(EntryElement::class)->status(null)->siteId($siteId);
             $entryQuery = $this->identifyEntry($entryQuery, $arguments);
 
             $entry = $entryQuery->one();
@@ -207,18 +234,19 @@ class Entry extends ElementMutationResolver
             $entry = $elementService->createElement(EntryElement::class);
         }
 
-        // If they are identifying a specific entry, don't allow changing the section id.
+        // If they are identifying a specific entry, don't allow changing the section ID.
         if ($canIdentify && $entry->sectionId !== $section->id) {
             throw new Error('Impossible to change the section of an existing entry');
         }
 
-        // Null the field layout id in case the entry type changes.
-        if ($entry->typeId != $entryType->id) {
+        $entry->sectionId = $section->id;
+
+        // Null the field layout ID in case the entry type changes.
+        if ($entry->getTypeId() !== $entryType->id) {
             $entry->fieldLayoutId = null;
         }
 
-        $entry->sectionId = $section->id;
-        $entry->typeId = $entryType->id;
+        $entry->setTypeId($entryType->id);
 
         return $entry;
     }
@@ -233,8 +261,8 @@ class Entry extends ElementMutationResolver
     protected function identifyEntry(EntryQuery $entryQuery, array $arguments): EntryQuery
     {
         /** @var Section $section */
-        /** @var EntryType $entryType */
         $section = $this->getResolutionData('section');
+        /** @var EntryType $entryType */
         $entryType = $this->getResolutionData('entryType');
 
         if (!empty($arguments['draftId'])) {

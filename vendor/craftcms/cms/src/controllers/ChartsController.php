@@ -10,9 +10,12 @@ namespace craft\controllers;
 use Craft;
 use craft\db\Query;
 use craft\db\Table;
+use craft\elements\User;
 use craft\helpers\ChartHelper;
 use craft\helpers\DateTimeHelper;
 use craft\web\Controller;
+use DateTime;
+use DateTimeZone;
 use yii\base\Exception;
 use yii\base\Response;
 
@@ -34,7 +37,7 @@ class ChartsController extends Controller
      */
     public function actionGetNewUsersData(): Response
     {
-        $userGroupId = $this->request->getRequiredBodyParam('userGroupId');
+        $userGroupId = $this->request->getBodyParam('userGroupId');
         $startDateParam = $this->request->getRequiredBodyParam('startDate');
         $endDateParam = $this->request->getRequiredBodyParam('endDate');
 
@@ -46,9 +49,9 @@ class ChartsController extends Controller
         }
 
         // Start at midnight on the start date, end at midnight after the end date
-        $timeZone = new \DateTimeZone(Craft::$app->getTimeZone());
-        $startDate = new \DateTime($startDate->format('Y-m-d'), $timeZone);
-        $endDate = new \DateTime($endDate->modify('+1 day')->format('Y-m-d'), $timeZone);
+        $timeZone = new DateTimeZone(Craft::$app->getTimeZone());
+        $startDate = new DateTime($startDate->format('Y-m-d'), $timeZone);
+        $endDate = new DateTime($endDate->modify('+1 day')->format('Y-m-d'), $timeZone);
 
         $intervalUnit = 'day';
 
@@ -64,7 +67,9 @@ class ChartsController extends Controller
         // Get the chart data table
         $dataTable = ChartHelper::getRunChartDataFromQuery($query, $startDate, $endDate, 'users.dateCreated', 'count', '*', [
             'intervalUnit' => $intervalUnit,
-            'valueLabel' => Craft::t('app', 'New Users'),
+            'valueLabel' => Craft::t('app', 'New {type}', [
+                'type' => User::pluralDisplayName(),
+            ]),
         ]);
 
         // Get the total number of new users
