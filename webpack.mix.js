@@ -17,3 +17,21 @@ mix.setPublicPath('./web')
 })
 .version()
 .disableNotifications()
+
+
+//*** NEW PAGES WEBSITE ***//
+
+mix.setPublicPath('./web')
+.sass('src/sass/webpages.scss', 'web/assets/css/webpages.css')
+.options({
+  processCssUrls: false,
+})
+.minify('web/assets/css/webpages.css')
+.minify('src/js/webpages.js', 'web/assets/js/webpages.min.js')
+.browserSync({
+  files: ['web/css/*', 'web/js/*'],
+  proxy: baseUrl,
+  notify: false,
+})
+.version()
+.disableNotifications()

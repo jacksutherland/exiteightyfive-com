@@ -7,7 +7,7 @@ searchable: true
 settings:
   allowedKinds:
     - image
-  defaultUploadLocationSource: 'volume:d88670dc-ae7b-4fad-af62-fa47acfc3c48'
+  defaultUploadLocationSource: 'volume:d88670dc-ae7b-4fad-af62-fa47acfc3c48' # Generic
   defaultUploadLocationSubpath: ''
   limit: ''
   localizeRelations: false

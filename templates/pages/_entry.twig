@@ -1,0 +1,41 @@
+{% extends "_layouts/webpages" %}
+
+{% block content %}
+
+	{% if entry.showMedia %}
+		<div class="hero">
+			<video playsinline="" autoplay="" muted="" loop="">
+			  	<source src="/videos/hero-video-mobile.mp4" type="video/mp4">
+			</video>
+			<a class="down-arrow" href="#main"></a>
+			{% if entry.headline or entry.ctaText %}
+				<div class="container">
+					<div class="container narrow left">
+						{% if entry.headline %}
+							<h1>{{ entry.headline }}</h1>
+						{% endif %}
+						{% if entry.ctaText %}
+							{% if entry.ctaEntry.count %}
+								<a href="{{ entry.ctaEntry.one().url }}">{{ entry.ctaText }}</a>
+							{% elseif entry.ctaUrl %}
+								<a href="{{ entry.ctaUrl }}" target="_blank">{{ entry.ctaText }}</a>
+							{% else %}
+								<span>{{ entry.ctaText }}</span>
+							{% endif %}
+						{% endif %}
+					</div>
+				</div>
+			{% endif %}
+		</div>
+	{% else %}
+		<div class="page-header">
+			<h1>{{ entry.headline }}</h1>
+		</div>
+	{% endif %}
+
+
+	<div id="main">
+		{% include 'pages/_module' with { modules: entry.pageModule } %}
+	</div>
+
+{% endblock %}

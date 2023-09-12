@@ -51,11 +51,11 @@ permissions:
   - 'deletefilesandfoldersinvolume:7f44c26b-1385-4e61-bae8-1066060c1b30' # Song Images
   - 'editimagesinvolume:7f44c26b-1385-4e61-bae8-1066060c1b30' # Song Images
   - 'viewvolume:7f44c26b-1385-4e61-bae8-1066060c1b30' # Song Images
-  - 'saveassetinvolume:d88670dc-ae7b-4fad-af62-fa47acfc3c48'
-  - 'createfoldersinvolume:d88670dc-ae7b-4fad-af62-fa47acfc3c48'
-  - 'deletefilesandfoldersinvolume:d88670dc-ae7b-4fad-af62-fa47acfc3c48'
-  - 'editimagesinvolume:d88670dc-ae7b-4fad-af62-fa47acfc3c48'
-  - 'viewvolume:d88670dc-ae7b-4fad-af62-fa47acfc3c48'
+  - 'saveassetinvolume:d88670dc-ae7b-4fad-af62-fa47acfc3c48' # Generic
+  - 'createfoldersinvolume:d88670dc-ae7b-4fad-af62-fa47acfc3c48' # Generic
+  - 'deletefilesandfoldersinvolume:d88670dc-ae7b-4fad-af62-fa47acfc3c48' # Generic
+  - 'editimagesinvolume:d88670dc-ae7b-4fad-af62-fa47acfc3c48' # Generic
+  - 'viewvolume:d88670dc-ae7b-4fad-af62-fa47acfc3c48' # Generic
   - 'utility:system-report'
   - 'utility:php-info'
   - 'utility:system-messages'

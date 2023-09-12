@@ -19,6 +19,30 @@ fieldLayouts:
             width: 100
           -
             elementCondition: null
+            fieldUid: 411e1f23-44c6-4357-ba24-bba5636d8cc9 # Alignment
+            instructions: null
+            label: null
+            required: false
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            uid: 9c1054dc-b7b3-451a-87bd-803cc286a763
+            userCondition: null
+            warning: null
+            width: 25
+          -
+            elementCondition: null
+            fieldUid: 4a70f190-323c-4ef9-a0c7-d537fb6f9db3 # Narrow
+            instructions: null
+            label: null
+            required: false
+            tip: null
+            type: craft\fieldlayoutelements\CustomField
+            uid: 049a29b1-5761-41ff-a33b-210a423cec8f
+            userCondition: null
+            warning: null
+            width: 25
+          -
+            elementCondition: null
             fieldUid: cae0baae-3430-4f6a-8c5f-e3da61be0151 # Rich Text
             instructions: null
             label: null
@@ -33,6 +57,68 @@ fieldLayouts:
         uid: 4f6f37db-53b3-4560-ae44-1428bfb51ce6
         userCondition: null
 fields:
+  4a70f190-323c-4ef9-a0c7-d537fb6f9db3: # Narrow
+    columnSuffix: eelsneng
+    contentColumnType: boolean
+    fieldGroup: null
+    handle: narrow
+    instructions: null
+    name: Narrow
+    searchable: false
+    settings:
+      default: false
+      offLabel: Wide
+      onLabel: Narrow
+    translationKeyFormat: null
+    translationMethod: none
+    type: craft\fields\Lightswitch
+  411e1f23-44c6-4357-ba24-bba5636d8cc9: # Alignment
+    columnSuffix: diwoxtsl
+    contentColumnType: string(13)
+    fieldGroup: null
+    handle: alignment
+    instructions: null
+    name: Alignment
+    searchable: false
+    settings:
+      columnType: null
+      options:
+        -
+          __assoc__:
+            -
+              - label
+              - Left
+            -
+              - value
+              - left
+            -
+              - default
+              - '1'
+        -
+          __assoc__:
+            -
+              - label
+              - Center
+            -
+              - value
+              - center
+            -
+              - default
+              - ''
+        -
+          __assoc__:
+            -
+              - label
+              - 'Center Mobile - Left Desktop'
+            -
+              - value
+              - center-mobile
+            -
+              - default
+              - ''
+    translationKeyFormat: null
+    translationMethod: none
+    type: craft\fields\Dropdown
   b5df53a4-a5f2-40d3-affb-182a6be9069e: # Headline
     columnSuffix: oavzuinp
     contentColumnType: text

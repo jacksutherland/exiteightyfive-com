@@ -1,0 +1,117 @@
+{% set isAlternateSection = true %}
+
+{% macro addressLocation(address) %}
+    {% set lowerAddress = address | lower %}
+    
+    {% if 'fort mill' in lowerAddress %}
+        {{ 'Fort Mill, SC' }}
+    {% elseif 'rock hill' in lowerAddress %}
+        {{ 'Rock Hill, SC' }}
+    {% elseif 'charlotte' in lowerAddress %}
+        {{ 'Charlotte, NC' }}
+    {% elseif 'sc' in lowerAddress or 'south carolina' in lowerAddress %}
+        {{ 'South Carolina' }}
+    {% elseif 'nc' in lowerAddress or 'north carolina' in lowerAddress %}
+        {{ 'North Carolina' }}
+    {% else %}
+        {{ 'View Map' }}
+    {% endif %}
+{% endmacro %}
+
+{% for module in modules %}
+
+	{% if module.type == "headlineText" %}
+
+		{% if module.headline | length %}
+			{% set isAlternateSection = not isAlternateSection %}
+		{% endif %}
+
+		<section class="copy{% if isAlternateSection %} alternate{% endif %} {{ module.alignment }}">
+			<div class="container{% if module.narrow %} narrow{% endif %}">
+				{% if module.headline | length %}
+					<h2>{{ module.headline }}</h2>
+				{% endif %}
+				{% if module.richText | length %}
+					{{ module.richText }}
+				{% endif %}
+			</div>
+		</section>
+
+	{% elseif module.type == "video" %}
+
+		<section class="videos{% if isAlternateSection %} alternate{% endif %}" data-count="{{ module.videos | length }}">
+			<div class="container{% if module.videos | length == 1 %} narrow{% endif %}">
+				{% for video in module.videos %}
+					<figure>
+						<div>
+							<iframe width="560" height="315" src="https://www.youtube.com/embed/{{ video.videoId }}"{% if video.caption | length %} title="{{ video.caption }}"{% endif %} frameborder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+						</div>
+						{% if video.caption | length %}
+							<figcaption>{{ video.caption }}</figcaption>
+						{% endif %}
+					</figure>
+				{% endfor %}
+			</div>
+		</section>
+
+	{% elseif module.type == "shows" %}
+
+		{% set shows = null %}
+
+		{% for option in module.showTypes.options %}
+			{% if option.selected %}
+				{% if option.value == "upcomingShows" %}
+					{% set showQuery = craft.entries().section('shows').showDate('>=' ~ now | date | atom).orderBy('showDate asc') %}
+					{% set shows = shows == null ? showQuery : shows | merge(showQuery) %}
+				{% elseif option.value == "pastShows" %}
+					{% set showQuery = craft.entries().section('shows').showDate('<' ~ now | date | atom).orderBy('showDate desc') %}
+					{% set shows = shows == null ? showQuery : shows | merge(showQuery) %}
+				{% endif %}
+			{% endif %}
+		{% endfor %}
+
+		{% if shows != null and shows | length%}
+			{% set month = "" %}
+			<section class="shows{% if isAlternateSection %} alternate{% endif %}">
+				<div class="container fluid-mobile">
+					{% for show in shows %}
+						{% set showMonth = show.showDate | date('mm') %}
+						{% if month != showMonth %}
+							{% set month = showMonth %}
+							<h4>{{ month }}</h4>
+						{% endif %}
+						<article>
+							<div class="date">
+								<span>{{ show.showDate | date('d') }}</span>
+								<span>{{ show.showDate | date('l') }}</span>
+							</div>
+							<div>
+								{% if 'private' in show.title | lower %}
+									<span>{{ show.title }}</span>
+								{% else %}
+									{# <a target="_blank" href="https://www.google.com/maps/search/{{ show.venueAddress }}">
+										{{ show.title }}
+									</a> #}
+									<a href="{{ show.url }}">
+										{{ show.title }}
+									</a>
+								{% endif %}
+							</div>
+							<div>
+								{% if 'private' in show.title | lower %}
+									<span>Private Event</span>
+								{% else %}
+									<a target="_blank" href="https://www.google.com/maps/search/{{ show.venueAddress }}">
+										{{ _self.addressLocation(show.venueAddress) }}
+									</a>
+								{% endif %}
+							</div>
+						</article>
+					{% endfor %}
+				</div>
+			</section>
+		{% endif %}
+
+	{% endif %}
+
+{% endfor %}

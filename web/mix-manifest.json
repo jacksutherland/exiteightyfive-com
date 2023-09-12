@@ -1,5 +1,8 @@
 {
+    "/assets/css/webpages.css": "/assets/css/webpages.css?id=1c635e0ec48d0b707737eb9eb1817e86",
     "/assets/css/main.css": "/assets/css/main.css?id=25b82c196bb289479c9136234a0dfee4",
     "/assets/css/main.min.css": "/assets/css/main.min.css?id=25b82c196bb289479c9136234a0dfee4",
-    "/assets/js/site.min.js": "/assets/js/site.min.js?id=54fc59cf655015bc59536e06a1f6560b"
+    "/assets/js/site.min.js": "/assets/js/site.min.js?id=54fc59cf655015bc59536e06a1f6560b",
+    "/assets/css/webpages.min.css": "/assets/css/webpages.min.css?id=1c635e0ec48d0b707737eb9eb1817e86",
+    "/assets/js/webpages.min.js": "/assets/js/webpages.min.js?id=6aa3d0359fb8903f5992f0f9bc0c93f7"
 }

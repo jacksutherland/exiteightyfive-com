@@ -1,0 +1,94 @@
+{% set versionNumber = '2.000' %}
+
+{% set rootUrl = 'https://exiteightyfive.com' %}
+{% set pageUrl = rootUrl ~ craft.app.request.url %}
+
+{% if entry is defined %}
+	{% set seoTitle = (entry.seoTitle is defined ? entry.seoTitle : entry.title) ~ ' | ' ~ siteName %}
+	{% set seoDescription = entry.seoDescription is defined ? entry.seoDescription : "" %}
+	{% set seoImage = entry.seoImage is defined and entry.seoImage.count ? entry.seoImage.one() : null %}
+{% else %}
+	{% set seoTitle = siteName %}
+	{% set seoDescription = "" %}
+	{% set seoImage = null %}
+{% endif %}
+
+<!DOCTYPE html>
+<html lang="en">
+
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+		<title>{{ seoTitle }}</title>
+		<meta name="robots" content="all">
+
+		{% if seoDescription | length %}
+			<meta name="description" content="{{ seoDescription }}">
+			<meta property="og:description" content="{{ seoDescription }}" />
+			<meta name="twitter:description" content="{{ seoDescription }}">
+		{% endif %}
+
+		{% if seoImage != null %}
+			<meta property="og:image" content="{{ rootUrl ~ seoImage.url() }}" />
+			<meta name="twitter:image" content="{{ rootUrl ~ seoImage.url() }}">
+		{% endif %}
+
+		<meta property="og:url" content="{{ pageUrl }}" />
+        <meta property="og:site_name" content="{{ siteName }}" />
+        <meta name="twitter:title" content="{{ seoTitle }}">
+        <meta name="twitter:site" content="@jacksutherland">
+        <meta name="twitter:creator" content="@jacksutherland">
+
+        <link href="https://fonts.googleapis.com/css?family=Hind+Siliguri:400,700" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css?family=Acme" rel="stylesheet">
+        <link href="/assets/css/webpages.min.css?v={{ versionNumber }}" rel="stylesheet" type="text/css" />
+	</head>
+
+	<body>
+
+		<!-- Facebook SDK -->
+        <div id="fb-root"></div>
+        <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v7.0&appId=101190826639926&autoLogAppEvents=1" nonce="MASbJ8r0"></script>
+        <!-- End Facebook SDK -->
+
+		<header>
+			<div class="container">
+				<a href="/" class="logo">
+	                <img src="/images/logo-sign-small.png" alt="Exit 85">
+	            </a>
+	            <div class="fb-like" data-href="https://www.facebook.com/exiteightyfive" data-width="" data-layout="button_count" data-action="like" data-size="small" data-share="true"></div>
+				<nav>
+	                <a href="/" class="jump-link">
+	                    <span itemprop="name" class="d-none d-md-inline">HOME</span><i class="fas fa-home d-inline d-md-none"></i>
+	                </a>
+	                <a itemprop="url" href="/sections/about" class="jump-link d-none d-md-inline" data-section="#about" title="About Us">
+	                    <span itemprop="name">ABOUT</span>
+	                </a>
+	                                    <a itemprop="url" href="/sections/shows" class="jump-link" data-section="#shows" title="Upcoming Shows">
+	                        <span itemprop="name">SHOWS</span>
+	                    </a>
+	                                                 <a itemprop="url" href="/sections/members" class="jump-link" data-section="#members" title="Meet the Band">
+	                    <span itemprop="name">BAND</span>
+	                </a>
+	                                <a itemprop="url" href="/sections/music" class="jump-link" data-section="#music" title="Videos and Performances">
+	                    <span itemprop="name">MUSIC</span>
+	                </a>
+	                <a itemprop="url" href="/sections/contact" class="jump-link" data-section="#contact" title="Let's Connect">
+	                    <span itemprop="name">CONTACT</span>
+	                </a>
+	            </nav>
+            </div>
+		</header>
+
+		<main>
+            {% block content %}
+            {% endblock %}
+        </main>
+
+		<script src="/assets/js/webpages.min.js?v={{ versionNumber }}"></script>
+        {% block scripts %} {% endblock %}
+
+	</body>
+
+</html>

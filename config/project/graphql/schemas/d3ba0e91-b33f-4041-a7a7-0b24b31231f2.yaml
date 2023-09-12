@@ -11,7 +11,7 @@ scope:
   - 'entrytypes.30363997-572e-4765-8a02-875c5c89a7e6:read'
   - 'volumes.b2fbd8ed-6e44-4ed2-8d57-07fbe9376496:read' # Band Members
   - 'volumes.7f44c26b-1385-4e61-bae8-1066060c1b30:read' # Song Images
-  - 'volumes.d88670dc-ae7b-4fad-af62-fa47acfc3c48:read'
+  - 'volumes.d88670dc-ae7b-4fad-af62-fa47acfc3c48:read' # Generic
   - 'categorygroups.2e770ce7-51ec-4b5d-a13d-7990d7f8146d:read'
   - 'categorygroups.e91cf247-7790-4fa5-938d-b5f4dc76f7b0:read'
   - 'sections.7b556dc4-3462-4661-9940-e8be99cfa1f3:edit'
@@ -21,6 +21,6 @@ scope:
   - 'volumes.b2fbd8ed-6e44-4ed2-8d57-07fbe9376496:create' # Band Members
   - 'volumes.7f44c26b-1385-4e61-bae8-1066060c1b30:edit' # Song Images
   - 'volumes.7f44c26b-1385-4e61-bae8-1066060c1b30:create' # Song Images
-  - 'volumes.d88670dc-ae7b-4fad-af62-fa47acfc3c48:edit'
-  - 'volumes.d88670dc-ae7b-4fad-af62-fa47acfc3c48:create'
+  - 'volumes.d88670dc-ae7b-4fad-af62-fa47acfc3c48:edit' # Generic
+  - 'volumes.d88670dc-ae7b-4fad-af62-fa47acfc3c48:create' # Generic
   - 'sites.3c0b1454-ae0e-451e-b505-cf0eaea80e50:read'

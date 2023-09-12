@@ -33,7 +33,7 @@ fields:
       allowSelfRelations: false
       branchLimit: null
       localizeRelations: false
-      maintainHierarchy: false
+      maintainHierarchy: true
       maxRelations: null
       minRelations: null
       selectionLabel: null

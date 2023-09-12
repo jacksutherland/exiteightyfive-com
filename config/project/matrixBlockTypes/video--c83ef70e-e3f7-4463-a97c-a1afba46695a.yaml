@@ -7,7 +7,7 @@ fieldLayouts:
         elements:
           -
             elementCondition: null
-            fieldUid: 03c1d943-5731-4e0a-b4cd-c301940c61a1 # Video
+            fieldUid: 03c1d943-5731-4e0a-b4cd-c301940c61a1 # Videos
             instructions: null
             label: null
             required: false
@@ -21,13 +21,13 @@ fieldLayouts:
         uid: d73c4dc5-3577-4216-b020-96751b789bd8
         userCondition: null
 fields:
-  03c1d943-5731-4e0a-b4cd-c301940c61a1: # Video
+  03c1d943-5731-4e0a-b4cd-c301940c61a1: # Videos
     columnSuffix: ygjlutfb
     contentColumnType: text
     fieldGroup: null
-    handle: video
+    handle: videos
     instructions: null
-    name: Video
+    name: Videos
     searchable: true
     settings:
       addRowLabel: 'Add a row'

@@ -11,7 +11,7 @@ settings:
   localizeRelations: false
   maintainHierarchy: false
   maxRelations: 1
-  minRelations: 1
+  minRelations: 0
   selectionCondition:
     __assoc__:
       -
@@ -24,7 +24,7 @@ settings:
         - class
         - craft\elements\conditions\entries\EntryCondition
   selectionLabel: null
-  showSiteMenu: false
+  showSiteMenu: true
   sources:
     - 'section:fa5a5a45-8f91-4811-87ca-f70f8c3c5774'
     - 'section:acf24c93-7fa3-4a37-a4ae-cf8c9ab23097' # Pages

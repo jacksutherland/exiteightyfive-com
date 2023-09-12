@@ -2,7 +2,7 @@ comments:
   comments:
     fieldLayouts:
       3694d1a5-1034-4cb6-947d-977389795a15: null
-dateModified: 1694379161
+dateModified: 1694487799
 elementSources:
   craft\elements\Entry:
     -
@@ -61,6 +61,13 @@ fs:
       path: files/members/images
     type: craft\fs\Local
     url: /files/members/images
+  generic:
+    hasUrls: true
+    name: Generic
+    settings:
+      path: files/generic/images
+    type: craft\fs\Local
+    url: /files/generic/images
   songImages:
     hasUrls: true
     name: 'Song Images'
@@ -71,7 +78,8 @@ fs:
 meta:
   __names__:
     1df98891-de4a-4f3b-9493-7aa7dd0b92d0: 'Band Members' # Band Members
-    03c1d943-5731-4e0a-b4cd-c301940c61a1: Video # Video
+    03c1d943-5731-4e0a-b4cd-c301940c61a1: Videos # Videos
+    4a70f190-323c-4ef9-a0c7-d537fb6f9db3: Narrow # Narrow
     4c0ffcd0-7aa2-4454-a0f0-850267ca3e3e: 'CTA Entry' # CTA Entry
     4ed1bac7-17af-4f71-9961-8519c506f98c: Editors # Editors
     7f44c26b-1385-4e61-bae8-1066060c1b30: 'Song Images' # Song Images
@@ -82,6 +90,7 @@ meta:
     67cf4dbf-de4c-4ade-8f83-b158f47aac15: 'Headline & Text' # Headline & Text
     75a11d67-2bb0-4101-93c2-45ece576ede7: Shows # Shows
     98fc5f43-3b8d-4818-8db4-37a6584aad92: 'CTA Text' # CTA Text
+    411e1f23-44c6-4357-ba24-bba5636d8cc9: Alignment # Alignment
     605f37ce-123b-46f5-9da2-fadf43eae62c: Pages # Pages
     5188a0f4-2305-4d6d-a11e-e5c2e648b820: 'CTA Url' # CTA Url
     5039623b-4c9d-4bdc-affb-0dce5875e429: Photos # Photos
@@ -98,6 +107,7 @@ meta:
     cb622695-130c-4061-9502-fc3c94d76cde: 'Show Types' # Show Types
     cff52376-83f8-4f48-ab5e-16825ee2d155: Form # Form
     d3ba0e91-b33f-4041-a7a7-0b24b31231f2: 'Mobile App' # Mobile App
+    d88670dc-ae7b-4fad-af62-fa47acfc3c48: Generic # Generic
     e491821d-19bf-4d23-a12e-9b3e596e8871: 'Show Media' # Show Media
     efd2d3da-b4e1-4583-8c18-73b4b145d86d: 'Song Image' # Song Image
     ffee4040-e5be-4518-8054-24387e9836fa: 'Band Image' # Band Image

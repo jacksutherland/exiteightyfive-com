@@ -13,11 +13,11 @@ settings:
   localizeRelations: false
   restrictFiles: '1'
   selectionLabel: ''
-  singleUploadLocationSource: 'volume:d88670dc-ae7b-4fad-af62-fa47acfc3c48'
+  singleUploadLocationSource: 'volume:d88670dc-ae7b-4fad-af62-fa47acfc3c48' # Generic
   singleUploadLocationSubpath: ''
   source: null
   sources:
-    - 'volume:d88670dc-ae7b-4fad-af62-fa47acfc3c48'
+    - 'volume:d88670dc-ae7b-4fad-af62-fa47acfc3c48' # Generic
   targetSiteId: null
   useSingleFolder: '1'
   validateRelatedElements: ''
