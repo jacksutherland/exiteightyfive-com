@@ -36,7 +36,7 @@ svg {
 h1, h2, h3, h4 {
   font-family: "Acme", "Open Sans", sans-serif;
   font-weight: 500;
-  margin: 24px 0;
+  margin: 36px 0 24px 0;
 }
 
 h1 {
@@ -207,7 +207,7 @@ header .container {
   display: grid;
   gap: 8px;
   grid-template-areas: "nav";
-  justify-content: center;
+  justify-content: start;
 }
 header .container .logo {
   grid-area: log;
@@ -464,6 +464,9 @@ section {
   section {
     padding: 100px 0;
   }
+}
+section .container > h1:first-child, section .container > h2:first-child, section .container > h3:first-child, section .container > h4:first-child {
+  margin-top: 0;
 }
 section.alternate {
   background-color: #262626;
@@ -727,7 +730,7 @@ section.shows article .date span:last-child {
 section.videos:not([data-count="1"]) .container {
   display: grid;
   gap: 36px;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
 }
 section.videos figure > div {
   position: relative;
@@ -741,4 +744,9 @@ section.videos figure > div iframe {
   left: 0;
   width: 100%;
   height: 100%;
+}
+@media (min-width: 992px) {
+  section.videos:not([data-count="1"]) .container {
+    grid-template-columns: 1fr 1fr;
+  }
 }

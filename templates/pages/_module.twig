@@ -47,7 +47,7 @@
 
 	{% elseif module.type == "headlineText" %}
 
-		{% if module.headline | length %}
+		{% if module.headline | length or module.richText | length %}
 			{% set isAlternateSection = not isAlternateSection %}
 		{% endif %}
 
