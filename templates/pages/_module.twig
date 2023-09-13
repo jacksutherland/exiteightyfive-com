@@ -67,7 +67,7 @@
 		<section class="photos{% if isAlternateSection %} alternate{% endif %}" data-count="{{ module.photos | length }}">
 			<div class="container">
 				{% for photo in module.photos %}
-					<figure>
+					<figure{% if photo.alt | length %} title="{{ photo.alt }}"{% endif %}>
 						{% if loop.index == 3 or loop.index == 4 or loop.index == 9 or loop.index == 10 %}
 							<img src="{{ photo.url('webpagesPhoto') }}" 
 								alt="{{ photo.alt | length ? photo.alt : "Exit 85 Live Music" }}"
@@ -83,9 +83,9 @@
 								width="{{ photo.width('webpagesPhoto') }}"
 								height="{{ photo.height('webpagesPhoto') }}">
 						{% endif %}
-						{% if photo.alt | length %}
+					{# 	{% if photo.alt | length %}
 							<figcaption>{{ photo.alt }}</figcaption>
-						{% endif %}
+						{% endif %} #}
 					</figure>
 				{% endfor %}
 			</div>
