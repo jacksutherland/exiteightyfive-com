@@ -23,7 +23,7 @@
 	{% if module.type == "form" %}
 
 		<section class="form{% if isAlternateSection %} alternate{% endif %}">
-			<div class="container">
+			<div class="container{% if module.narrow %} narrow{% endif %}">
 				{% if module.formType == "contactForm" %}
 					<form id="contact-form">
 	                    <input type="hidden" name="soulgem" value="">
