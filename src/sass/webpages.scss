@@ -824,7 +824,10 @@ section {
 			text-align: center;
 		}
 		article {
-			border-bottom: $border-style;
+
+			&:not(:last-child) {
+				border-bottom: $border-style;
+			}
 
 			div {
 				display: flex;

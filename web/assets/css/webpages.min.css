@@ -671,7 +671,7 @@ section.songs article figure figcaption span {
 section.shows h4 {
   text-align: center;
 }
-section.shows article {
+section.shows article:not(:last-child) {
   border-bottom: solid 1px #444444;
 }
 section.shows article div {
