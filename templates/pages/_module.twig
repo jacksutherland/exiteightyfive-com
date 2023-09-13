@@ -1,5 +1,4 @@
 {% set isAlternateSection = true %}
-{% set alternateIsNarrow = false %}
 
 {% macro addressLocation(address) %}
     {% set lowerAddress = address | lower %}
@@ -24,7 +23,7 @@
 	{% if module.type == "form" %}
 
 		<section class="form{% if isAlternateSection %} alternate{% endif %}">
-			<div class="container{% if alternateIsNarrow %} narrow{% endif %}">
+			<div class="container">
 				{% if module.formType == "contactForm" %}
 					<form id="contact-form">
 	                    <input type="hidden" name="soulgem" value="">
@@ -50,7 +49,6 @@
 
 		{% if module.headline | length %}
 			{% set isAlternateSection = not isAlternateSection %}
-			{% set alternateIsNarrow = module.narrow %}
 		{% endif %}
 
 		<section class="copy{% if isAlternateSection %} alternate{% endif %} {{ module.alignment }}">

@@ -2,7 +2,7 @@ comments:
   comments:
     fieldLayouts:
       3694d1a5-1034-4cb6-947d-977389795a15: null
-dateModified: 1694571682
+dateModified: 1694613834
 elementSources:
   craft\elements\Entry:
     -
@@ -94,6 +94,7 @@ meta:
     7f44c26b-1385-4e61-bae8-1066060c1b30: 'Song Images' # Song Images
     8bbaef41-5afc-491b-9f79-8158872c8402: Songs # Songs
     9f5b59a8-2c1c-4bbd-8b5a-86b6e643ccb3: 'Page Module' # Page Module
+    18cf02de-a80c-4fe7-943a-1b552c158233: Narrow # Narrow
     35bf9abf-0692-4cbc-a674-75d0710b7d8b: 'Song Categories' # Song Categories
     65a77b75-6d41-4b63-b104-339c5672ef57: 'SEO Image' # SEO Image
     67cf4dbf-de4c-4ade-8f83-b158f47aac15: 'Headline & Text' # Headline & Text
