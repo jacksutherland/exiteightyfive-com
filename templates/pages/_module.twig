@@ -22,7 +22,7 @@
 
 	{% if module.type == "form" %}
 
-		<section class="form">
+		<section class="form{% if isAlternateSection %} alternate{% endif %}">
 			<div class="container">
 				{% if module.formType == "contactForm" %}
 					<form id="contact-form">
@@ -149,7 +149,7 @@
 		{% endif %}
 
 	{% elseif module.type == "songs" %}
-		<section class="songs">
+		<section class="songs{% if isAlternateSection %} alternate{% endif %}">
 			<div class="container">
 				{% for cat in module.songCategories %}
 					{% set songs = craft.categories.group('songs').slug(cat.slug) %}
