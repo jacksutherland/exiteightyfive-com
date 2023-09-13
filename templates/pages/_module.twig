@@ -1,4 +1,5 @@
-{% set isAlternateSection = true %}
+{% set isAlternateSection = false %}
+{# {% set isFirstCopySection = true %} #}
 
 {% macro addressLocation(address) %}
     {% set lowerAddress = address | lower %}
@@ -47,9 +48,7 @@
 
 	{% elseif module.type == "headlineText" %}
 
-		{% if module.headline | length or module.richText | length %}
-			{% set isAlternateSection = not isAlternateSection %}
-		{% endif %}
+		{% set isAlternateSection = loop.index == 1 ? false : not isAlternateSection %}
 
 		<section class="copy{% if isAlternateSection %} alternate{% endif %} {{ module.alignment }}">
 			<div class="container{% if module.narrow %} narrow{% endif %}">
