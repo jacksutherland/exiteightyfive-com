@@ -3,8 +3,8 @@ name: 'Mobile App'
 scope:
   - 'sections.e2fa5e66-819e-4dd8-b45b-d22a3bede20b:read'
   - 'entrytypes.372d0c1a-c351-4611-952d-18f1b290cd06:read'
-  - 'sections.e830ad4a-dfeb-434a-b670-70ea190cf37c:read'
-  - 'entrytypes.d8bc7357-d211-4b9c-8269-272ace2c5b1b:read'
+  - 'sections.e830ad4a-dfeb-434a-b670-70ea190cf37c:read' # Old Homepage
+  - 'entrytypes.d8bc7357-d211-4b9c-8269-272ace2c5b1b:read' # Old Homepage
   - 'sections.ced25983-79ee-48f3-bb44-2ee772745cf7:read'
   - 'entrytypes.04197ac4-b565-4b4c-b75f-f95ace3ba84f:read'
   - 'sections.7b556dc4-3462-4661-9940-e8be99cfa1f3:read'

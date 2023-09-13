@@ -7,7 +7,7 @@ fieldLayouts:
         elements:
           -
             elementCondition: null
-            fieldUid: 35bf9abf-0692-4cbc-a674-75d0710b7d8b # Songs
+            fieldUid: 35bf9abf-0692-4cbc-a674-75d0710b7d8b # Song Categories
             instructions: null
             label: null
             required: true
@@ -21,13 +21,13 @@ fieldLayouts:
         uid: 24f82506-af07-451b-bf18-fede67ac2cac
         userCondition: null
 fields:
-  35bf9abf-0692-4cbc-a674-75d0710b7d8b: # Songs
+  35bf9abf-0692-4cbc-a674-75d0710b7d8b: # Song Categories
     columnSuffix: null
     contentColumnType: string
     fieldGroup: null
-    handle: songs
+    handle: songCategories
     instructions: null
-    name: Songs
+    name: 'Song Categories'
     searchable: true
     settings:
       allowSelfRelations: false

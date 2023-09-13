@@ -3,6 +3,8 @@
 {% set rootUrl = 'https://exiteightyfive.com' %}
 {% set pageUrl = rootUrl ~ craft.app.request.url %}
 
+{% set nav = craft.entries().section('pages').navigation(true) %}
+
 {% if entry is defined %}
 	{% set seoTitle = (entry.seoTitle is defined ? entry.seoTitle : entry.title) ~ ' | ' ~ siteName %}
 	{% set seoDescription = entry.seoDescription is defined ? entry.seoDescription : "" %}
@@ -12,6 +14,18 @@
 	{% set seoDescription = "" %}
 	{% set seoImage = null %}
 {% endif %}
+
+{% macro home() %}
+	<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 576 512"><path d="M575.8 255.5c0 18-15 32.1-32 32.1h-32l.7 160.2c0 2.7-.2 5.4-.5 8.1V472c0 22.1-17.9 40-40 40H456c-1.1 0-2.2 0-3.3-.1c-1.4 .1-2.8 .1-4.2 .1H416 392c-22.1 0-40-17.9-40-40V448 384c0-17.7-14.3-32-32-32H256c-17.7 0-32 14.3-32 32v64 24c0 22.1-17.9 40-40 40H160 128.1c-1.5 0-3-.1-4.5-.2c-1.2 .1-2.4 .2-3.6 .2H104c-22.1 0-40-17.9-40-40V360c0-.9 0-1.9 .1-2.8V287.6H32c-18 0-32-14-32-32.1c0-9 3-17 10-24L266.4 8c7-7 15-8 22-8s15 2 21 7L564.8 231.5c8 7 12 15 11 24z"/></svg>
+{% endmacro %}
+
+{% macro facebook() %}
+	<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M22.675 0h-21.35c-.732 0-1.325.593-1.325 1.325v21.351c0 .731.593 1.324 1.325 1.324h11.495v-9.294h-3.128v-3.622h3.128v-2.671c0-3.1 1.893-4.788 4.659-4.788 1.325 0 2.463.099 2.795.143v3.24l-1.918.001c-1.506 0-1.795.716-1.795 1.763v2.313h3.587l-.467 3.622h-3.12v9.293h6.116c.731 0 1.324-.593 1.324-1.325v-21.35c0-.732-.593-1.325-1.325-1.325z"/></svg>
+{% endmacro %}
+
+{% macro youtube() %}
+	<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M23.495 7.204c-.292-1.082-1.136-1.926-2.217-2.217-1.925-.396-9.638-.396-9.638-.396s-7.713 0-9.638.396c-1.081.291-1.925 1.135-2.217 2.217-.396 1.925-.396 5.796-.396 5.796s0 3.871.396 5.796c.292 1.082 1.136 1.926 2.217 2.217 1.925.396 9.638.396 9.638.396s7.713 0 9.638-.396c1.081-.291 1.925-1.135 2.217-2.217.396-1.925.396-5.796.396-5.796s0-3.871-.396-5.796zm-13.903 9.329v-6.066l6.338 3.033-6.338 3.033z"/></svg>
+{% endmacro %}
 
 <!DOCTYPE html>
 <html lang="en">
@@ -59,24 +73,17 @@
 	            </a>
 	            <div class="fb-like" data-href="https://www.facebook.com/exiteightyfive" data-width="" data-layout="button_count" data-action="like" data-size="small" data-share="true"></div>
 				<nav>
-	                <a href="/" class="jump-link">
-	                    <span itemprop="name" class="d-none d-md-inline">HOME</span><i class="fas fa-home d-inline d-md-none"></i>
-	                </a>
-	                <a itemprop="url" href="/sections/about" class="jump-link d-none d-md-inline" data-section="#about" title="About Us">
-	                    <span itemprop="name">ABOUT</span>
-	                </a>
-	                                    <a itemprop="url" href="/sections/shows" class="jump-link" data-section="#shows" title="Upcoming Shows">
-	                        <span itemprop="name">SHOWS</span>
-	                    </a>
-	                                                 <a itemprop="url" href="/sections/members" class="jump-link" data-section="#members" title="Meet the Band">
-	                    <span itemprop="name">BAND</span>
-	                </a>
-	                                <a itemprop="url" href="/sections/music" class="jump-link" data-section="#music" title="Videos and Performances">
-	                    <span itemprop="name">MUSIC</span>
-	                </a>
-	                <a itemprop="url" href="/sections/contact" class="jump-link" data-section="#contact" title="Let's Connect">
-	                    <span itemprop="name">CONTACT</span>
-	                </a>
+					{% for page in nav %}
+						{% if page.slug == "__home__" %}
+							<a class="icon" href="{{ page.url }}" target="_blank">{{ _self.home() }}</a>
+						{% else %}
+							<a itemprop="url" href="{{ page.url }}" title="{{ page.title }}">
+			                    <span itemprop="name">{{ page.title }}</span>
+			                </a>
+			            {% endif %}
+					{% endfor %}
+	                <a class="icon" href="https://www.facebook.com/exiteightyfive/" target="_blank">{{ _self.facebook() }}</a>
+	                <a class="icon" href="https://www.youtube.com/channel/UCiT2sGOUicZ7FbLLcTRvXjg" target="_blank">{{ _self.youtube() }}</a>
 	            </nav>
             </div>
 		</header>
@@ -86,7 +93,28 @@
             {% endblock %}
         </main>
 
-		<script src="/assets/js/webpages.min.js?v={{ versionNumber }}"></script>
+        <footer>
+        	<nav>
+				{% for page in nav %}
+					<a itemprop="url" href="{{ page.url }}" title="{{ page.title }}">
+	                    <span itemprop="name">{{ page.title }}</span>
+	                </a>
+				{% endfor %}
+            </nav>
+        	<a class="icon" href="https://www.facebook.com/exiteightyfive/" target="_blank">{{ _self.facebook() }}</a>
+        	<a class="icon" href="https://www.youtube.com/channel/UCiT2sGOUicZ7FbLLcTRvXjg" target="_blank">{{ _self.youtube() }}</a>
+        	<div>© {{ now|date('Y') }} Exit 85. All right reserved. Created by <a href="https://realitygems.com">Reality Gems</a></div>
+        </footer>
+
+		<script defer src="/assets/js/webpages.min.js?v={{ versionNumber }}"></script>
+		<script defer 
+		type="text/javascript">
+			var exit85 = null;
+			document.addEventListener("DOMContentLoaded", function()
+            {
+                exit85 = new Exit85();
+            });
+		</script>
         {% block scripts %} {% endblock %}
 
 	</body>

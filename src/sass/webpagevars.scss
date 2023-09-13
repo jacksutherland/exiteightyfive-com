@@ -11,12 +11,12 @@ $brand-color: #6db76b; //#6FB66E;
 $white: #FFFFFF;
 $font-color: $white;
 $caption-color: #8e8e8e;
-$border-color: #444444;
+$border-color: #444444; //#353535
 
 /***** FONTS *****/
 
-$font-family: 'Hind Siliguri', sans-serif;
-$header-font-family: 'Acme', sans-serif;
+$font-family: 'Hind Siliguri', 'Open Sans', sans-serif;
+$header-font-family: 'Acme', 'Open Sans', sans-serif;
 $root-font-size: 16px;
 
 @mixin smallFont {
@@ -27,6 +27,11 @@ $root-font-size: 16px;
 @mixin regularFont {
 	font-size: 1rem;
 	line-height: 1.5rem;
+}
+
+@mixin h2Font {
+	font-size: 2rem;
+	line-height: 1.2;
 }
 
 

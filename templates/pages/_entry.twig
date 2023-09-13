@@ -1,5 +1,36 @@
 {% extends "_layouts/webpages" %}
 
+{% set loadForms = false %}
+{% set loadPhotos = false %}
+{% set loadSongs = false %}
+
+{% for module in entry.pageModule %}
+	{% if module.type == "photos" %}
+		{% set loadPhotos = true %}
+	{% elseif module.type == "form" %}
+		{% set loadForms = true %}
+	{% elseif module.type == "songs" %}
+		{% set loadSongs = true %}
+	{% endif %}
+{% endfor %}
+
+{% block scripts %}
+	<script defer type="text/javascript">
+		document.addEventListener("DOMContentLoaded", function()
+        {
+			{% if loadForms %}
+				exit85.addForms();
+			{% endif %}
+			{% if loadPhotos %}
+				exit85.addPhotos();
+			{% endif %}
+			{% if loadSongs %}
+				exit85.addSongs();
+			{% endif %}
+		});
+	</script>
+{% endblock %}
+
 {% block content %}
 
 	{% if entry.showMedia %}
@@ -29,7 +60,20 @@
 		</div>
 	{% else %}
 		<div class="page-header">
-			<h1>{{ entry.headline }}</h1>
+			<div class="container narrow">
+				{% if entry.headline %}
+					<h1>{{ entry.headline }}</h1>
+				{% endif %}
+				{% if entry.ctaText %}
+					{% if entry.ctaEntry.count %}
+						<a href="{{ entry.ctaEntry.one().url }}">{{ entry.ctaText }}</a>
+					{% elseif entry.ctaUrl %}
+						<a href="{{ entry.ctaUrl }}" target="_blank">{{ entry.ctaText }}</a>
+					{% else %}
+						<span>{{ entry.ctaText }}</span>
+					{% endif %}
+				{% endif %}
+			</div>
 		</div>
 	{% endif %}
 

@@ -2,7 +2,7 @@ comments:
   comments:
     fieldLayouts:
       3694d1a5-1034-4cb6-947d-977389795a15: null
-dateModified: 1694487799
+dateModified: 1694571682
 elementSources:
   craft\elements\Entry:
     -
@@ -31,7 +31,16 @@ elementSources:
         - link
       type: native
     -
+      defaultSort:
+        - structure
+        - asc
+      disabled: false
       key: 'section:acf24c93-7fa3-4a37-a4ae-cf8c9ab23097' # Pages
+      tableAttributes:
+        - 'field:74ecd784-b655-4dbd-8c83-09ed51bdfb92' # Navigation
+        - dateUpdated
+        - revisionCreator
+        - link
       type: native
     -
       key: 'section:fa5a5a45-8f91-4811-87ca-f70f8c3c5774'
@@ -85,13 +94,17 @@ meta:
     7f44c26b-1385-4e61-bae8-1066060c1b30: 'Song Images' # Song Images
     8bbaef41-5afc-491b-9f79-8158872c8402: Songs # Songs
     9f5b59a8-2c1c-4bbd-8b5a-86b6e643ccb3: 'Page Module' # Page Module
-    35bf9abf-0692-4cbc-a674-75d0710b7d8b: Songs # Songs
+    35bf9abf-0692-4cbc-a674-75d0710b7d8b: 'Song Categories' # Song Categories
     65a77b75-6d41-4b63-b104-339c5672ef57: 'SEO Image' # SEO Image
     67cf4dbf-de4c-4ade-8f83-b158f47aac15: 'Headline & Text' # Headline & Text
+    74ecd784-b655-4dbd-8c83-09ed51bdfb92: Navigation # Navigation
     75a11d67-2bb0-4101-93c2-45ece576ede7: Shows # Shows
+    82b36c03-0800-4021-baf7-8150f571b0d7: 'Webpages Photo' # Webpages Photo
+    97e24836-a4dd-4f62-a2af-07d6ea79b7b3: 'Webpages Photo Featured' # Webpages Photo Featured
     98fc5f43-3b8d-4818-8db4-37a6584aad92: 'CTA Text' # CTA Text
     411e1f23-44c6-4357-ba24-bba5636d8cc9: Alignment # Alignment
     605f37ce-123b-46f5-9da2-fadf43eae62c: Pages # Pages
+    624d4b3b-cc7d-47b6-ba9d-e8fef7a1d84d: 'Webpages Song' # Webpages Song
     5188a0f4-2305-4d6d-a11e-e5c2e648b820: 'CTA Url' # CTA Url
     5039623b-4c9d-4bdc-affb-0dce5875e429: Photos # Photos
     11060338-318b-45f2-822c-89eb33731623: 'SEO Image' # SEO Image
@@ -107,7 +120,9 @@ meta:
     cb622695-130c-4061-9502-fc3c94d76cde: 'Show Types' # Show Types
     cff52376-83f8-4f48-ab5e-16825ee2d155: Form # Form
     d3ba0e91-b33f-4041-a7a7-0b24b31231f2: 'Mobile App' # Mobile App
+    d8bc7357-d211-4b9c-8269-272ace2c5b1b: 'Old Homepage' # Old Homepage
     d88670dc-ae7b-4fad-af62-fa47acfc3c48: Generic # Generic
+    e830ad4a-dfeb-434a-b670-70ea190cf37c: 'Old Homepage' # Old Homepage
     e491821d-19bf-4d23-a12e-9b3e596e8871: 'Show Media' # Show Media
     efd2d3da-b4e1-4583-8c18-73b4b145d86d: 'Song Image' # Song Image
     ffee4040-e5be-4518-8054-24387e9836fa: 'Band Image' # Band Image

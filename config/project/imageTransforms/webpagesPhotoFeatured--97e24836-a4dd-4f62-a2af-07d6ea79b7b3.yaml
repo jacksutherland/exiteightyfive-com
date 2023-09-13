@@ -1,0 +1,11 @@
+fill: null
+format: null
+handle: webpagesPhotoFeatured
+height: 425
+interlace: none
+mode: crop
+name: 'Webpages Photo Featured'
+position: center-center
+quality: 80
+upscale: true
+width: 756

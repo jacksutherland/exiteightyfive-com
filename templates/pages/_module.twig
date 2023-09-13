@@ -20,7 +20,32 @@
 
 {% for module in modules %}
 
-	{% if module.type == "headlineText" %}
+	{% if module.type == "form" %}
+
+		<section class="form">
+			<div class="container">
+				{% if module.formType == "contactForm" %}
+					<form id="contact-form">
+	                    <input type="hidden" name="soulgem" value="">
+	                    <input type="text" placeholder="First Name *" name="first">
+	                    <input type="text" placeholder="Last Name *" name="last">
+	                    
+	                    <input type="text" placeholder="Phone" name="phone">
+	                    <input type="text" placeholder="Email" name="email">
+	               
+	                    <input type="text" placeholder="Venue Name and Location" name="venue">
+	                    <input type="text" placeholder="Date(s) Interested" name="dates">
+
+	                    <textarea placeholder="Message" name="message"></textarea>
+
+	                    <button type="submit">Send</button> 
+	                    <span class="info"></span>
+	                </form>
+				{% endif %}
+			</div>
+		</section>
+
+	{% elseif module.type == "headlineText" %}
 
 		{% if module.headline | length %}
 			{% set isAlternateSection = not isAlternateSection %}
@@ -37,17 +62,29 @@
 			</div>
 		</section>
 
-	{% elseif module.type == "video" %}
+	{% elseif module.type == "photos" %}
 
-		<section class="videos{% if isAlternateSection %} alternate{% endif %}" data-count="{{ module.videos | length }}">
-			<div class="container{% if module.videos | length == 1 %} narrow{% endif %}">
-				{% for video in module.videos %}
+		<section class="photos{% if isAlternateSection %} alternate{% endif %}" data-count="{{ module.photos | length }}">
+			<div class="container">
+				{% for photo in module.photos %}
 					<figure>
-						<div>
-							<iframe width="560" height="315" src="https://www.youtube.com/embed/{{ video.videoId }}"{% if video.caption | length %} title="{{ video.caption }}"{% endif %} frameborder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-						</div>
-						{% if video.caption | length %}
-							<figcaption>{{ video.caption }}</figcaption>
+						{% if loop.index == 3 or loop.index == 4 or loop.index == 9 or loop.index == 10 %}
+							<img src="{{ photo.url('webpagesPhoto') }}" 
+								alt="{{ photo.alt | length ? photo.alt : "Exit 85 Live Music" }}"
+								loading="lazy"
+								srcset="{{ photo.url('webpagesPhoto') }} 992w, {{ photo.url('webpagesPhotoFeatured') }} 1188w" 
+								sizes="(max-width: 992px) 372w, 756w"
+								width="{{ photo.width('webpagesPhoto') }}"
+								height="{{ photo.height('webpagesPhoto') }}">
+						{% else %}
+							<img src="{{ photo.url('webpagesPhoto') }}" 
+								alt="{{ photo.alt | length ? photo.alt : "Exit 85 Live Music" }}"
+								loading="lazy" 
+								width="{{ photo.width('webpagesPhoto') }}"
+								height="{{ photo.height('webpagesPhoto') }}">
+						{% endif %}
+						{% if photo.alt | length %}
+							<figcaption>{{ photo.alt }}</figcaption>
 						{% endif %}
 					</figure>
 				{% endfor %}
@@ -72,13 +109,15 @@
 
 		{% if shows != null and shows | length%}
 			{% set month = "" %}
+			{% set year = "" %}
 			<section class="shows{% if isAlternateSection %} alternate{% endif %}">
 				<div class="container fluid-mobile">
 					{% for show in shows %}
 						{% set showMonth = show.showDate | date('mm') %}
 						{% if month != showMonth %}
 							{% set month = showMonth %}
-							<h4>{{ month }}</h4>
+							{% set year = show.showDate | date('Y') %}
+							<h4>{{ month }} {{ year }}</h4>
 						{% endif %}
 						<article>
 							<div class="date">
@@ -89,9 +128,6 @@
 								{% if 'private' in show.title | lower %}
 									<span>{{ show.title }}</span>
 								{% else %}
-									{# <a target="_blank" href="https://www.google.com/maps/search/{{ show.venueAddress }}">
-										{{ show.title }}
-									</a> #}
 									<a href="{{ show.url }}">
 										{{ show.title }}
 									</a>
@@ -111,6 +147,46 @@
 				</div>
 			</section>
 		{% endif %}
+
+	{% elseif module.type == "songs" %}
+		<section class="songs">
+			<div class="container">
+				{% for cat in module.songCategories %}
+					{% set songs = craft.categories.group('songs').slug(cat.slug) %}
+					<h4>{{ cat.title }}</h4>
+					<article>
+						{% if songs.count %}
+							{% for song in songs.one().children.all() %}
+								<figure>
+									<img src="{{ song.songImage.one().url('webpagesSong') }}">
+									<figcaption>
+										<h6>{{ song.title }}</h6>
+										<span>{{ song.songArtist }}</span>
+									</figcaption>
+								</figure>
+							{% endfor %}
+						{% endif %}
+					</article>
+				{% endfor %}
+			</div>
+		</section>
+
+	{% elseif module.type == "video" %}
+
+		<section class="videos{% if isAlternateSection %} alternate{% endif %}" data-count="{{ module.videos | length }}">
+			<div class="container{% if module.videos | length == 1 %} narrow{% endif %}">
+				{% for video in module.videos %}
+					<figure>
+						<div>
+							<iframe width="560" height="315" src="https://www.youtube.com/embed/{{ video.videoId }}"{% if video.caption | length %} title="{{ video.caption }}"{% endif %} frameborder="0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+						</div>
+						{% if video.caption | length %}
+							<figcaption>{{ video.caption }}</figcaption>
+						{% endif %}
+					</figure>
+				{% endfor %}
+			</div>
+		</section>
 
 	{% endif %}
 
