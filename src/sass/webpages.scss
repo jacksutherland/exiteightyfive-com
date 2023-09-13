@@ -612,6 +612,17 @@ section {
 	}
 
 	&.photos {
+
+		&:not([data-count="1"]) {
+			.container {
+				grid-template-columns: 1fr !important;
+
+				figure img {
+					width: 756px;
+				}
+			}
+		}
+
 		.container {
 			display: grid;
 			gap: $small-copy-gap;
