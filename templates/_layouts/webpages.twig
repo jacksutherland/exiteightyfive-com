@@ -74,7 +74,7 @@
 	            <div class="fb-like" data-href="https://www.facebook.com/exiteightyfive" data-width="" data-layout="button_count" data-action="like" data-size="small" data-share="true"></div>
 				<nav>
 					{% for page in nav %}
-						{% if page.slug == "__home__" %}
+						{% if false and page.slug == "__home__" %}
 							<a class="icon" href="{{ page.url }}" target="_blank">{{ _self.home() }}</a>
 						{% else %}
 							<a itemprop="url" href="{{ page.url }}" title="{{ page.title }}">
