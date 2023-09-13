@@ -2,7 +2,7 @@ comments:
   comments:
     fieldLayouts:
       3694d1a5-1034-4cb6-947d-977389795a15: null
-dateModified: 1694613834
+dateModified: 1694644334
 elementSources:
   craft\elements\Entry:
     -
@@ -103,9 +103,11 @@ meta:
     82b36c03-0800-4021-baf7-8150f571b0d7: 'Webpages Photo' # Webpages Photo
     97e24836-a4dd-4f62-a2af-07d6ea79b7b3: 'Webpages Photo Featured' # Webpages Photo Featured
     98fc5f43-3b8d-4818-8db4-37a6584aad92: 'CTA Text' # CTA Text
+    181b1cc4-1d1a-4a18-a48c-cae265b3fe32: 'SEO OG' # SEO OG
     411e1f23-44c6-4357-ba24-bba5636d8cc9: Alignment # Alignment
     605f37ce-123b-46f5-9da2-fadf43eae62c: Pages # Pages
     624d4b3b-cc7d-47b6-ba9d-e8fef7a1d84d: 'Webpages Song' # Webpages Song
+    677a25ab-e5ba-4181-b965-cdc8a0ee0fac: 'SEO Twitter' # SEO Twitter
     5188a0f4-2305-4d6d-a11e-e5c2e648b820: 'CTA Url' # CTA Url
     5039623b-4c9d-4bdc-affb-0dce5875e429: Photos # Photos
     11060338-318b-45f2-822c-89eb33731623: 'SEO Image' # SEO Image

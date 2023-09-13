@@ -44,8 +44,8 @@
 		{% endif %}
 
 		{% if seoImage != null %}
-			<meta property="og:image" content="{{ rootUrl ~ seoImage.url() }}" />
-			<meta name="twitter:image" content="{{ rootUrl ~ seoImage.url() }}">
+			<meta property="og:image" content="{{ rootUrl ~ seoImage.url('seoOg') }}" />
+			<meta name="twitter:image" content="{{ rootUrl ~ seoImage.url('seoTwitter') }}">
 		{% endif %}
 
 		<meta property="og:url" content="{{ pageUrl }}" />
@@ -69,7 +69,7 @@
 		<header>
 			<div class="container">
 				<a href="/" class="logo">
-	                <img src="/images/logo-sign-small.png" alt="Exit 85">
+	                <img src="/images/logo.png" alt="Exit 85">
 	            </a>
 	            <div class="fb-like" data-href="https://www.facebook.com/exiteightyfive" data-width="" data-layout="button_count" data-action="like" data-size="small" data-share="true"></div>
 				<nav>
