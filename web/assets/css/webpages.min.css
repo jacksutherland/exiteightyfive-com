@@ -234,7 +234,7 @@ header .container nav {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 24px;
+  gap: 12px;
   grid-area: nav;
   height: 60px;
   justify-content: center;
@@ -263,6 +263,7 @@ header .container nav a.icon svg {
     display: block;
   }
   header .container nav {
+    gap: 24px;
     justify-content: end;
   }
 }

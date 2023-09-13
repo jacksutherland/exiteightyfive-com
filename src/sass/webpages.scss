@@ -269,7 +269,7 @@ header {
 			display: flex;
 			align-items: center;
 			flex-wrap: wrap;
-			gap: $copy-gap;
+			gap: $small-copy-gap; 
 			grid-area: nav;
 			height: $nav-height - 40px;
 			justify-content: center;
@@ -310,6 +310,7 @@ header {
 			}
 
 			nav {
+				gap: $copy-gap;
 				justify-content: end;
 			}
 		}
