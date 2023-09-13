@@ -613,7 +613,7 @@ section {
 
 	&.photos {
 
-		&:not([data-count="1"]) {
+		&[data-count="1"] {
 			.container {
 				grid-template-columns: 1fr !important;
 

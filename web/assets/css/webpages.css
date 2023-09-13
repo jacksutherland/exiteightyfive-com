@@ -505,10 +505,10 @@ section.form form .info {
     text-align: right;
   }
 }
-section.photos:not([data-count="1"]) .container {
+section.photos[data-count="1"] .container {
   grid-template-columns: 1fr !important;
 }
-section.photos:not([data-count="1"]) .container figure img {
+section.photos[data-count="1"] .container figure img {
   width: 756px;
 }
 section.photos .container {
