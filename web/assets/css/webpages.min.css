@@ -614,7 +614,7 @@ section.songs article figure.in-view {
   cursor: default;
 }
 section.songs article figure.in-view img {
-  opacity: 0.25;
+  opacity: 0.35;
 }
 section.songs article figure.in-view figcaption h6 {
   text-shadow: 1px 1px 6px #000000;
