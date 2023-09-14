@@ -51,14 +51,27 @@
 		{% set isAlternateSection = loop.index == 1 ? false : not isAlternateSection %}
 
 		<section class="copy{% if isAlternateSection %} alternate{% endif %} {{ module.alignment }}">
-			<div class="container{% if module.narrow %} narrow{% endif %}">
-				{% if module.headline | length %}
-					<h2>{{ module.headline }}</h2>
-				{% endif %}
-				{% if module.richText | length %}
-					{{ module.richText }}
-				{% endif %}
-			</div>
+			{% if module.narrow and module.alignment == "left" %}
+				<div class="container">
+					<div class="container narrow left">
+						{% if module.headline | length %}
+							<h2>{{ module.headline }}</h2>
+						{% endif %}
+						{% if module.richText | length %}
+							{{ module.richText }}
+						{% endif %}
+					</div>
+				</div>
+			{% else %}
+				<div class="container{% if module.narrow %} narrow{% endif %}">
+					{% if module.headline | length %}
+						<h2>{{ module.headline }}</h2>
+					{% endif %}
+					{% if module.richText | length %}
+						{{ module.richText }}
+					{% endif %}
+				</div>
+			{% endif %}
 		</section>
 
 	{% elseif module.type == "photos" %}

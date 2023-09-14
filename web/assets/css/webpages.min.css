@@ -163,6 +163,9 @@ h3 a:after, h4 a:after, h5 a:after {
   .container.narrow {
     max-width: 550px;
   }
+  .container .container.narrow.left {
+    margin: 0 !important;
+  }
 }
 @media (min-width: 992px) {
   .container {
@@ -522,7 +525,6 @@ section.photos .container {
 }
 section.photos .container figure {
   line-height: 0;
-  text-align: center;
 }
 section.photos .container figure.in-view img {
   filter: grayscale(0);

@@ -178,6 +178,10 @@ h3, h4, h5 {
 		&.narrow {
 			max-width: 550px;
 		}
+
+		.container.narrow.left {
+			margin: 0 !important;
+		}
 	}
 }
 @media (min-width: $breakpoint-lg)
@@ -637,7 +641,7 @@ section {
 
 		    figure {
 		    	line-height: 0;
-		    	text-align: center;
+		    	// text-align: center;
 
 			    &.in-view {
 			    	img {
