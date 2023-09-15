@@ -9,6 +9,9 @@
 
 {% set alertClass = craft.app.request.getParam('src') is not null or news.newsHtml | length ? "has-alert" : "" %}
 
+
+ {% import '_includes/macros' as macros %}
+
 <!DOCTYPE html>
 <html>
 
@@ -106,48 +109,38 @@
                 </div>
             {% endif %}
             <div id="main-menu" class="container" itemscope itemtype="http://schema.org/SiteNavigationElement">
-                <a href="/" class="{{ jumpLink }}">
+                <a href="/">
                     <span itemprop="name" class="d-none d-md-inline">HOME</span><i class="fas fa-home d-inline d-md-none"></i>
                 </a>
-                <a itemprop="url" href="/sections/about" class="{{ jumpLink }} d-none d-md-inline" data-section="#about" title="About Us">
-                    <span itemprop="name">ABOUT</span>
-                </a>
-                {% if events.upcomingShowLimit > 0 or events.pastShowLimit > 0 %}
-                    <a itemprop="url" href="/sections/shows" class="{{ jumpLink }}" data-section="#shows" title="Upcoming Shows">
-                        <span itemprop="name">SHOWS</span>
-                    </a>
-                 {% endif %}
-
-                <a itemprop="url" href="/sections/members" class="{{ jumpLink }}" data-section="#members" title="Meet the Band">
-                    <span itemprop="name">BAND</span>
-                </a>
-
-                <a itemprop="url" href="/sections/music" class="{{ jumpLink }}" data-section="#music" title="Videos and Performances">
+                <a itemprop="url" href="/music" d-none d-md-inline" title="About Us">
                     <span itemprop="name">MUSIC</span>
                 </a>
-                <a itemprop="url" href="/sections/contact" class="{{ jumpLink }}" data-section="#contact" title="Let's Connect">
+                <a itemprop="url" href="/shows" class="{{ jumpLink }}" title="Upcoming Shows">
+                    <span itemprop="name">SHOWS</span>
+                </a>
+                <a itemprop="url" href="/contact" title="Let's Connect">
                     <span itemprop="name">CONTACT</span>
                 </a>
-                <a href="https://www.youtube.com/channel/UCiT2sGOUicZ7FbLLcTRvXjg/" target="_blank" class="d-none d-md-inline"><i class="fab fa-youtube"></i></a>
-                <a href="https://www.facebook.com/exiteightyfive" target="_blank"><i class="fab fa-facebook"></i></a>
+                <a class="icon" href="https://www.facebook.com/exiteightyfive/" target="_blank">{{ macros.facebook() }}</a>
+                <a class="icon" href="https://www.youtube.com/channel/UCiT2sGOUicZ7FbLLcTRvXjg" target="_blank">{{ macros.youtube() }}</a>
             </div>
         </header>
 
         <div class="page-header {{ alertClass }}">
             <a href="/" class="logo {{ jumpLink }}">
-                <img src="/images/logo-sign-small.png" alt="">
+                <img src="/images/logo.png" alt="Exit 85">
             </a>
             <div class="fb-like" data-href="https://www.facebook.com/exiteightyfive" data-width="" data-layout="button_count" data-action="like" data-size="small" data-share="true"></div>
             {% block hero %} {% endblock %}
         </div>
 
-        <section>
+   {#      <section>
             <div class="container text-center">
                 <a class="header-ad" style="display: block;margin: 50px 0 -20px 0;text-align: center;" target="_blank" href="http://click.linksynergy.com/fs-bin/click?id=KeGw5e1ry6A&offerid=490021.10000067&type=4&subid=0">
                     <img style="max-width:100%; max-height: 55px;" border=0 alt=button src="http://ad.linksynergy.com/fs-bin/show?id=KeGw5e1ry6A&bids=490021.10000067&type=4&subid=0" />
                 </a>
             </div>
-        </section>
+        </section> #}
 
         {% block content %} {% endblock %}
 
